@@ -7,6 +7,19 @@
   <p id="status" role="status" aria-live="polite">Open a course’s Content page in this browser.</p>
   <p id="source" class="hint"></p>
   <p class="hint">Load every accessible module and nested topic directly. No page expansion needed.</p>
+  <details class="semester-panel" open><summary>Semester catalog</summary>
+    <p class="hint">On Brightspace My Home, select a semester (for example, 2026 Fall), then sync every listed course.</p>
+    <div class="semester-actions"><button id="sync-semester" type="button">Sync selected semester</button><button id="send-catalog" class="secondary" type="button">Send saved catalog</button></div>
+    <p id="semester-status" role="status" aria-live="polite">No semester scan yet.</p>
+    <div id="semester-errors"></div>
+    <label for="saved-course">Browse saved course outlines</label><select id="saved-course"><option value="">Choose a course…</option></select>
+  </details>
+  <details class="companion-panel"><summary>Local PDF cache</summary>
+    <p id="companion-status" role="status">Checking companion…</p>
+    <form id="pair-form"><label for="pair-code">Companion pairing code</label><div class="pair-row"><input id="pair-code" autocomplete="off" spellcheck="false" maxlength="10" placeholder="10-character code"><button id="pair-button" type="submit">Connect</button></div></form>
+    <button id="companion-refresh" class="secondary" type="button">Check connection</button>
+    <p class="hint">Start with <code>npm run companion</code>. Cache a PDF, then click Cache again to verify a hit. Documents stay on this computer.</p>
+  </details>
   <section><h2 id="course">Saved catalog</h2><label for="search">Search titles, module paths and descriptions</label><input id="search" type="search" placeholder="Search course catalog…"><p id="summary"></p><div id="catalog"></div></section>
   <pre id="download-debug" hidden aria-live="polite"></pre>
   <footer>Catalog stored locally. File downloads start only when you click Download.</footer>

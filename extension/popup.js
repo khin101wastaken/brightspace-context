@@ -8,6 +8,24 @@ let busy = false;
 let currentCatalog = null;
 let downloadRecords={};
 const pendingDownloads=new Set();
+const pendingCache=new Set();
+const sizeLabel=bytes=>`${(bytes/1024/1024).toFixed(1)} MB`;
+function updateCacheButtons() {
+  document.querySelectorAll('button[data-cache-key]').forEach(button=>{
+    const record=downloadRecords[`cache:${currentCatalog?.courseId}:${button.dataset.cacheKey}`];
+    button.disabled=pendingCache.has(button.dataset.cacheKey) || record?.state==='pending';
+    button.textContent=record?.state==='complete'?'Cache ↻':'Cache';
+    const note=button.parentElement.querySelector('.cache-status');
+    note.hidden=!record;note.textContent=record?`${record.message}${record.bytes?` · ${sizeLabel(record.bytes)}`:''}`:'';
+  });
+}
+async function refreshCompanion() {
+  try {
+    const result=await chrome.runtime.sendMessage({type:'companion-status'});
+    if(!result?.ok || !result.connected) throw new Error(result?.error || 'Companion is not paired.');
+    $('companion-status').textContent=`Connected · ${result.files} PDFs · ${sizeLabel(result.usedBytes)} / ${sizeLabel(result.budgetBytes)}`;
+  } catch(error) {$('companion-status').textContent=`Not connected. ${error.message || 'Start the companion and try again.'}`;}
+}
 function downloadStatus(key) {
   return Object.values(downloadRecords).filter(r=>r.courseId===currentCatalog?.courseId && r.key===key).sort((a,b)=>b.startedAt-a.startedAt)[0];
 }
@@ -30,10 +48,46 @@ function updateDownloadButtons() {
 }
 // Capture once when this popup opens. All later operations use the same tab ID,
 // including after another browser window gains focus.
-const targetPromise = captureTarget(chrome.tabs);
+const targetPromise = captureTarget(chrome.tabs,{allowHome:true});
 async function activeCourse() {
-  return validateTarget(chrome.tabs,await targetPromise);
+  const target=await targetPromise;
+  if(!target.courseId) throw new Error('Open a specific course for this action. Use Sync selected semester from My Home.');
+  return validateTarget(chrome.tabs,target);
 }
+async function refreshSavedCourses() {
+  const values=await chrome.storage.local.get(null),select=$('saved-course');
+  select.replaceChildren(new Option('Choose a course…',''));
+  const included=new Set();$('semester-errors').replaceChildren();
+  for(const [key,semester] of Object.entries(values)) if(key.startsWith('semester:')) {
+    const group=document.createElement('optgroup');group.label=semester.title;
+    for(const course of semester.courses) {
+      if(values[`course:${course.courseId}`]) {group.append(new Option(course.title,course.courseId));included.add(course.courseId);}
+      if(course.status==='failed') {const note=document.createElement('p');note.textContent=`${semester.title} · ${course.title}: ${course.error} Previous outline kept when available.`;$('semester-errors').append(note);}
+    }
+    select.append(group);
+  }
+  const other=document.createElement('optgroup');other.label='Other saved courses';
+  for(const [key,course] of Object.entries(values)) if(key.startsWith('course:') && !included.has(course.courseId)) other.append(new Option(course.title,course.courseId));
+  if(other.children.length) select.append(other);
+  select.value=currentCatalog?.courseId || '';
+  if(values.semesterSync) $('semester-status').textContent=values.semesterSync.message;
+}
+$('saved-course').addEventListener('change',async()=>{
+  const id=$('saved-course').value;if(!id) return;
+  const key=`course:${id}`,foldersKey=`folders:${id}`,saved=await chrome.storage.local.get([key,foldersKey]);
+  if(saved[key]) render({...saved[key],openFolders:saved[foldersKey] || []});
+});
+for(const [id,type] of [['sync-semester','sync-semester'],['send-catalog','send-catalog']]) $(id).addEventListener('click',async()=>{
+  if(busy) return;busy=true;$(id).disabled=true;
+  try {
+    const target=type==='sync-semester'?await targetPromise:null;
+    $('semester-status').textContent=type==='sync-semester'?'Reading semester course list…':'Sending saved catalog…';
+    const result=await chrome.runtime.sendMessage({type,...(target?{tabId:target.tabId}:{})});
+    if(!result?.ok) throw new Error(result?.error || 'Catalog sync failed.');
+    await refreshSavedCourses();$('semester-status').textContent=result.message;
+  } catch(error) {$('semester-status').textContent=error.message;}
+  finally {busy=false;$(id).disabled=false;}
+});
 function render(catalog) {
   $('catalog').replaceChildren();
   if (!catalog) return;
@@ -110,6 +164,24 @@ function render(catalog) {
           saveAs.setAttribute('aria-label',`Choose save location for ${e.title}`);
           saveAs.addEventListener('click',()=>startDownload(true));
           controls.append(button,saveAs,note,details);row.append(controls);
+          if(/\.pdf$/i.test(new URL(e.sourceUrl).pathname)) {
+            const cache=document.createElement('button');cache.className='cache-pdf';cache.dataset.cacheKey=e.key;
+            cache.title=`Cache ${e.title} locally`;cache.setAttribute('aria-label',cache.title);
+            const cacheNote=document.createElement('span');cacheNote.className='cache-status';cacheNote.setAttribute('role','status');
+            cache.addEventListener('click',async()=>{
+              if(pendingCache.has(e.key)) return;
+              pendingCache.add(e.key);updateCacheButtons();
+              try {
+                const result=await chrome.runtime.sendMessage({type:'cache-file',courseId:catalog.courseId,key:e.key});
+                if(!result?.ok) throw new Error(result?.error || 'Could not cache this PDF.');
+                status(result.source==='cache'?'Cache hit: served locally without downloading the PDF again.':'PDF fetched and cached locally. Click Cache again to verify a hit.');
+                await refreshCompanion();
+              } catch(error) {status(error.message);} finally {
+                downloadRecords=await chrome.storage.session.get(null);pendingCache.delete(e.key);updateCacheButtons();
+              }
+            });
+            controls.insertBefore(cache,note);controls.append(cacheNote);controls.classList.add('has-cache');
+          }
         }
       }
       if (e.kind==='document' && (!e.parentKey || !byKey.has(e.parentKey))) {const note=document.createElement('div'); note.className='unresolved'; note.textContent='Module relationship not yet resolved'; li.append(note);}
@@ -121,15 +193,32 @@ function render(catalog) {
   $('catalog').append(list(filtered.filter(e=>!seen.has(e.key))));
   mounted = true;
   updateDownloadButtons();
+  updateCacheButtons();
 }
 chrome.storage.onChanged.addListener((changes,area)=>{
+  if(area==='local') {
+    if(changes.semesterSync?.newValue) $('semester-status').textContent=changes.semesterSync.newValue.message;
+    if(Object.keys(changes).some(key=>key.startsWith('semester:') || key.startsWith('course:'))) refreshSavedCourses().catch(error=>status(error.message));
+    return;
+  }
   if(area!=='session') return;
   for(const [key,change] of Object.entries(changes)) {
-    if(!key.startsWith('download:') && !key.startsWith('attempt:')) continue;
+    if(!key.startsWith('download:') && !key.startsWith('attempt:') && !key.startsWith('cache:')) continue;
     if(change.newValue) downloadRecords[key]=change.newValue; else delete downloadRecords[key];
   }
   updateDownloadButtons();
+  updateCacheButtons();
 });
+$('pair-form').addEventListener('submit',async event=>{
+  event.preventDefault();$('pair-button').disabled=true;
+  try {
+    const result=await chrome.runtime.sendMessage({type:'pair-companion',code:$('pair-code').value});
+    if(!result?.ok) throw new Error(result?.error || 'Unable to connect.');
+    $('pair-code').value='';await refreshCompanion();
+  } catch(error) {$('companion-status').textContent=`Connection failed: ${error.message}`;}
+  finally {$('pair-button').disabled=false;}
+});
+$('companion-refresh').addEventListener('click',refreshCompanion);
 async function action(fn) {
   if(busy) return; busy=true; $('scan').disabled=$('download').disabled=true;
   try {await startup; await fn();} catch(error) {status(error.message);} finally {busy=false; $('scan').disabled=$('download').disabled=false;}
@@ -166,4 +255,6 @@ const startup=(async()=>{
     downloadRecords=await chrome.storage.session.get(null);
     if(saved[key]) render({...saved[key],openFolders:saved[foldersKey] || []});
   } catch(error) {status(error.message);}
+  await refreshSavedCourses();
+  await refreshCompanion();
 })();

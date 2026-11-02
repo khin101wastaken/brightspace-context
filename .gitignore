@@ -17,6 +17,7 @@ cache/
 data/
 downloads/
 artifacts/
+tmp/pdfs/
 *.har
 cookies*.txt
 storage-state*.json

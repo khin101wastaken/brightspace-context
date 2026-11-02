@@ -1,4 +1,93 @@
 import {downloadPlan,validateFileResponse,downloadState} from './file-downloads.js';
+import {pairCompanion,companionStatus,cachePdf,syncCatalog} from './companion-client.js';
+import {discoverSemester,scanSemester} from './semester.js';
+import {requestCourseOutline} from './course-api.js';
+
+let semesterTask=null;
+async function syncSemesterFromTab(message) {
+  if(semesterTask) return semesterTask;
+  if(!Number.isInteger(message.tabId)) throw new Error('Invalid source tab.');
+  const task=(async()=>{
+    const source=await chrome.tabs.get(message.tabId);
+    if(new URL(source.url).origin!=='https://brightspace.nyu.edu') throw new Error('Open NYU Brightspace My Home and select a semester.');
+    const run=async(func,args=[])=>{
+      const [result]=await chrome.scripting.executeScript({target:{tabId:message.tabId,frameIds:[0]},func,args});
+      if(result?.error) throw new Error(result.error.message || 'Unable to read Brightspace.');
+      return result?.result;
+    };
+    await chrome.storage.local.set({semesterSync:{state:'running',message:'Reading selected semester…',startedAt:Date.now()}});
+    try {
+      const semester=await run(discoverSemester);
+      const snapshot=await scanSemester(semester,{
+        readOutline:courseId=>run(requestCourseOutline,[courseId]),
+        saveCourse:catalog=>chrome.storage.local.set({[`course:${catalog.courseId}`]:catalog}),
+        onProgress:progress=>chrome.storage.local.set({semesterSync:{state:'running',semesterId:semester.semesterId,message:`${semester.title}: ${progress.completed}/${progress.total} courses · ${progress.title}`,startedAt:Date.now()}}),
+      });
+      const summary={...snapshot,courses:snapshot.courses.map(({entries,...course})=>({...course,entryCount:entries?.length??null}))};
+      await chrome.storage.local.set({[`semester:${semester.semesterId}`]:summary});
+      const pairing=(await chrome.storage.local.get('companionPairing')).companionPairing;
+      const complete=snapshot.courses.filter(c=>c.status==='complete').length;
+      let transfer;
+      try {
+        if(!pairing?.token) throw new Error('Pair the local companion first.');
+        transfer=await syncCatalog(snapshot,pairing.token);
+      } catch(error) {
+        const message=`Saved ${complete}/${snapshot.courses.length} course outlines locally. Companion sync failed: ${error.message} Start or pair the companion, then use Send saved catalog.`;
+        await chrome.storage.local.set({semesterSync:{state:'saved',semesterId:semester.semesterId,message}});
+        return {message};
+      }
+      const message=`${snapshot.title}: ${complete}/${snapshot.courses.length} courses synced to companion${complete<snapshot.courses.length?' · Some courses failed; expand their status below.':''}. No files downloaded.`;
+      await chrome.storage.local.set({semesterSync:{state:'complete',semesterId:semester.semesterId,message}});
+      return {message,...transfer};
+    } catch(error) {await chrome.storage.local.set({semesterSync:{state:'failed',message:error.message}});throw error;}
+  })();
+  semesterTask=task;
+  try {return await task;} finally {semesterTask=null;}
+}
+async function sendSavedCatalog() {
+  if(semesterTask) throw new Error('Wait for the semester scan to finish.');
+  const values=await chrome.storage.local.get(null),token=values.companionPairing?.token;
+  if(!token) throw new Error('Pair the local companion first.');
+  let count=0;
+  for(const [key,semester] of Object.entries(values)) if(key.startsWith('semester:')) {
+    const courses=semester.courses.map(course=>course.status==='complete'?{...course,...values[`course:${course.courseId}`]}:course);
+    await syncCatalog({...semester,courses},token);count++;
+  }
+  if(!count) throw new Error('Scan a semester first.');
+  return {message:`Sent ${count} saved semester catalog${count===1?'':'s'} to the companion.`};
+}
+
+const cacheRequests=new Map();
+async function companionMessage(message) {
+  const pairing=(await chrome.storage.local.get('companionPairing')).companionPairing;
+  if(message.type==='pair-companion') {
+    const result=await pairCompanion(message.code);
+    await chrome.storage.local.set({companionPairing:{token:result.token}});
+    const {token,...stats}=result;return stats;
+  }
+  if(message.type==='companion-status') {
+    if(!pairing?.token) return {connected:false,error:'Start the companion, then enter its pairing code.'};
+    return {connected:true,...await companionStatus(pairing.token)};
+  }
+  const {courseId,key}=message;
+  if(!/^\d+$/.test(String(courseId)) || typeof key!=='string') throw new Error('Invalid PDF selection.');
+  const requestKey=`cache:${courseId}:${key}`;
+  if(cacheRequests.has(requestKey)) return cacheRequests.get(requestKey);
+  const task=(async()=>{
+    const catalog=(await chrome.storage.local.get(`course:${courseId}`))[`course:${courseId}`];
+    const update=record=>chrome.storage.session.set({[requestKey]:record});
+    await update({state:'pending',message:'Checking local cache…'});
+    let phaseWrites=Promise.resolve();
+    try {
+      const result=await cachePdf(catalog,key,pairing?.token,fetch,(message)=>{phaseWrites=phaseWrites.then(()=>update({state:'pending',message}));});
+      await phaseWrites;
+      await update({state:'complete',source:result.source,bytes:result.entry.bytes,message:result.source==='cache'?'Cache hit — no download':'Fetched and cached',id:result.id});
+      return result;
+    } catch(error) {await phaseWrites.catch(()=>{});await update({state:'failed',message:error.message});throw error;}
+  })();
+  cacheRequests.set(requestKey,task);
+  try {return await task;} finally {cacheRequests.delete(requestKey);}
+}
 
 async function reconcile(id) {
   const storageKey=`download:${id}`, record=(await chrome.storage.session.get(storageKey))[storageKey];
@@ -49,8 +138,8 @@ async function downloadFile(message) {
 }
 
 chrome.runtime.onMessage.addListener((message,sender,respond)=>{
-  if(sender.id!==chrome.runtime.id || sender.url!==chrome.runtime.getURL('popup.html') || message?.type!=='download-file') return;
-  downloadFile(message).then(result=>respond({ok:true,...result})).catch(error=>respond({ok:false,error:error.message}));
+  if(sender.id!==chrome.runtime.id || sender.url!==chrome.runtime.getURL('popup.html') || !['download-file','pair-companion','companion-status','cache-file','sync-semester','send-catalog'].includes(message?.type)) return;
+  (message.type==='sync-semester'?syncSemesterFromTab(message):message.type==='send-catalog'?sendSavedCatalog():message.type==='download-file'?downloadFile(message):companionMessage(message)).then(result=>respond({ok:true,...result})).catch(error=>respond({ok:false,error:error.message}));
   return true;
 });
 chrome.downloads.onChanged.addListener(delta=>{reconcile(delta.id).catch(()=>{});});

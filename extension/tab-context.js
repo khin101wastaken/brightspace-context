@@ -1,8 +1,9 @@
 import {identifyUrl} from './catalog.js';
 
-export async function captureTarget(tabs) {
+export async function captureTarget(tabs,{allowHome=false}={}) {
   const [tab] = await tabs.query({active:true,currentWindow:true});
   const identity = identifyUrl(tab?.url);
+  if(allowHome && tab?.id && /^https:\/\/brightspace\.nyu\.edu\/d2l\/home\/?(?:[?#].*)?$/.test(tab.url)) return {tabId:tab.id,courseId:null,title:tab.title || 'Brightspace My Home'};
   if (!tab?.id || !identity?.courseId) throw new Error('Open a specific NYU Brightspace course in this tab, then reopen the extension.');
   return {tabId:tab.id, courseId:identity.courseId, title:tab.title || `Course ${identity.courseId}`};
 }

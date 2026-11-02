@@ -63,3 +63,33 @@ test('background download validates the selected catalog file and tracks native 
     assert.equal(session['download:7'].filename,'notes [2].pdf');
   } finally {delete globalThis.chrome;}
 });
+
+test('semester background sync keeps one source tab, deduplicates scans, and retries companion transfer without refetching school content',async t=>{
+  let listener,discoveries=0,offline=true;
+  const outlines=[],local={companionPairing:{token:'test-token'}};
+  globalThis.chrome={
+    runtime:{id:'test',getURL:path=>`chrome-extension://test/${path}`,onMessage:{addListener:fn=>listener=fn}},
+    tabs:{get:async id=>{assert.equal(id,42);return {url:'https://brightspace.nyu.edu/d2l/home'};}},
+    downloads:{onChanged:{addListener:()=>{}}},
+    storage:{local:{get:async key=>key?{[key]:local[key]}:{...local},set:async values=>Object.assign(local,values)}},
+    scripting:{executeScript:async options=>{
+      assert.equal(options.target.tabId,42);assert.deepEqual(options.target.frameIds,[0]);
+      if(options.func.name==='discoverSemester') {discoveries++;return [{result:{semesterId:'5',title:'2026 Fall',courses:[{courseId:'100',title:'Networks'},{courseId:'200',title:'Happiness'}]}}];}
+      outlines.push(options.args[0]);return [{result:{Modules:[]}}];
+    }},
+  };
+  t.mock.method(globalThis,'fetch',async(url,options)=>{
+    assert.equal(url,'http://127.0.0.1:47653/v1/catalog/semesters');assert.equal(options.method,'PUT');
+    if(offline) throw new Error('Companion unavailable');
+    const snapshot=JSON.parse(options.body);assert.equal(snapshot.courses.length,2);assert.equal(snapshot.courses[1].coverage,'full-toc');
+    return new Response(JSON.stringify({courses:2,complete:2}),{headers:{'content-type':'application/json'}});
+  });
+  try {
+    await import(`../extension/background.js?semester-test=${Date.now()}`);
+    const send=message=>new Promise(resolve=>listener(message,{id:'test',url:'chrome-extension://test/popup.html'},resolve));
+    const [a,b]=await Promise.all([send({type:'sync-semester',tabId:42}),send({type:'sync-semester',tabId:42})]);
+    assert.equal(a.ok,true);assert.equal(b.ok,true);assert.equal(discoveries,1);assert.deepEqual(outlines,['100','200']);
+    assert.equal(local.semesterSync.state,'saved');assert.equal(local['semester:5'].courses[0].entries,undefined);assert.deepEqual(local['course:200'].entries,[]);
+    offline=false;assert.equal((await send({type:'send-catalog'})).ok,true);assert.deepEqual(outlines,['100','200']);
+  } finally {delete globalThis.chrome;}
+});
