@@ -1,0 +1,1 @@
+{"name":"brightspace-catalog-prototype","private":true,"type":"module","scripts":{"test":"node --test tests/*.test.js","check":"node --check extension/popup.js && node --check extension/inspect.js && node --check extension/download.js && node --check extension/expand.js && node --check extension/tab-context.js"}}

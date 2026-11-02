@@ -1,0 +1,30 @@
+# Dependencies, build outputs, and local settings
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+Thumbs.db
+
+# Browser profiles and private runtime data
+profiles/
+browser-profile/
+.cache/
+cache/
+data/
+downloads/
+artifacts/
+*.har
+cookies*.txt
+storage-state*.json
+
+# Downloaded course material should never be tracked
+*.pdf
+*.ppt
+*.pptx
+*.doc
+*.docx
+*.zip
