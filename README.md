@@ -9,19 +9,25 @@ Catalog-first NYU Brightspace experiment. No dependencies or build step. Files r
 3. Sign into `https://brightspace.nyu.edu/d2l/home` in **Chrome** (the in-app browser session is separate).
 4. Open one of your courses (any page in that course).
 5. Open the extension popup and choose **Scan course outline**. Keep the popup open until it finishes. It requests the complete structured course outline in one call. No module expansion or animations are needed. Browse modules using collapsible folders; their open/closed state is saved per course. Search titles, module paths, and descriptions using the search box.
-6. Open an individual file in Brightspace, then choose **Download open document**. Check Chrome's Downloads to verify success.
+6. Click the **download icon** beside a supported file. Chrome saves it under `Downloads/Brightspace/<course>/<module path>/<original name> [topic ID].<extension>`. Duplicate downloads get unique filenames. Progress survives closing the popup. Chrome's download preferences may still prompt for a save location.
+7. External links and assignments open in Brightspace. **Download open document** remains an experimental viewer-control fallback.
 
 ## What is implemented
 
 - NYU-only Manifest V3 extension with a same-origin credentialed request in the source tab's isolated world.
 - Complete ToC snapshots persisted by course and stable IDs in `chrome.storage.local`. Successful complete scans replace older entries; failed scans retain the previous catalog.
 - Full hierarchy from recursive `Modules` and `Topics` arrays, ordered using `SortOrder`. Metadata includes plain-text descriptions, type, original resource URL, and modification time.
-- Native Brightspace download-control activation for the currently open Lessons document. No fabricated file endpoints.
+- Inline downloads of Brightspace-hosted PDF, Office, text, image and ZIP files using the ToC's actual resource URLs. Nested module folders are preserved. Download status uses Chrome's native download lifecycle.
+- A background worker performs a HEAD preflight with the current session, rejects redirects/HTML/access errors, and starts Chrome's download manager. It continues when the popup closes. This requires the `downloads` permission; reload the extension after updating.
+- External links, assignment attachments, HTML pages, locked items and unsupported file types do not receive inline buttons. Native Brightspace download-control activation remains available for the currently open Lessons document.
+- Failed downloads have a **Details** control showing the failure stage and Chrome error code, MIME type, received byte count, and relative save path. Diagnostics stay in extension session storage; no session cookies or tokens are included.
+- **Save as…** is available beside each supported file and explicitly opens Chrome's location picker using a short filename. This alternative saves wherever the user chooses rather than creating the catalog's course/module folders. Canceled downloads are labeled separately and never retried automatically. Whether a picker actually appears depends on the browser's implementation and policies; `USER_CANCELED` alone does not establish that the user canceled it.
+- Download and Save as controls share a compact row. Hovering or keyboard-focusing either control softly highlights the matching resource title; reduced-motion preferences are respected.
 - Text-only rendering of course data and no access to credentials or cookie values.
 
 ## Prototype boundaries
 
-The documented GET `/d2l/api/le/1.82/{courseId}/content/toc` was verified through a signed-in NYU browser session: a test course returned all 9 modules and 23 topics in a single JSON response, including collapsed modules. No app registration or API token was supplied for that browser request. Version 1.82 is pinned to this verified NYU route; other tenants may differ. The updated extension's fetch path still needs verification in Chrome. Download activation is a request, not proof of completion.
+The documented GET `/d2l/api/le/1.82/{courseId}/content/toc` was verified through a signed-in NYU browser session: a test course returned all 9 modules and 23 topics in a single JSON response, including collapsed modules. No app registration or API token was supplied for that browser request. Version 1.82 is pinned to this verified NYU route; other tenants may differ. The user confirmed inline downloads work in standalone Chrome. The same downloads were canceled with `USER_CANCELED` in the ChatGPT built-in browser after a successful PDF preflight; use standalone Chrome for validation. Native viewer-control fallback activation is a request, not proof of completion.
 
 Scanning does not alter the website's navigation state. "Full course outline" refers to the server-returned outline for this user; it does not include inaccessible content, contents of external links, assignment attachments, or text inside unopened files. Hidden branches are omitted. Ordinary permission checks remain in force; no date-restriction override parameters are used. External URLs are cataloged without being fetched.
 
@@ -37,4 +43,4 @@ Run `npm test` and `npm run check` (or `npm.cmd` in PowerShell if script executi
 
 Manual acceptance: scan with every website module collapsed and verify the full hierarchy appears without changing the page; check nested modules and catalog search; rescan and check no duplicate IDs; close/reopen popup and confirm persistence; request a PDF download and check actual bytes; test with a signed-out browser and an unsupported page. Do not count a login HTML page as a downloaded document. Use a separate browser profile to test signed-out behavior without disrupting your usual session.
 
-Next: verify the session-based ToC request in Chrome, verify file download and authentication handling, then add a bounded local companion cache and read-only MCP retrieval tools.
+Next: broaden Chrome coverage for authentication expiry and file types, then add a bounded local companion cache and read-only MCP retrieval tools.

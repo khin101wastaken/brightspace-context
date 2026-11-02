@@ -1,10 +1,33 @@
 import { mergeCatalog } from './catalog.js';
 import {captureTarget,validateTarget} from './tab-context.js';
 import {requestCourseOutline,flattenOutline,filterOutline} from './course-api.js';
+import {downloadableFile} from './file-downloads.js';
 const $ = id => document.getElementById(id);
 const status = message => $('status').textContent = message;
 let busy = false;
 let currentCatalog = null;
+let downloadRecords={};
+const pendingDownloads=new Set();
+function downloadStatus(key) {
+  return Object.values(downloadRecords).filter(r=>r.courseId===currentCatalog?.courseId && r.key===key).sort((a,b)=>b.startedAt-a.startedAt)[0];
+}
+function updateDownloadButtons() {
+  document.querySelectorAll('button[data-download-key]').forEach(button=>{
+    const record=downloadStatus(button.dataset.downloadKey),pending=pendingDownloads.has(button.dataset.downloadKey);
+    button.disabled=pending || record?.state==='in_progress' || record?.state==='starting';
+    const label=pending || record?.state==='starting'?'Starting download':record?.state==='in_progress'?'Downloading':record?.state==='complete'?'Download again':record?.state==='failed'?'Retry download':'Download';
+    button.title=`${label}: ${button.dataset.fileTitle}`;
+    button.setAttribute('aria-label',button.title);
+    button.setAttribute('aria-busy',String(button.disabled));
+    const note=button.parentElement.querySelector('.download-status');
+    note.textContent=record?.message || '';
+    note.hidden=!record || record.state==='complete';
+    button.parentElement.querySelector('.download-details').hidden=!record || !['failed','canceled'].includes(record.state);
+    const saveAs=button.parentElement.querySelector('.download-save-as');
+    saveAs.hidden=false;
+    saveAs.disabled=button.disabled;
+  });
+}
 // Capture once when this popup opens. All later operations use the same tab ID,
 // including after another browser window gains focus.
 const targetPromise = captureTarget(chrome.tabs);
@@ -52,7 +75,43 @@ function render(catalog) {
           chrome.storage.local.set({[foldersKey]:[...openFolders]}).catch(error=>status(error.message));
         });
         a.className='module-link'; a.textContent='Open module in Brightspace'; content.append(a);
-      } else content.append(kind,a);
+      } else {
+        const row=document.createElement('div');row.className='file-row';
+        const label=document.createElement('div'); label.className='file-label';label.append(kind,a);row.append(label);content.append(row);
+        if(downloadableFile(e)) {
+          const controls=document.createElement('div');controls.className='file-controls';
+          const button=document.createElement('button');button.className='inline-download';button.dataset.downloadKey=e.key;button.dataset.fileTitle=e.title;
+          const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');
+          icon.setAttribute('viewBox','0 0 24 24');icon.setAttribute('width','16');icon.setAttribute('height','16');icon.setAttribute('aria-hidden','true');icon.setAttribute('focusable','false');
+          const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+          path.setAttribute('d','M12 3v12m-4-4 4 4 4-4M5 15v5h14v-5');
+          path.setAttribute('fill','none');path.setAttribute('stroke','currentColor');path.setAttribute('stroke-width','1.8');path.setAttribute('stroke-linecap','round');path.setAttribute('stroke-linejoin','round');
+          icon.append(path);button.append(icon);
+          const note=document.createElement('span');note.className='download-status';note.setAttribute('role','status');
+          const details=document.createElement('button');details.className='download-details';details.textContent='Details';details.hidden=true;
+          details.addEventListener('click',()=>{
+            const record=downloadStatus(e.key);
+            const fields=['phase','nativeState','error','httpStatus','mime','saveMode','bytesReceived','totalBytes','filename','finalOrigin'];
+            $('download-debug').textContent=record?fields.filter(key=>record[key]!=null).map(key=>`${key}: ${record[key]}`).join('\n'):'No download record found.';
+            $('download-debug').hidden=false;
+          });
+          const startDownload=async(saveAs=false)=>{
+            if(pendingDownloads.has(e.key)) return;
+            pendingDownloads.add(e.key);updateDownloadButtons();
+            try {
+              const response=await chrome.runtime.sendMessage({type:'download-file',courseId:catalog.courseId,key:e.key,saveAs});
+              if(!response?.ok) throw new Error(response?.error || 'Download could not start.');
+              downloadRecords=await chrome.storage.session.get(null);
+              status('Download started. Chrome continues downloading if you close this popup.');
+            } catch(error) {downloadRecords=await chrome.storage.session.get(null);status(error.message);} finally {pendingDownloads.delete(e.key);updateDownloadButtons();}
+          };
+          button.addEventListener('click',()=>startDownload(false));
+          const saveAs=document.createElement('button');saveAs.className='download-save-as';saveAs.textContent='Save as…';
+          saveAs.setAttribute('aria-label',`Choose save location for ${e.title}`);
+          saveAs.addEventListener('click',()=>startDownload(true));
+          controls.append(button,saveAs,note,details);row.append(controls);
+        }
+      }
       if (e.kind==='document' && (!e.parentKey || !byKey.has(e.parentKey))) {const note=document.createElement('div'); note.className='unresolved'; note.textContent='Module relationship not yet resolved'; li.append(note);}
       content.append(list(children.get(e.key))); ul.append(li);
     }
@@ -61,7 +120,16 @@ function render(catalog) {
   $('catalog').append(list(children.get(null)));
   $('catalog').append(list(filtered.filter(e=>!seen.has(e.key))));
   mounted = true;
+  updateDownloadButtons();
 }
+chrome.storage.onChanged.addListener((changes,area)=>{
+  if(area!=='session') return;
+  for(const [key,change] of Object.entries(changes)) {
+    if(!key.startsWith('download:') && !key.startsWith('attempt:')) continue;
+    if(change.newValue) downloadRecords[key]=change.newValue; else delete downloadRecords[key];
+  }
+  updateDownloadButtons();
+});
 async function action(fn) {
   if(busy) return; busy=true; $('scan').disabled=$('download').disabled=true;
   try {await startup; await fn();} catch(error) {status(error.message);} finally {busy=false; $('scan').disabled=$('download').disabled=false;}
@@ -95,6 +163,7 @@ const startup=(async()=>{
     $('source').textContent=`Source: ${target.title} · tab ${target.tabId}`;
     const key=`course:${target.courseId}`, foldersKey=`folders:${target.courseId}`;
     const saved=await chrome.storage.local.get([key,foldersKey]);
+    downloadRecords=await chrome.storage.session.get(null);
     if(saved[key]) render({...saved[key],openFolders:saved[foldersKey] || []});
   } catch(error) {status(error.message);}
 })();
