@@ -2,19 +2,20 @@ import {readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {downloadableFile} from '../extension/file-downloads.js';
+import {setTimeout as delay} from 'node:timers/promises';
 
 export class LocalLibrary {
   constructor(directory,port=47653) {
     if(!Number.isInteger(port) || port<1 || port>65535) throw new Error('Invalid companion port.');
     this.directory=path.resolve(directory);this.url=`http://127.0.0.1:${port}`;
   }
-  async request(endpoint,binary=false) {
+  async request(endpoint,binary=false,{method='GET',body}={}) {
     let pairing;
     try {pairing=JSON.parse(await readFile(path.join(this.directory,'pairing.json'),'utf8'));}
     catch {throw new Error('Pair the Chrome extension with the local companion before using Brightspace tools.');}
     if(!/^chrome-extension:\/\/[a-p]{32}$/.test(pairing.origin) || !/^[a-f0-9]{64}$/.test(pairing.token)) throw new Error('Invalid local pairing configuration. Reconnect the extension.');
     let response;
-    try {response=await fetch(this.url+endpoint,{headers:{Origin:pairing.origin,Authorization:`Bearer ${pairing.token}`},signal:AbortSignal.timeout(15000)});}
+    try {response=await fetch(this.url+endpoint,{method,headers:{Origin:pairing.origin,Authorization:`Bearer ${pairing.token}`,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(15000)});}
     catch {throw new Error('The local companion is unavailable. Start it with npm run companion.');}
     if(!response.ok) {
       let error;try {error=(await response.json()).error;} catch {}
@@ -57,11 +58,31 @@ export class LocalLibrary {
           const id=entry.kind==='document'?createHash('sha256').update(`${course.courseId}:${entry.id}`).digest('hex'):null;
           const candidate=id && cached.get(id),fresh=!!candidate && candidate.sourceUrl===entry.sourceUrl && candidate.lastModifiedAt===(entry.lastModifiedAt || null) && (candidate.lastModifiedAt || Date.now()-candidate.fetchedAt<5*60*1000);
           entries.push({courseId:course.courseId,courseTitle:course.title,semesterId:semester.semesterId,semesterTitle:semester.title,key:entry.key,parentKey:entry.parentKey,title:entry.title,kind:entry.kind,contentType:entry.contentType,modulePath,url:entry.url,lastModifiedAt:entry.lastModifiedAt,outlineScannedAt:course.lastScannedAt,outlineStale:course.stale===true,locked:entry.locked,
-            cacheSupported:pdf,cachedDocumentId:fresh?id:null,availability:fresh?'cache entry present; verify with get_cached_document':pdf?'not cached; automatic fetch is not implemented':'catalog only; retrieval not supported'});
+            cacheSupported:pdf,cachedDocumentId:fresh?id:null,availability:fresh?'cache entry present; verify with get_cached_document':pdf?'not cached; use request_document with courseId and key':'catalog only; retrieval not supported'});
         }
       }
     }
     return {entries:entries.slice(offset,offset+limit),total:entries.length,nextOffset:offset+limit<entries.length?offset+limit:null,coverage:'Saved catalog metadata only, including uncached resources. Does not search document contents or download files. For a course hierarchy, pass courseId with no query and follow pagination; parentKey and modulePath preserve nesting.'};
+  }
+  async requestDocument({courseId,key,retry=false,waitSeconds=10}={}) {
+    this.checkWait(waitSeconds);
+    if(typeof courseId!=='string' || !/^\d+$/.test(courseId) || typeof key!=='string' || !/^document:\d+$/.test(key) || typeof retry!=='boolean') throw new Error('Use courseId and a document key from search_catalog.');
+    const result=await this.request('/v1/requests',false,{method:'POST',body:{courseId,key,retry}});
+    return this.waitForDocument(result,waitSeconds);
+  }
+  checkWait(seconds) {if(!Number.isInteger(seconds) || seconds<0 || seconds>20) throw new Error('waitSeconds must be an integer from 0 to 20.');}
+  async getRequest({requestId,waitSeconds=10}={}) {
+    this.checkWait(waitSeconds);
+    if(typeof requestId!=='string' || !/^[a-f0-9-]{36}$/.test(requestId)) throw new Error('Use a request ID returned by request_document.');
+    return this.waitForDocument(await this.request(`/v1/requests/${requestId}`),waitSeconds);
+  }
+  async waitForDocument(result,seconds) {
+    const deadline=Date.now()+seconds*1000;
+    while(['queued','fetching'].includes(result.state) && result.workerConnected && Date.now()<deadline) {
+      await delay(Math.min(1000,deadline-Date.now()));result=await this.request(`/v1/requests/${result.requestId}`);
+    }
+    if(result.state==='ready') return {...result,document:await this.get(result.documentId),readingRequired:'Read document.localPath with the desktop PDF tools before answering. Metadata and resource links are not document contents.'};
+    return result;
   }
   validId(id) {if(typeof id!=='string' || !/^[a-f0-9]{64}$/.test(id)) throw new Error('Use a document ID returned by list_cached_documents.');return id;}
   async get(id) {

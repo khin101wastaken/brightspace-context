@@ -18,10 +18,14 @@
     <p id="companion-status" role="status">Checking companion…</p>
     <form id="pair-form"><label for="pair-code">Companion pairing code</label><div class="pair-row"><input id="pair-code" autocomplete="off" spellcheck="false" maxlength="10" placeholder="10-character code"><button id="pair-button" type="submit">Connect</button></div></form>
     <button id="companion-refresh" class="secondary" type="button">Check connection</button>
+    <label class="retrieval-toggle"><input id="automatic-retrieval" type="checkbox" checked> Allow ChatGPT to fetch requested PDFs</label>
+    <p id="retrieval-status" role="status" aria-live="polite">Checking automatic retrieval…</p>
+    <button id="retry-requests" class="secondary" type="button">Retry requests after signing in</button>
+    <p class="hint">Keep Chrome running. The popup can stay closed. <a href="https://brightspace.nyu.edu/d2l/home" target="_blank" rel="noopener">Sign into Brightspace</a> when requested. Pausing stops new fetches; an active fetch may finish.</p>
     <p class="hint">Start with <code>npm run companion</code>. Cache a PDF, then click Cache again to verify a hit. Documents stay on this computer.</p>
   </details>
   <section><h2 id="course">Saved catalog</h2><label for="search">Search titles, module paths and descriptions</label><input id="search" type="search" placeholder="Search course catalog…"><p id="summary"></p><div id="catalog"></div></section>
   <pre id="download-debug" hidden aria-live="polite"></pre>
-  <footer>Catalog stored locally. File downloads start only when you click Download.</footer>
+  <footer>Catalog stored locally. PDFs are fetched when you click Cache or request one through ChatGPT. Download saves a separate copy.</footer>
   <script type="module" src="popup.js"></script>
 </body></html>

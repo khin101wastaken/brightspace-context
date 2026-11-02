@@ -5,6 +5,8 @@ import {randomBytes,randomUUID,timingSafeEqual} from 'node:crypto';
 import {openCache,validateMetadata,MAX_PDF_BYTES} from './cache.js';
 import {atomicWrite} from './files.js';
 import {openCatalog,MAX_CATALOG_BYTES} from './catalog.js';
+import {openRequests} from './requests.js';
+import {createWorkerChannel} from './worker-channel.js';
 
 const same=(a,b)=>typeof a==='string' && typeof b==='string' && Buffer.byteLength(a)===Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a),Buffer.from(b));
 async function body(req,limit) {
@@ -14,7 +16,7 @@ async function body(req,limit) {
 }
 export async function createCompanion({directory,port=47653,budgetBytes,pairingCode=randomBytes(5).toString('hex')}={}) {
   if(!directory) throw new Error('Cache directory is required.');
-  let cache,catalog;
+  let cache,catalog,requests;
   const configPath=path.join(directory,'pairing.json');
   let client=null;
   try {client=JSON.parse(await readFile(configPath,'utf8'));} catch(error) {if(error.code!=='ENOENT') throw error;}
@@ -24,7 +26,7 @@ export async function createCompanion({directory,port=47653,budgetBytes,pairingC
     try {
       const expectedHost=`127.0.0.1:${server.address().port}`;
       if(req.headers.host!==expectedHost) return send(res,403,{error:'Invalid local host.'});
-      if(!cache) return send(res,503,{error:'Companion is starting. Try again in a moment.'});
+      if(!requests) return send(res,503,{error:'Companion is starting. Try again in a moment.'});
       const origin=req.headers.origin;
       if(!/^chrome-extension:\/\/[a-p]{32}$/.test(origin || '')) return send(res,403,{error:'Only the paired browser extension can connect.'});
       res.setHeader('Vary','Origin');res.setHeader('Access-Control-Allow-Origin',origin);
@@ -42,9 +44,15 @@ export async function createCompanion({directory,port=47653,budgetBytes,pairingC
         return send(res,200,{token,...await cache.stats()});
       }
       if(!client || client.origin!==origin || !same(req.headers.authorization,`Bearer ${client.token}`)) return send(res,401,{error:'Pair this extension with the companion first.'});
+      if(req.method==='POST' && url.pathname==='/v1/requests') return send(res,200,await requests.request(JSON.parse((await body(req,4096)).toString())));
+      if(req.method==='POST' && url.pathname==='/v1/requests/claim') return send(res,200,await requests.claim());
+      if(req.method==='POST' && url.pathname==='/v1/requests/finish') return send(res,200,await requests.finish(JSON.parse((await body(req,4096)).toString())));
+      if(req.method==='POST' && url.pathname==='/v1/requests/retry-login') return send(res,200,await requests.retryLogin());
+      const request=url.pathname.match(/^\/v1\/requests\/([a-f0-9-]{36})$/);
+      if(req.method==='GET' && request) return send(res,200,await requests.get(request[1]));
       if(req.method==='GET' && url.pathname==='/v1/catalog') return send(res,200,await catalog.read());
       if(req.method==='PUT' && url.pathname==='/v1/catalog/semesters') return send(res,200,await catalog.put(JSON.parse((await body(req,MAX_CATALOG_BYTES)).toString())));
-      if(req.method==='GET' && url.pathname==='/v1/status') return send(res,200,await cache.stats());
+      if(req.method==='GET' && url.pathname==='/v1/status') return send(res,200,{...await cache.stats(),workerConnected:workerChannel.connected()});
       if(req.method==='GET' && url.pathname==='/v1/cache/documents') return send(res,200,{documents:await cache.list()});
       const document=url.pathname.match(/^\/v1\/cache\/documents\/([a-f0-9]{64})$/);
       if(req.method==='GET' && document) {
@@ -77,9 +85,10 @@ export async function createCompanion({directory,port=47653,budgetBytes,pairingC
       send(res,404,{error:'Not found.'});
     } catch(error) {if(!res.headersSent) send(res,400,{error:error.message});else res.destroy();}
   });
+  const workerChannel=createWorkerChannel(server,{getClient:()=>client,isReady:()=>!!requests});
   server.requestTimeout=120000;
   await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,'127.0.0.1',resolve);});
-  try {catalog=await openCatalog(directory);cache=await openCache(directory,{budgetBytes});}
-  catch(error) {await new Promise(resolve=>server.close(resolve));throw error;}
-  return {server,cache,pairingCode,url:`http://127.0.0.1:${server.address().port}`,close:()=>new Promise(resolve=>{server.close(resolve);server.closeAllConnections();})};
+  try {catalog=await openCatalog(directory);cache=await openCache(directory,{budgetBytes});requests=await openRequests(directory,{catalog,cache,notify:workerChannel.notify,workerConnected:workerChannel.connected});}
+  catch(error) {workerChannel.close();await new Promise(resolve=>server.close(resolve));throw error;}
+  return {server,cache,requests,pairingCode,url:`http://127.0.0.1:${server.address().port}`,close:()=>new Promise(resolve=>{workerChannel.close();server.close(resolve);server.closeAllConnections();})};
 }

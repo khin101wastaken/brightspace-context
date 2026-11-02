@@ -1,7 +1,31 @@
 import {downloadPlan,validateFileResponse,downloadState} from './file-downloads.js';
-import {pairCompanion,companionStatus,cachePdf,syncCatalog} from './companion-client.js';
+import {pairCompanion,companionStatus,cachePdf,syncCatalog,retryLoginRequests} from './companion-client.js';
 import {discoverSemester,scanSemester} from './semester.js';
 import {requestCourseOutline} from './course-api.js';
+import {createRetrievalWorker} from './retrieval-worker.js';
+
+let retrievalWorker=null;
+async function retrievalSettings() {
+  const settings=await chrome.storage.local.get(['companionPairing','automaticRetrieval']);
+  return {token:settings.companionPairing?.token,enabled:settings.automaticRetrieval!==false};
+}
+async function refreshRetrieval() {
+  if(!retrievalWorker) return;
+  retrievalWorker.stop();
+  const settings=await retrievalSettings();
+  if(settings.enabled && settings.token) await retrievalWorker.connect();
+  else await chrome.storage.local.set({retrievalStatus:{state:'paused',message:settings.enabled?'Pair the companion to enable retrieval.':'Automatic retrieval paused.'}});
+}
+// The socket delivers requests immediately; an alarm reconnects a suspended
+// worker or a companion that was restarted while Chrome remained open.
+if(chrome.alarms?.onAlarm && chrome.runtime.onStartup) {
+  retrievalWorker=createRetrievalWorker({getSettings:retrievalSettings,report:value=>chrome.storage.local.set({retrievalStatus:value})});
+  chrome.alarms.onAlarm.addListener(alarm=>{if(alarm.name==='retrieval-reconnect') retrievalWorker.connect().catch(()=>{});});
+  const start=async()=>{await chrome.alarms.create('retrieval-reconnect',{periodInMinutes:1});await retrievalWorker.connect();};
+  chrome.runtime.onStartup.addListener(()=>{start().catch(()=>{});});
+  chrome.runtime.onInstalled.addListener(()=>{start().catch(()=>{});});
+  start().catch(()=>{});
+}
 
 let semesterTask=null;
 async function syncSemesterFromTab(message) {
@@ -63,7 +87,16 @@ async function companionMessage(message) {
   if(message.type==='pair-companion') {
     const result=await pairCompanion(message.code);
     await chrome.storage.local.set({companionPairing:{token:result.token}});
+    await refreshRetrieval();
     const {token,...stats}=result;return stats;
+  }
+  if(message.type==='retrieval-settings') {
+    if(typeof message.enabled!=='boolean') throw new Error('Invalid retrieval setting.');
+    await chrome.storage.local.set({automaticRetrieval:message.enabled});await refreshRetrieval();return {enabled:message.enabled};
+  }
+  if(message.type==='retry-requests') {
+    if(!pairing?.token) throw new Error('Pair the companion first.');
+    const result=await retryLoginRequests(pairing.token);await refreshRetrieval();return result;
   }
   if(message.type==='companion-status') {
     if(!pairing?.token) return {connected:false,error:'Start the companion, then enter its pairing code.'};
@@ -138,7 +171,7 @@ async function downloadFile(message) {
 }
 
 chrome.runtime.onMessage.addListener((message,sender,respond)=>{
-  if(sender.id!==chrome.runtime.id || sender.url!==chrome.runtime.getURL('popup.html') || !['download-file','pair-companion','companion-status','cache-file','sync-semester','send-catalog'].includes(message?.type)) return;
+  if(sender.id!==chrome.runtime.id || sender.url!==chrome.runtime.getURL('popup.html') || !['download-file','pair-companion','companion-status','cache-file','sync-semester','send-catalog','retrieval-settings','retry-requests'].includes(message?.type)) return;
   (message.type==='sync-semester'?syncSemesterFromTab(message):message.type==='send-catalog'?sendSavedCatalog():message.type==='download-file'?downloadFile(message):companionMessage(message)).then(result=>respond({ok:true,...result})).catch(error=>respond({ok:false,error:error.message}));
   return true;
 });

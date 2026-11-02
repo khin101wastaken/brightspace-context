@@ -23,7 +23,7 @@ async function refreshCompanion() {
   try {
     const result=await chrome.runtime.sendMessage({type:'companion-status'});
     if(!result?.ok || !result.connected) throw new Error(result?.error || 'Companion is not paired.');
-    $('companion-status').textContent=`Connected · ${result.files} PDFs · ${sizeLabel(result.usedBytes)} / ${sizeLabel(result.budgetBytes)}`;
+    $('companion-status').textContent=`Connected · ${result.files} PDFs · ${sizeLabel(result.usedBytes)} / ${sizeLabel(result.budgetBytes)} · automatic retrieval ${result.workerConnected?'connected':'not connected'}`;
   } catch(error) {$('companion-status').textContent=`Not connected. ${error.message || 'Start the companion and try again.'}`;}
 }
 function downloadStatus(key) {
@@ -197,6 +197,7 @@ function render(catalog) {
 }
 chrome.storage.onChanged.addListener((changes,area)=>{
   if(area==='local') {
+    if(changes.retrievalStatus?.newValue) $('retrieval-status').textContent=changes.retrievalStatus.newValue.message;
     if(changes.semesterSync?.newValue) $('semester-status').textContent=changes.semesterSync.newValue.message;
     if(Object.keys(changes).some(key=>key.startsWith('semester:') || key.startsWith('course:'))) refreshSavedCourses().catch(error=>status(error.message));
     return;
@@ -219,6 +220,19 @@ $('pair-form').addEventListener('submit',async event=>{
   finally {$('pair-button').disabled=false;}
 });
 $('companion-refresh').addEventListener('click',refreshCompanion);
+$('automatic-retrieval').addEventListener('change',async()=>{
+  const enabled=$('automatic-retrieval').checked;
+  try {const result=await chrome.runtime.sendMessage({type:'retrieval-settings',enabled});if(!result?.ok) throw new Error(result?.error || 'Could not change automatic retrieval.');}
+  catch(error) {$('automatic-retrieval').checked=!enabled;$('retrieval-status').textContent=error.message;}
+});
+$('retry-requests').addEventListener('click',async()=>{
+  $('retry-requests').disabled=true;
+  try {
+    const result=await chrome.runtime.sendMessage({type:'retry-requests'});if(!result?.ok) throw new Error(result?.error || 'Could not retry requests.');
+    $('retrieval-status').textContent=`${result.retried} sign-in-blocked request${result.retried===1?'':'s'} retried.`;
+  } catch(error) {$('retrieval-status').textContent=error.message;}
+  finally {$('retry-requests').disabled=false;}
+});
 async function action(fn) {
   if(busy) return; busy=true; $('scan').disabled=$('download').disabled=true;
   try {await startup; await fn();} catch(error) {status(error.message);} finally {busy=false; $('scan').disabled=$('download').disabled=false;}
@@ -256,5 +270,8 @@ const startup=(async()=>{
     if(saved[key]) render({...saved[key],openFolders:saved[foldersKey] || []});
   } catch(error) {status(error.message);}
   await refreshSavedCourses();
+  const retrieval=await chrome.storage.local.get(['automaticRetrieval','retrievalStatus']);
+  $('automatic-retrieval').checked=retrieval.automaticRetrieval!==false;
+  $('retrieval-status').textContent=retrieval.retrievalStatus?.message || 'Reload the extension to connect automatic retrieval.';
   await refreshCompanion();
 })();

@@ -83,7 +83,8 @@ test('paired HTTP flow: first PDF request fetches, second is a cache hit, and st
   const meta=metadata(1),catalog={courseId:'100',title:meta.courseTitle,entries:[{key:'module:1',kind:'module',title:'Week 1'},
     {key:'module:2',kind:'module',title:'Readings',parentKey:'module:1'},
     {key:'document:1',id:'1',kind:'document',contentType:'file',title:meta.title,parentKey:'module:2',sourceUrl:meta.sourceUrl,lastModifiedAt:meta.lastModifiedAt}]};
-  const fetched=await cachePdf(catalog,'document:1',pairing.token,fetcher);
+  const [fetched,concurrent]=await Promise.all([cachePdf(catalog,'document:1',pairing.token,fetcher),cachePdf(catalog,'document:1',pairing.token,fetcher)]);
+  assert.equal(concurrent.id,fetched.id);
   assert.equal(fetched.source,'brightspace');assert.equal(upstreamRequests,1);
   assert.deepEqual(fetched.entry.modulePath,['Week 1','Readings']);
   const hit=await cachePdf(catalog,'document:1',pairing.token,fetcher);

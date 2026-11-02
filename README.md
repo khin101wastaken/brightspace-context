@@ -1,6 +1,6 @@
 # Brightspace Catalog — Chrome prototype
 
-Catalog-first NYU Brightspace experiment. The extension needs no build step. Semester/course metadata stays in Chrome extension storage and a paired local companion. The Node service caches PDFs on demand, and a read-only desktop MCP server exposes both catalog metadata and cached documents. No hosted backend or analytics is used.
+Catalog-first NYU Brightspace experiment. The extension needs no build step. Semester/course metadata stays in Chrome extension storage and a paired local companion. The Node service caches PDFs on demand, and a desktop MCP server searches metadata and requests individual PDFs through the signed-in Chrome extension. No hosted backend or analytics is used.
 
 ## Load in Chrome
 
@@ -27,7 +27,7 @@ Catalog-first NYU Brightspace experiment. The extension needs no build step. Sem
 
 ## Local PDF cache milestone
 
-Requires Node.js 22 or newer and standalone Chrome. Run `npm ci` after cloning to install the pinned MCP SDK dependency. Existing Download and Save as controls continue to save ordinary user files; the managed cache is separate.
+Requires Node.js 22 or newer and standalone Chrome 116 or newer. Run `npm ci` after cloning to install the pinned MCP SDK and WebSocket dependencies. Existing Download and Save as controls continue to save ordinary user files; the managed cache is separate.
 
 1. From the project directory, run `npm run companion` (`npm.cmd run companion` in PowerShell if script execution is restricted).
 2. Leave that process running. It prints a 10-character pairing code.
@@ -52,13 +52,31 @@ On Windows the default directory is `%LOCALAPPDATA%\BrightspaceContext\cache`, o
 3. In Chrome, open Brightspace **My Home**, select **2026 Fall** (or another semester), and wait for its course cards to load.
 4. Open the extension and click **Sync selected semester**. The background worker captures this tab and semester's course IDs, then requests each course's complete nested outline sequentially. No course navigation, module expansion, or file downloads are needed. Keep Chrome and the source Brightspace tab open until completion. Progress is saved; reopening the popup shows the last progress. If Chrome/the worker stops mid-scan, retry the scan.
 5. Expect `2026 Fall: 5/5 courses synced to companion` for the five courses observed in the current NYU account. The saved-course selector groups outlines by semester; each course retains the existing collapsible module browser and download/cache controls.
-6. Restart the desktop MCP connection to discover `list_courses` and `search_catalog`. Ask it to find **Science of Happiness** and list its modules or locate a reading that has never been cached. It should return catalog metadata and explicitly report that the PDF is not cached.
+6. Restart the desktop MCP connection to discover `list_courses` and `search_catalog`. Ask it to find **Science of Happiness** and list its modules or locate a reading that has never been cached. It should return catalog metadata and explicitly report whether the PDF is cached.
 
 Discovery reads the selected semester's rendered course cards through open shadow roots. It verifies that their count matches **View All Courses (N)**. A truncated/paginated list is rejected with instructions to load all courses; the prototype does not silently treat visible cards as the entire semester and does not yet automate course-list pagination. A selected term is required; the **All** tab is not a semester.
 
 Successful course refreshes replace the previous outline, including deleted topics. Failed courses preserve any previous outline and report failure/staleness. Session expiry or throttling stops further school requests in that run. Completed course scans remain saved locally even if the companion is offline; **Send saved catalog** retries the local transfer without re-requesting Brightspace content.
 
 The companion persists validated semester/course hierarchies in `catalog.json`, next to the PDF index. Catalog metadata has a separate 10 MiB cap (outside the 500 MiB PDF-cache quota), with up to 200 courses and 50,000 entries per semester snapshot. Local catalog endpoints are authenticated `PUT /v1/catalog/semesters` and `GET /v1/catalog`. Nothing is scheduled automatically; scans happen on request. External resources remain links and are not fetched.
+
+The user confirmed a separate desktop chat successfully listed the Science of Happiness readings from the synced semester catalog.
+
+## On-demand retrieval through ChatGPT
+
+1. After updating, run `npm ci`, restart the companion, and reload the extension (v0.6.0 adds the `alarms` permission and requires Chrome 116+).
+2. Keep Chrome running with the paired extension enabled and Brightspace signed in. A course tab and the extension popup do not need to stay open after the catalog has been synced. The browser session supplies credentials; passwords and cookie values never leave Chrome.
+3. In **Local PDF cache**, leave **Allow ChatGPT to fetch requested PDFs** enabled. Expect **Automatic retrieval connected**. The checkbox pauses new work; a fetch already in progress may finish.
+4. Restart the desktop MCP connection to discover `request_document` and `get_document_request`.
+5. Ask: **Find one uncached Science of Happiness PDF in the catalog. Request that document, wait for it to be ready, read the actual PDF, and answer a question with a source reference.**
+
+`request_document` accepts only a catalogued `courseId` and `document:<topicId>` key, never an arbitrary URL. The companion resolves the latest synced outline, checks file eligibility/freshness and verifies any cache hit. A miss enters a durable local queue in `requests.json`. The extension claims one job, retrieves the PDF using the existing cache client, uploads it, then reports completion. The companion independently verifies the cached bytes before exposing a ready document. No bulk fetching or document processing is added.
+
+Request states are `queued`, `fetching`, `ready`, `needs_login`, and `failed`. Ready MCP results include the verified local path and PDF resource link. Otherwise they include a request ID and next action. Tools may wait up to 20 seconds (10 by default); pending requests can be checked with `get_document_request`. A closed/disconnected Chrome leaves requests queued rather than claiming the file is ready. After a login HTML response, fetching pauses until the user signs in and clicks **Retry requests after signing in**, or explicitly retries the document through MCP. Access-denied, invalid-PDF, size/budget and network errors are reported without caching invalid bytes. Network errors can also result from a sign-in redirect, because credentialed requests reject redirects.
+
+The queue deduplicates active requests by document/version, permits one active browser lease and up to 25 pending jobs, and retains at most 100 history records within a separate 2 MiB metadata cap. Interrupted leases become retryable after three minutes; restarting the companion requeues interrupted jobs. Queued work expires after 24 hours. A successful cache write followed by an interrupted completion report is safe: the retry checks the cache first. Manual Cache clicks and queued retrieval share in-flight PDF requests in the same extension worker. Catalog changes or a failed/stale course scan prevent fetching an obsolete queued URL; rescan and request again.
+
+An authenticated loopback WebSocket (`/v1/worker`) carries work notifications and 20-second keepalive messages while paired automatic retrieval is enabled. This follows [Chrome's supported WebSocket service-worker lifecycle](https://developer.chrome.com/docs/extensions/how-to/web-platform/websockets). The worker reconnects with backoff; a one-minute Chrome alarm recovers a suspended worker. No school requests occur merely to poll the queue. The socket checks host, paired extension origin and token, with a five-second authentication deadline; credentials never appear in its URL or MCP results. HTTP queue endpoints also require the paired extension origin/token: `POST /v1/requests`, `GET /v1/requests/{requestId}`, `POST /v1/requests/claim`, `POST /v1/requests/finish`, and `POST /v1/requests/retry-login`. Claim leases stay internal.
 
 ## Desktop MCP handoff
 
@@ -80,14 +98,18 @@ Tools:
 - `list_cached_documents`: paginated metadata search by title, course and module path. Only cached PDFs are visible; it does not search PDF text or the extension's entire course catalog.
 - `get_cached_document`: integrity-checks the selected file and returns a verified absolute local path, source reference, and `brightspace-cache://documents/{id}` resource link. It accepts only IDs from the cache, not arbitrary filesystem paths.
 - `list_courses`: paginated synced semesters/courses, outline freshness and per-course scan errors.
-- `search_catalog`: paginated metadata search across synced semesters/courses, including uncached resources. Pass `courseId` without a query and follow pagination to browse a whole outline; `parentKey` and `modulePath` preserve hierarchy. Cache presence is a hint until `get_cached_document` verifies the file. Uncached-file fetching is not implemented yet.
+- `search_catalog`: paginated metadata search across synced semesters/courses, including uncached resources. Pass `courseId` without a query and follow pagination to browse a whole outline; `parentKey` and `modulePath` preserve hierarchy. Cache presence is a hint until retrieval verifies the file. Supported uncached PDFs can be passed to `request_document`.
+- `request_document`: checks the cache or queues one supported catalogued PDF for the Chrome extension. This writes local queue/cache data and may fetch from Brightspace; it is marked as a non-destructive write tool. It returns a ready verified document or an actionable pending/error state. `retry: true` explicitly retries a resolved failure.
+- `get_document_request`: checks a saved request, optionally waiting up to 20 seconds. A ready result includes the same verified file handoff.
 - Standard MCP `resources/list` and `resources/read` expose cached PDFs. Embedded binary reads are limited to 10 MiB; larger PDFs use the verified local path and the desktop host's PDF reader.
 
 **A resource link is not an automatic ChatGPT attachment.** The host must actually read the PDF using its local file/PDF tools, or support consuming binary PDF resources. The companion and MCP server perform no OCR or PDF text extraction. Document content is untrusted source material, not tool instructions. Pairing credentials remain internal and never appear in tool results.
 
 Run `npm run mcp:verify` (optionally `npm run mcp:verify -- syllabus`) to launch the real MCP process and check list → get → resource-read against a cached file. The checker verifies binary equality without printing PDF bytes or credentials. This validates transport; it does not claim that ChatGPT can answer a question without reading the file.
 
-The transport checker was verified against a real cached PDF, and a page from the returned path was rendered and read with the desktop PDF tools. The user also confirmed successful retrieval and reading in another desktop chat. Semester sync still needs the live Chrome acceptance check described above.
+The transport checker was verified against a real cached PDF, and a page from the returned path was rendered and read with the desktop PDF tools. The user also confirmed successful cached-PDF retrieval/reading and semester catalog discovery in another desktop chat. The on-demand queue adds integration tests with the real MCP process, HTTP service and WebSocket worker; the upstream PDF source is synthetic in those tests.
+
+Live on-demand retrieval was then verified through the actual MCP tool and signed-in Chrome: a previously uncached Science of Happiness syllabus went from queued/offline to ready through the extension worker. The returned 583,439-byte PDF was opened, its text read, and its first page rendered and visually inspected. Repeating `request_document` returned `source: cache`, the same document ID and unchanged original fetch timestamp, with no new queued request. The document and runtime data remain outside Git.
 
 ## Prototype boundaries
 
@@ -99,7 +121,7 @@ The older DOM inspector and expansion scripts remain as experimental diagnostic 
 
 Each popup captures its source tab when opened. Single-course scans validate that course again before saving. Semester scans capture the selected semester's explicit course list; changing focus never redirects requests to another tab. Saved outlines can be selected independently of the currently open course. The source tab is shown in the popup. To scan from another tab, reopen the extension there.
 
-No scheduled catalog refresh, archive extraction, PDF text extraction/OCR, automatic retrieval of uncached documents through MCP, or hosted ChatGPT plugin is included. Opening a topic can affect Brightspace's viewed/completion tracking, just as manual navigation does.
+No scheduled catalog refresh, archive extraction, PDF text extraction/OCR, or hosted ChatGPT plugin is included. Automatic retrieval supports NYU-hosted PDFs from the synced catalog; external links, videos, LTI resources and other formats remain catalog entries. Opening a topic can affect Brightspace's viewed/completion tracking, just as manual navigation does.
 
 ## Verify
 
@@ -109,4 +131,4 @@ Manual acceptance: scan with every website module collapsed and verify the full 
 
 Automated integration tests exercise the actual localhost HTTP service with a synthetic PDF source: pairing and unauthorized origins, first fetch, second-request hit, byte equality, restart persistence, changed versions, PDF rejection, size limits, and LRU eviction. The user also confirmed the signed-in Chrome-to-NYU-to-companion flow shows **Fetched and cached** followed by **Cache hit — no download**.
 
-Next: verify the live semester catalog in Chrome and a fresh desktop chat, then connect queued requests for uncached documents. Optional text-only indexing can follow; OCR is deferred.
+The core catalog → on-demand fetch → verified local PDF handoff is implemented and live-tested. Optional text-only indexing can follow; OCR is deferred. Public distribution, automatic companion startup and hosted ChatGPT support remain separate work.

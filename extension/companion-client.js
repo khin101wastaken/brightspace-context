@@ -1,5 +1,6 @@
 import {downloadableFile} from './file-downloads.js';
 export const COMPANION_URL='http://127.0.0.1:47653';
+const pdfRequests=new Map();
 
 async function request(path,{token,method='GET',body,headers={}}={},fetcher=fetch) {
   const response=await fetcher(COMPANION_URL+path,{method,headers:{...headers,...(token?{Authorization:`Bearer ${token}`}:{})},body,signal:AbortSignal.timeout(30000)});
@@ -13,6 +14,9 @@ export async function pairCompanion(code,fetcher=fetch) {
 }
 export const companionStatus=(token,fetcher=fetch)=>request('/v1/status',{token},fetcher);
 export const syncCatalog=(snapshot,token,fetcher=fetch)=>request('/v1/catalog/semesters',{token,method:'PUT',body:JSON.stringify(snapshot),headers:{'Content-Type':'application/json'}},fetcher);
+export const claimRequest=(token,fetcher=fetch)=>request('/v1/requests/claim',{token,method:'POST'},fetcher);
+export const finishRequest=(value,token,fetcher=fetch)=>request('/v1/requests/finish',{token,method:'POST',body:JSON.stringify(value),headers:{'Content-Type':'application/json'}},fetcher);
+export const retryLoginRequests=(token,fetcher=fetch)=>request('/v1/requests/retry-login',{token,method:'POST'},fetcher);
 
 export function pdfMetadata(catalog,key) {
   const entry=catalog?.entries.find(e=>e.key===key),file=downloadableFile(entry);
@@ -26,16 +30,29 @@ export function pdfMetadata(catalog,key) {
 }
 
 export async function cachePdf(catalog,key,token,fetcher=fetch,onPhase=()=>{}) {
+  return cachePdfMetadata(pdfMetadata(catalog,key),token,fetcher,onPhase);
+}
+export function cachePdfMetadata(metadata,token,fetcher=fetch,onPhase=()=>{}) {
+  const key=JSON.stringify([token,metadata?.courseId,metadata?.topicId,metadata?.sourceUrl,metadata?.lastModifiedAt]);
+  if(pdfRequests.has(key)) return pdfRequests.get(key);
+  const task=fetchPdfMetadata(metadata,token,fetcher,onPhase).finally(()=>pdfRequests.delete(key));
+  pdfRequests.set(key,task);return task;
+}
+async function fetchPdfMetadata(metadata,token,fetcher,onPhase) {
   if(!token) throw new Error('Start the companion and pair it in the Local cache panel first.');
-  const metadata=pdfMetadata(catalog,key);
+  const file=downloadableFile({contentType:'file',sourceUrl:metadata?.sourceUrl});
+  if(!file || !/\.pdf$/i.test(new URL(file.url).pathname)) throw new Error('Only supported NYU-hosted PDFs may be retrieved.');
   onPhase('Checking local cache…');
   const lookup=await request('/v1/cache/lookup',{token,method:'POST',body:JSON.stringify(metadata),headers:{'Content-Type':'application/json'}},fetcher);
   if(lookup.hit) return {...lookup,source:'cache'};
   onPhase('Fetching PDF from Brightspace…');
-  const response=await fetcher(metadata.sourceUrl,{credentials:'include',redirect:'error',signal:AbortSignal.timeout(90000)});
-  if(response.status===401 || response.status===403 || response.redirected) throw new Error('Sign into Brightspace in Chrome, then retry caching this PDF.');
+  let response;
+  try {response=await fetcher(metadata.sourceUrl,{credentials:'include',redirect:'error',signal:AbortSignal.timeout(90000)});}
+  catch {throw Object.assign(new Error('Chrome could not fetch this PDF. Check your connection and Brightspace sign-in.'),{code:'NETWORK_ERROR'});}
+  if(response.status===401 || response.redirected) throw Object.assign(new Error('Sign into Brightspace in Chrome, then retry caching this PDF.'),{code:'NEEDS_LOGIN'});
+  if(response.status===403) throw Object.assign(new Error('Brightspace denied access to this PDF.'),{code:'ACCESS_DENIED'});
   if(!response.ok) throw new Error(`Brightspace PDF request failed (HTTP ${response.status}).`);
-  if(!/application\/pdf|application\/octet-stream/i.test(response.headers.get('content-type') || '')) throw new Error('Brightspace did not return PDF data. Check your sign-in.');
+  if(!/application\/pdf|application\/octet-stream/i.test(response.headers.get('content-type') || '')) throw Object.assign(new Error('Brightspace did not return PDF data. Check your sign-in.'),{code:/text\/html/i.test(response.headers.get('content-type') || '')?'NEEDS_LOGIN':'INVALID_PDF'});
   const limit=Math.min(lookup.maxPdfBytes,50*1024*1024);
   if(!Number.isSafeInteger(limit) || limit<=0) throw new Error('Invalid companion upload limit.');
   if(Number(response.headers.get('content-length'))>limit) {await response.body?.cancel();throw new Error('PDF exceeds the 50 MB per-file limit.');}
