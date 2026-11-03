@@ -44,7 +44,7 @@ test('background download validates the selected catalog file and tracks native 
     assert.match(session['attempt:100:document:2'].message,/web page instead/);
     t.mock.method(globalThis,'fetch',async()=>{throw new TypeError('Failed to fetch');});
     const failed=await send({type:'download-file',courseId:'100',key:'document:2'});
-    assert.match(failed.error,/no file download was started/);
+    assert.match(failed.error,/no file download was started/i);
     assert.equal(downloadCalls,1);
     assert.equal((await send({type:'download-file',courseId:'100',key:'document:missing'})).ok,false);
     assert.equal(downloadCalls,1);
@@ -65,6 +65,36 @@ test('background download validates the selected catalog file and tracks native 
     assert.equal(resourceResult.ok,true);assert.equal(downloadCalls,4);
     const rejected=onMessage({type:'download-file',courseId:'100',key:'document:2'},{id:'test',url:'https://brightspace.nyu.edu/d2l/home'},()=>assert.fail('A webpage cannot issue extension UI requests'));
     assert.equal(rejected,undefined);assert.equal(downloadCalls,4);
+  } finally {delete globalThis.chrome;}
+});
+
+test('Resources downloads preserve hashes and arbitrary file types, and HTML completion stays successful',async t=>{
+  let listener,changed,nextId=0;
+  const entries=[['Lec#12.pdf','application/pdf'],['Slides.key','application/octet-stream'],['program.c','text/plain'],['Vectors.html','text/html']].map(([name,mime],i)=>({key:`document:${i+1}`,id:String(i+1),contentType:'file',title:name,sourceUrl:`https://brightspace.nyu.edu/content/enforced/100/${name}`,mime}));
+  const catalog={courseId:'100',title:'Course',entries},session={},items=new Map(),calls=[];
+  globalThis.chrome={
+    runtime:{id:'test',getURL:name=>`chrome-extension://test/${name}`,onMessage:{addListener:fn=>listener=fn}},
+    storage:{local:{get:async()=>({'course:100':catalog})},session:{get:async key=>key?{[key]:session[key]}:{...session},set:async values=>Object.assign(session,values),remove:async keys=>(Array.isArray(keys)?keys:[keys]).forEach(key=>delete session[key])}},
+    downloads:{onChanged:{addListener:fn=>changed=fn},download:async options=>{
+      const id=++nextId,entry=entries[id-1];calls.push(options);
+      assert.equal(new URL(options.url).hash,'');assert.equal(decodeURIComponent(new URL(options.url).pathname.split('/').at(-1)),entry.title);
+      items.set(id,{id,url:options.url,finalUrl:options.url,state:'in_progress',mime:entry.mime});return id;
+    },search:async({id})=>[items.get(id)]},
+  };
+  t.mock.method(globalThis,'fetch',async(url,options)=>{
+    const entry=entries.find(e=>e.title===decodeURIComponent(new URL(url).pathname.split('/').at(-1)));
+    assert.ok(entry);assert.equal(options.credentials,'include');assert.equal(options.redirect,'error');
+    return new Response(options.method==='HEAD'?null:'<title>Vectors</title><h1>Vector addition</h1>',{headers:{'content-type':entry.mime}});
+  });
+  try {
+    await import(`../extension/background.js?formats-test=${Date.now()}`);
+    for(const entry of entries) {
+      const result=await new Promise(resolve=>listener({type:'download-file',courseId:'100',key:entry.key},{id:'test',url:'chrome-extension://test/resources.html'},resolve));
+      assert.equal(result.ok,true,result.error);assert.ok(calls.at(-1).filename.endsWith(` [${entry.id}].${entry.title.split('.').at(-1)}`));
+      items.get(result.id).state='complete';changed({id:result.id});await new Promise(resolve=>setImmediate(resolve));
+      assert.equal(session[`download:${result.id}`].state,'complete');
+    }
+    assert.equal(calls.length,4);
   } finally {delete globalThis.chrome;}
 });
 

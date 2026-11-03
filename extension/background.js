@@ -1,4 +1,4 @@
-import {downloadPlan,validateFileResponse,downloadState} from './file-downloads.js';
+import {downloadPlan,preflightFile,downloadState} from './file-downloads.js';
 import {pairCompanion,companionStatus,cachePdf,syncCatalog,retryLoginRequests} from './companion-client.js';
 import {scanSemester} from './semester.js';
 import {listBrightspaceSemesters,listSemesterCourses,readCourseOutline} from './brightspace-client.js';
@@ -138,7 +138,7 @@ async function reconcile(id) {
   if(!record) return;
   const [item]=await chrome.downloads.search({id});
   if(!item) return;
-  await chrome.storage.session.set({[storageKey]:{...record,...downloadState(item),nativeState:item.state,
+  await chrome.storage.session.set({[storageKey]:{...record,...downloadState(item,record),nativeState:item.state,
     error:item.error || null,mime:item.mime || '',bytesReceived:item.bytesReceived ?? null,
     totalBytes:item.totalBytes ?? null,finalOrigin:(()=>{try{return new URL(item.finalUrl || item.url).origin;}catch{return null;}})()}});
 }
@@ -153,17 +153,12 @@ async function downloadFile(message) {
   // creation. Never automatically retry a cancellation.
   if(saveAs) plan.filename=plan.filename.split('/').at(-1);
   const attemptKey=`attempt:${courseId}:${key}`;
-  const attempt={courseId,key,startedAt:Date.now(),state:'starting',phase:'session-check',filename:plan.filename,saveMode:saveAs?'choose-location':'course-folders'};
+  const attempt={courseId,key,startedAt:Date.now(),state:'starting',phase:'session-check',filename:plan.filename,sourceUrl:plan.url,saveMode:saveAs?'choose-location':'course-folders'};
   await chrome.storage.session.set({[attemptKey]:attempt});
   try {
-  // Metadata check only: avoid downloading a login page or fetching file bytes twice.
-  let response;
-  try {response=await fetch(plan.url,{method:'HEAD',credentials:'include',redirect:'error',signal:AbortSignal.timeout(15000)});}
-  catch(error) {throw new Error(`Session check could not reach the file (${error.message}). A redirect or unsupported HEAD request may be responsible; no file download was started.`);}
-  validateFileResponse(response);
+  const metadata=await preflightFile(plan);
   attempt.phase='download-start';
-  attempt.httpStatus=response.status;
-  attempt.mime=response.headers.get('content-type') || '';
+  Object.assign(attempt,metadata);
   await chrome.storage.session.set({[attemptKey]:attempt});
   const id=await chrome.downloads.download({...plan,conflictAction:'uniquify',saveAs});
   const records=await chrome.storage.session.get(null);

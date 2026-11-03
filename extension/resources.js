@@ -1,7 +1,7 @@
 import { mergeCatalog } from './catalog.js';
 import {captureTarget,validateTarget} from './tab-context.js';
 import {requestCourseOutline,flattenOutline,filterOutline} from './course-api.js';
-import {downloadableFile} from './file-downloads.js';
+import {downloadableFile,resourceTypeLabel} from './file-downloads.js';
 const $ = id => document.getElementById(id);
 const status = message => {$('status').textContent=message;$('status').hidden=!message;};
 const semesterStatus=message=>{$('semester-status').textContent=message;$('semester-status').hidden=!message;};
@@ -149,7 +149,8 @@ function render(catalog) {
       if (seen.has(e.key)) continue;
       seen.add(e.key);
       const li=document.createElement('li'), kind=document.createElement('span'), a=document.createElement('a');
-      kind.className='kind'; kind.textContent=e.contentType || e.kind;
+      kind.className='kind'; kind.textContent=resourceTypeLabel(e);
+      if(e.contentType==='file') kind.title=kind.textContent==='Unknown'?'File type not supplied in the resource URL':`${kind.textContent} file${e.locked?' · locked':''}`;
       a.textContent=e.title; a.href=e.url; a.target='_blank'; a.rel='noopener';
       let content=li;
       if(e.kind==='module') {
@@ -168,7 +169,8 @@ function render(catalog) {
       } else {
         const row=document.createElement('div');row.className='file-row';
         const label=document.createElement('div'); label.className='file-label';label.append(kind,a);row.append(label);content.append(row);
-        if(downloadableFile(e)) {
+        const file=downloadableFile(e);
+        if(file) {
           const controls=document.createElement('div');controls.className='file-controls';
           const button=document.createElement('button');button.className='inline-download';button.dataset.downloadKey=e.key;button.dataset.fileTitle=e.title;
           const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');
@@ -201,7 +203,7 @@ function render(catalog) {
           saveAs.setAttribute('aria-label',`Choose save location for ${e.title}`);
           saveAs.addEventListener('click',()=>startDownload(true));
           controls.append(button,saveAs,note,details);row.append(controls);
-          if(showCacheControls && /\.pdf$/i.test(new URL(e.sourceUrl).pathname)) {
+          if(showCacheControls && file.type==='PDF') {
             const cache=document.createElement('button');cache.className='cache-pdf';cache.dataset.cacheKey=e.key;
             cache.title=`Cache ${e.title} locally`;cache.setAttribute('aria-label',cache.title);
             const cacheNote=document.createElement('span');cacheNote.className='cache-status';cacheNote.setAttribute('role','status');
