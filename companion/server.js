@@ -28,7 +28,7 @@ export async function createCompanion({directory,port=47653,budgetBytes,pairingC
       if(req.headers.host!==expectedHost) return send(res,403,{error:'Invalid local host.'});
       if(!requests) return send(res,503,{error:'Companion is starting. Try again in a moment.'});
       const origin=req.headers.origin;
-      if(!/^chrome-extension:\/\/[a-p]{32}$/.test(origin || '')) return send(res,403,{error:'Only the paired browser extension can connect.'});
+      if(!/^chrome-extension:\/\/[a-p]{32}$/.test(origin || '')) return send(res,403,{error:'Only the paired browser extension can connect.',code:'EXTENSION_ORIGIN_REQUIRED'});
       res.setHeader('Vary','Origin');res.setHeader('Access-Control-Allow-Origin',origin);
       if(req.method==='OPTIONS') {
         res.writeHead(204,{'Access-Control-Allow-Methods':'GET, POST, PUT, OPTIONS','Access-Control-Allow-Headers':'Authorization, Content-Type'});res.end();return;
@@ -43,7 +43,7 @@ export async function createCompanion({directory,port=47653,budgetBytes,pairingC
         await atomicWrite(configPath,JSON.stringify(client),{mode:0o600});
         return send(res,200,{token,...await cache.stats()});
       }
-      if(!client || client.origin!==origin || !same(req.headers.authorization,`Bearer ${client.token}`)) return send(res,401,{error:'Pair this extension with the companion first.'});
+      if(!client || client.origin!==origin || !same(req.headers.authorization,`Bearer ${client.token}`)) return send(res,401,{error:'Pair this extension with the companion first.',code:'PAIRING_REQUIRED'});
       if(req.method==='POST' && url.pathname==='/v1/requests') return send(res,200,await requests.request(JSON.parse((await body(req,4096)).toString())));
       if(req.method==='POST' && url.pathname==='/v1/requests/claim') return send(res,200,await requests.claim());
       if(req.method==='POST' && url.pathname==='/v1/requests/finish') return send(res,200,await requests.finish(JSON.parse((await body(req,4096)).toString())));
@@ -52,7 +52,7 @@ export async function createCompanion({directory,port=47653,budgetBytes,pairingC
       if(req.method==='GET' && request) return send(res,200,await requests.get(request[1]));
       if(req.method==='GET' && url.pathname==='/v1/catalog') return send(res,200,await catalog.read());
       if(req.method==='PUT' && url.pathname==='/v1/catalog/semesters') return send(res,200,await catalog.put(JSON.parse((await body(req,MAX_CATALOG_BYTES)).toString())));
-      if(req.method==='GET' && url.pathname==='/v1/status') return send(res,200,{...await cache.stats(),workerConnected:workerChannel.connected()});
+      if(['GET','POST'].includes(req.method) && url.pathname==='/v1/status') return send(res,200,{...await cache.stats(),workerConnected:workerChannel.connected()});
       if(req.method==='GET' && url.pathname==='/v1/cache/documents') return send(res,200,{documents:await cache.list()});
       const document=url.pathname.match(/^\/v1\/cache\/documents\/([a-f0-9]{64})$/);
       if(req.method==='GET' && document) {

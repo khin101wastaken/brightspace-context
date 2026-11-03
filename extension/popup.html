@@ -1,31 +1,28 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Brightspace Catalog</title><link rel="stylesheet" href="popup.css"></head>
-<body>
-  <header><span class="eyebrow">NYU · LOCAL PROTOTYPE</span><h1>Brightspace Catalog</h1><p>Keep the outline. Fetch what you need.</p></header>
-  <div class="actions"><button id="scan">Scan course outline</button><button id="download" class="secondary">Download open document</button></div>
-  <p id="status" role="status" aria-live="polite">Open a course’s Content page in this browser.</p>
-  <p id="source" class="hint"></p>
-  <p class="hint">Load every accessible module and nested topic directly. No page expansion needed.</p>
-  <details class="semester-panel" open><summary>Semester catalog</summary>
-    <p class="hint">On Brightspace My Home, select a semester (for example, 2026 Fall), then sync every listed course.</p>
-    <div class="semester-actions"><button id="sync-semester" type="button">Sync selected semester</button><button id="send-catalog" class="secondary" type="button">Send saved catalog</button></div>
-    <p id="semester-status" role="status" aria-live="polite">No semester scan yet.</p>
-    <div id="semester-errors"></div>
-    <label for="saved-course">Browse saved course outlines</label><select id="saved-course"><option value="">Choose a course…</option></select>
-  </details>
-  <details class="companion-panel"><summary>Local PDF cache</summary>
-    <p id="companion-status" role="status">Checking companion…</p>
-    <form id="pair-form"><label for="pair-code">Companion pairing code</label><div class="pair-row"><input id="pair-code" autocomplete="off" spellcheck="false" maxlength="10" placeholder="10-character code"><button id="pair-button" type="submit">Connect</button></div></form>
-    <button id="companion-refresh" class="secondary" type="button">Check connection</button>
-    <label class="retrieval-toggle"><input id="automatic-retrieval" type="checkbox" checked> Allow ChatGPT to fetch requested PDFs</label>
-    <p id="retrieval-status" role="status" aria-live="polite">Checking automatic retrieval…</p>
-    <button id="retry-requests" class="secondary" type="button">Retry requests after signing in</button>
-    <p class="hint">Keep Chrome running. The popup can stay closed. <a href="https://brightspace.nyu.edu/d2l/home" target="_blank" rel="noopener">Sign into Brightspace</a> when requested. Pausing stops new fetches; an active fetch may finish.</p>
-    <p class="hint">Start with <code>npm run companion</code>. Cache a PDF, then click Cache again to verify a hit. Documents stay on this computer.</p>
-  </details>
-  <section><h2 id="course">Saved catalog</h2><label for="search">Search titles, module paths and descriptions</label><input id="search" type="search" placeholder="Search course catalog…"><p id="summary"></p><div id="catalog"></div></section>
-  <pre id="download-debug" hidden aria-live="polite"></pre>
-  <footer>Catalog stored locally. PDFs are fetched when you click Cache or request one through ChatGPT. Download saves a separate copy.</footer>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Brightspace Context</title><link rel="stylesheet" href="popup.css"></head>
+<body class="connection-page">
+  <header class="popup-header"><div><span class="eyebrow">BRIGHTSPACE CONTEXT</span><h1>Connect</h1></div><button id="open-settings" class="quiet icon-button" aria-label="Settings" title="Settings">⚙</button></header>
+  <main id="connect-view">
+    <section class="connection-card" aria-labelledby="connection-title">
+      <div class="status-line"><span id="connection-dot" class="status-dot"></span><span id="connection-label">Checking connection</span></div>
+      <h2 id="connection-title">Your courses, in ChatGPT.</h2>
+      <p id="connection-description" class="muted">Connect your browser to fetch course PDFs when you ask.</p>
+      <form id="pair-form" hidden><label for="pair-code">Pairing code from your companion</label><div class="pair-row"><input id="pair-code" autocomplete="off" spellcheck="false" maxlength="10" placeholder="10-character code" required><button id="pair-button" type="submit">Connect</button></div></form>
+      <div class="connection-actions"><button id="companion-refresh" class="secondary" type="button">Check connection</button><button id="pause-retrieval" class="quiet" type="button" hidden>Pause</button></div>
+      <p id="connection-feedback" role="status" aria-live="polite" hidden></p>
+    </section>
+    <div id="request-notice" class="notice" hidden><p id="retrieval-status" role="status" aria-live="polite"></p><button id="retry-requests" class="secondary" type="button" hidden>Retry after signing in</button></div>
+    <button id="browse-resources" class="resource-launch" type="button"><span><strong>Browse resources</strong><small id="resource-summary">Course outlines and downloads</small></span><span aria-hidden="true">↗</span></button>
+    <button id="open-chat-help" class="text-button" type="button">Connect this to desktop ChatGPT →</button>
+    <p class="popup-footnote">Keep Chrome and the companion running. You can close this popup.</p>
+  </main>
+  <section id="settings-view" hidden aria-labelledby="settings-title">
+    <button id="close-settings" class="text-button" type="button">← Back to Connect</button><h2 id="settings-title">Settings</h2>
+    <label class="setting-row"><span><strong>Automatic retrieval</strong><small>Fetch course PDFs requested through ChatGPT.</small></span><input id="automatic-retrieval" type="checkbox" checked></label>
+    <div class="settings-block"><h3>Connection</h3><p id="companion-status" class="muted"></p><div class="connection-actions"><button id="repair-browser" class="secondary" type="button" hidden>Pair again</button><button id="disconnect-browser" class="quiet" type="button" hidden>Disconnect browser</button></div></div>
+    <div class="settings-block"><h3>Advanced setup</h3><p class="muted">Until the companion has an installer, start it from the project folder:</p><code class="command">npm run companion</code><p class="muted">The companion prints your pairing code. Pairing is separate from signing into Brightspace.</p><a href="https://brightspace.nyu.edu/d2l/home" target="_blank" rel="noopener">Open NYU Brightspace ↗</a></div>
+  </section>
+  <dialog id="chat-help"><button id="close-chat-help" class="quiet dialog-close" type="button" aria-label="Close setup instructions">✕</button><h2>Use with desktop ChatGPT</h2><ol><li>Connect your browser here.</li><li>Open Resources and sync a semester.</li><li>In desktop ChatGPT, add and enable the <strong>brightspace-context</strong> MCP server in Settings → MCP servers, then restart its connection.</li></ol><p class="muted">Use the companion's installed command, or the project's <code>mcp/start.js</code> with Node for this prototype.</p><p>Try: “Find a course reading, retrieve it, and read the PDF before answering.”</p><p class="muted">This screen checks the browser connection. ChatGPT's MCP connection is configured in the desktop app.</p></dialog>
   <script type="module" src="popup.js"></script>
 </body></html>

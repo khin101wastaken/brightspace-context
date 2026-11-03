@@ -73,11 +73,14 @@ test('paired HTTP flow: first PDF request fetches, second is a cache hit, and st
       upstreamRequests++;assert.equal(options.credentials,'include');assert.equal(options.redirect,'error');
       return new Response(pdf,{headers:{'Content-Type':'application/pdf','Content-Length':String(pdf.length)}});
     }
-    return fetch(url.replace(COMPANION_URL,app.url),{...options,headers:{...options.headers,Origin:origin}});
+    // Privileged browser GETs can omit Origin. The extension status probe must
+    // use POST; otherwise the real origin-gated service would reject it.
+    return fetch(url.replace(COMPANION_URL,app.url),{...options,headers:{...options.headers,...(options.method && options.method!=='GET'?{Origin:origin}:{})}});
   };
   const blocked=await fetch(`${app.url}/v1/status`,{headers:{Origin:'https://evil.example'}});assert.equal(blocked.status,403);
   await assert.rejects(pairCompanion('0000000000',fetcher),/did not match/);
   const pairing=await pairCompanion('123456789a',fetcher);
+  const missingOrigin=await fetch(`${app.url}/v1/status`,{headers:{Authorization:`Bearer ${pairing.token}`}});assert.equal(missingOrigin.status,403);
   assert.equal((await companionStatus(pairing.token,fetcher)).files,0);
   await assert.rejects(companionStatus('wrong',fetcher),/Pair this extension/);
   const meta=metadata(1),catalog={courseId:'100',title:meta.courseTitle,entries:[{key:'module:1',kind:'module',title:'Week 1'},

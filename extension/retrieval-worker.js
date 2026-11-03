@@ -1,4 +1,4 @@
-import {cachePdfMetadata,claimRequest,finishRequest,COMPANION_URL} from './companion-client.js';
+import {cachePdfMetadata,claimRequest,finishRequest,companionStatus,COMPANION_URL} from './companion-client.js';
 
 export function failureCode(error) {
   if(['NEEDS_LOGIN','ACCESS_DENIED','NETWORK_ERROR','INVALID_PDF'].includes(error?.code)) return error.code;
@@ -7,9 +7,22 @@ export function failureCode(error) {
   return 'FAILED';
 }
 
-export function createRetrievalWorker({getSettings,report=async()=>{},fetcher=fetch,Socket=WebSocket,url=COMPANION_URL.replace('http:','ws:')+'/v1/worker',heartbeatMs=20000}={}) {
-  let socket=null,heartbeat=null,reconnect=null,stopped=false,connecting=false,draining=null,again=false,retryMs=5000;
+export function createRetrievalWorker({getSettings,report=async()=>{},fetcher=fetch,Socket=WebSocket,url=COMPANION_URL.replace('http:','ws:')+'/v1/worker',heartbeatMs=20000,connectionTimeoutMs=8000}={}) {
+  let socket=null,heartbeat=null,deadline=null,reconnect=null,stopped=false,connecting=false,draining=null,again=false,retryMs=5000,generation=0;
   const update=value=>Promise.resolve(report(value)).catch(()=>{});
+  function retry(message) {
+    if(stopped) return;
+    void update({state:'disconnected',message});
+    if(!reconnect) {reconnect=setTimeout(()=>{reconnect=null;void connect();},retryMs);retryMs=Math.min(retryMs*2,60000);}
+  }
+  function release(current,message) {
+    if(current!==socket) return;
+    socket=null;clearInterval(heartbeat);clearTimeout(deadline);heartbeat=deadline=null;
+    // Keep the error handler attached while closing a pending handshake; stale
+    // socket events must never disconnect a newer connection.
+    try {if(current.readyState<2) current.close();} catch {}
+    retry(message);
+  }
   async function drain() {
     if(draining) {again=true;return draining;}
     draining=(async()=>{
@@ -43,35 +56,46 @@ export function createRetrievalWorker({getSettings,report=async()=>{},fetcher=fe
   }
   async function connect() {
     if(connecting || socket) return;
-    connecting=true;stopped=false;
+    connecting=true;stopped=false;const attempt=++generation;
+    clearTimeout(reconnect);reconnect=null;
     try {
       const settings=await getSettings();
-      if(stopped || !settings.enabled || !settings.token) return;
+      if(stopped || attempt!==generation || !settings.enabled || !settings.token) return;
+      // An absent/stopped companion is an expected state. Avoid opening noisy
+      // sockets until its authenticated HTTP endpoint is actually reachable.
+      await companionStatus(settings.token,fetcher,{timeoutMs:5000});
+      if(stopped || attempt!==generation) return;
       const current=new Socket(url);socket=current;
+      let lastSeen=Date.now(),authenticated=false;
+      deadline=setTimeout(()=>release(current,'The companion connection timed out. Retrying automatically; requests stay saved.'),connectionTimeoutMs);
       current.onopen=()=>{
         if(current!==socket) return;
         current.send(JSON.stringify({type:'authenticate',token:settings.token}));
-        heartbeat=setInterval(()=>{if(current.readyState===1) {current.send(JSON.stringify({type:'ping'}));void drain();}},heartbeatMs);
       };
       current.onmessage=event=>{
         if(current!==socket) return;
         try {
           const message=JSON.parse(event.data);
+          if(message.type==='pong') lastSeen=Date.now();
           if(['ready','work-available'].includes(message.type)) {
-            if(message.type==='ready') {retryMs=5000;void update({state:'connected',message:'Automatic retrieval connected. Ready for ChatGPT requests.'});}
+            if(message.type==='ready' && !authenticated) {
+              authenticated=true;lastSeen=Date.now();retryMs=5000;clearTimeout(deadline);deadline=null;
+              heartbeat=setInterval(()=>{
+                if(current!==socket) return;
+                if(Date.now()-lastSeen>heartbeatMs*2.5) {release(current,'The companion connection went idle. Reconnecting; requests stay saved.');return;}
+                if(current.readyState===1) {current.send(JSON.stringify({type:'ping'}));void drain();}
+              },heartbeatMs);
+              void update({state:'connected',message:'Automatic retrieval connected. Ready for ChatGPT requests.'});
+            }
             void drain();
           }
         } catch {}
       };
-      current.onerror=()=>{};
-      current.onclose=()=>{
-        if(current!==socket) return;
-        socket=null;clearInterval(heartbeat);heartbeat=null;
-        if(!stopped) {void update({state:'disconnected',message:'Waiting for the companion connection. Requests stay saved.'});reconnect=setTimeout(()=>{reconnect=null;void connect();},retryMs);retryMs=Math.min(retryMs*2,60000);}
-      };
-    } catch(error) {await update({state:'disconnected',message:error.message});}
-    finally {connecting=false;}
+      current.onerror=()=>release(current,'The browser could not connect to the companion. Retrying automatically; requests stay saved.');
+      current.onclose=()=>release(current,'Waiting for the companion connection. Requests stay saved.');
+    } catch(error) {if(attempt===generation) retry(`Companion unavailable: ${error.message}. Start Brightspace Context; requests stay saved.`);}
+    finally {if(attempt===generation) connecting=false;}
   }
-  function stop() {stopped=true;clearTimeout(reconnect);clearInterval(heartbeat);reconnect=heartbeat=null;const old=socket;socket=null;old?.close();}
+  function stop() {stopped=true;generation++;connecting=false;clearTimeout(reconnect);clearTimeout(deadline);clearInterval(heartbeat);reconnect=heartbeat=deadline=null;const old=socket;socket=null;try {old?.close();} catch {}}
   return {connect,drain,stop};
 }

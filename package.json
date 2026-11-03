@@ -9,6 +9,7 @@
     "companion": "node companion/start.js",
     "mcp": "node mcp/start.js",
     "mcp:verify": "node scripts/verify-handoff.js",
+    "roadmap": "node scripts/generate-roadmap.js",
     "test": "node --test tests/*.test.js",
     "check": "node scripts/check.js"
   },

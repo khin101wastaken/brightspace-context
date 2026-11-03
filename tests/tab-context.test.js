@@ -19,3 +19,12 @@ test('results with another course are rejected and unrelated frames are excluded
   assert.throws(()=>validateFrames([{result:{courseId:'200'}}],'100'),/changed during scanning/);
   assert.equal(validateFrames([{result:{courseId:null}},{result:{courseId:'100'}}],'100').length,1);
 });
+
+test('resources page resolves its explicit Brightspace source rather than the now-active extension tab',async()=>{
+  const tabs={query:async()=>{throw new Error('Must not retarget the active extension page');},get:async id=>({id,url:'https://brightspace.nyu.edu/d2l/le/lessons/100',title:'Networks'})};
+  const target=await captureTarget(tabs,{tabId:42,allowHome:true});
+  assert.equal(target.tabId,42);assert.equal(target.courseId,'100');
+  assert.equal((await validateTarget(tabs,target)).identity.courseId,'100');
+  await assert.rejects(captureTarget(tabs,{tabId:0,allowHome:true}),/Invalid source/);
+  await assert.rejects(captureTarget({get:async()=>({id:42,url:'https://example.com'})},{tabId:42,allowHome:true}),/NYU Brightspace/);
+});

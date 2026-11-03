@@ -1,0 +1,58 @@
+%% Generated from roadmap.json. Edit the source, then run npm run roadmap.
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Segoe UI, system-ui, sans-serif","fontSize":"14px","lineColor":"#94a3b8","clusterBkg":"#f8fafc","clusterBorder":"#cbd5e1","primaryTextColor":"#0f172a"},"flowchart":{"curve":"basis","nodeSpacing":24,"rankSpacing":42,"htmlLabels":true}}}%%
+flowchart TB
+  subgraph p_core["01 / Working foundation"]
+    direction LR
+    m_catalog["DONE<br/>Semester catalog + hierarchy"]:::done
+    m_cache["DONE<br/>Bounded local PDF cache"]:::done
+    m_retrieval["DONE<br/>ChatGPT requests + reads PDFs"]:::done
+  end
+  subgraph p_readiness["02 / Ready for classmates"]
+    direction LR
+    m_lifecycle["NEXT<br/>Companion lifecycle"]:::next
+    m_onboarding["PLANNED<br/>Installer + guided connection"]:::planned
+    m_controls["PLANNED<br/>User controls + account boundaries"]:::planned
+    m_hardening["PLANNED<br/>Release reliability checks"]:::planned
+  end
+  subgraph p_release["03 / Desktop beta and distribution"]
+    direction LR
+    m_pilot["PLANNED<br/>Small NYU student pilot"]:::planned
+    m_desktop_release["PLANNED<br/>Accessible desktop release"]:::planned
+  end
+  subgraph p_web["04 / Hosted access - validate separately"]
+    direction LR
+    m_web_handoff["RESEARCH<br/>Prove hosted PDF handoff"]:::research
+    m_remote_bridge["RESEARCH<br/>Authenticated extension relay"]:::research
+    m_hosted_release["RESEARCH<br/>Hosted plugin pilot + release"]:::research
+  end
+  subgraph p_later["Later / Optional expansion"]
+    direction LR
+    m_firefox["DEFERRED<br/>Firefox port"]:::deferred
+    m_platforms["DEFERRED<br/>More platforms + Brightspace tenants"]:::deferred
+    m_formats["DEFERRED<br/>More document formats"]:::deferred
+    m_indexing["DEFERRED<br/>Optional text search / RAG"]:::deferred
+    m_ocr["DEFERRED<br/>OCR only if justified"]:::deferred
+  end
+  m_catalog --> m_cache
+  m_cache --> m_retrieval
+  m_retrieval --> m_lifecycle
+  m_lifecycle --> m_onboarding
+  m_retrieval --> m_controls
+  m_retrieval --> m_hardening
+  m_onboarding --> m_pilot
+  m_controls --> m_pilot
+  m_hardening --> m_pilot
+  m_pilot --> m_desktop_release
+  m_desktop_release -.-> m_web_handoff
+  m_web_handoff --> m_remote_bridge
+  m_remote_bridge --> m_hosted_release
+  m_desktop_release -.-> m_firefox
+  m_desktop_release -.-> m_platforms
+  m_desktop_release -.-> m_formats
+  m_desktop_release -.-> m_indexing
+  m_desktop_release -.-> m_ocr
+  classDef done fill:#e8f5ee,stroke:#319465,color:#164b33,stroke-width:1.5px;
+  classDef next fill:#ede9fe,stroke:#7c3aed,color:#4c1d95,stroke-width:3px;
+  classDef planned fill:#eef3f9,stroke:#94a3b8,color:#334155,stroke-width:1px;
+  classDef research fill:#fff4df,stroke:#d99a24,color:#783c0b,stroke-width:1.5px;
+  classDef deferred fill:#f5f5f5,stroke:#b4b9c2,color:#626b79,stroke-dasharray:4 3;

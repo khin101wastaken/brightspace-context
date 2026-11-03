@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
   "name": "Brightspace Catalog — NYU Prototype",
-  "version": "0.6.0",
+  "version": "0.8.1",
   "minimum_chrome_version": "116",
   "description": "Catalog NYU Brightspace course outlines locally and request individual document downloads.",
   "permissions": ["activeTab", "scripting", "storage", "downloads", "alarms"],
   "background": {"service_worker":"background.js", "type":"module"},
   "host_permissions": ["https://brightspace.nyu.edu/*", "http://127.0.0.1/*"],
-  "action": {"default_popup": "popup.html", "default_title": "Brightspace Catalog"}
+  "action": {"default_popup": "popup.html", "default_title": "Brightspace Context"}
 }

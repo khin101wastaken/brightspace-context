@@ -2,17 +2,19 @@ import {downloadableFile} from './file-downloads.js';
 export const COMPANION_URL='http://127.0.0.1:47653';
 const pdfRequests=new Map();
 
-async function request(path,{token,method='GET',body,headers={}}={},fetcher=fetch) {
-  const response=await fetcher(COMPANION_URL+path,{method,headers:{...headers,...(token?{Authorization:`Bearer ${token}`}:{})},body,signal:AbortSignal.timeout(30000)});
+async function request(path,{token,method='GET',body,headers={},timeoutMs=30000}={},fetcher=fetch) {
+  const response=await fetcher(COMPANION_URL+path,{method,headers:{...headers,...(token?{Authorization:`Bearer ${token}`}:{})},body,signal:AbortSignal.timeout(timeoutMs)});
   const result=await response.json();
-  if(!response.ok) throw new Error(result.error || `Companion request failed (HTTP ${response.status}).`);
+  if(!response.ok) throw Object.assign(new Error(result.error || `Companion request failed (HTTP ${response.status}).`),{status:response.status,code:result.code});
   return result;
 }
 export async function pairCompanion(code,fetcher=fetch) {
   if(typeof code!=='string' || !/^[a-f0-9]{10}$/i.test(code.trim())) throw new Error('Enter the 10-character pairing code printed by the companion.');
   return request('/v1/pair',{method:'POST',body:JSON.stringify({code:code.trim()}),headers:{'Content-Type':'application/json'}},fetcher);
 }
-export const companionStatus=(token,fetcher=fetch)=>request('/v1/status',{token},fetcher);
+// A privileged extension GET may omit Origin. POST keeps the companion's
+// existing origin + token checks without treating a healthy process as offline.
+export const companionStatus=(token,fetcher=fetch,{timeoutMs=5000}={})=>request('/v1/status',{token,method:'POST',body:'{}',headers:{'Content-Type':'application/json'},timeoutMs},fetcher);
 export const syncCatalog=(snapshot,token,fetcher=fetch)=>request('/v1/catalog/semesters',{token,method:'PUT',body:JSON.stringify(snapshot),headers:{'Content-Type':'application/json'}},fetcher);
 export const claimRequest=(token,fetcher=fetch)=>request('/v1/requests/claim',{token,method:'POST'},fetcher);
 export const finishRequest=(value,token,fetcher=fetch)=>request('/v1/requests/finish',{token,method:'POST',body:JSON.stringify(value),headers:{'Content-Type':'application/json'}},fetcher);

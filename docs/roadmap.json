@@ -1,0 +1,123 @@
+{
+  "$schema": "./roadmap.schema.json",
+  "schemaVersion": 1,
+  "title": "Brightspace Context - Development Roadmap",
+  "scope": "Working baseline: NYU Brightspace, Chrome/Chromium, supported NYU-hosted PDFs, and desktop MCP. Goal: make the proven retrieval flow easy for other students to install and use.",
+  "phases": [
+    {"id": "core", "title": "01 / Working foundation"},
+    {"id": "readiness", "title": "02 / Ready for classmates"},
+    {"id": "release", "title": "03 / Desktop beta and distribution"},
+    {"id": "web", "title": "04 / Hosted access - validate separately"},
+    {"id": "later", "title": "Later / Optional expansion"}
+  ],
+  "milestones": [
+    {
+      "id": "catalog", "phase": "core", "title": "Semester catalog + hierarchy", "status": "done",
+      "deliverable": "Discover the selected semester's courses and preserve nested modules, resource metadata and stable IDs; expose catalog search through MCP.",
+      "acceptance": ["A desktop chat can locate Science of Happiness readings across a synced semester without downloading every file."],
+      "evidence": ["Semester sync and cross-course catalog discovery confirmed in a separate desktop chat.", "Inline download and Save as controls work in standalone Chrome."]
+    },
+    {
+      "id": "cache", "phase": "core", "title": "Bounded local PDF cache", "status": "done",
+      "deliverable": "Pair the extension with the companion and cache individual PDFs with version checks, integrity verification and LRU eviction.",
+      "acceptance": ["A first request fetches the PDF; repeating it uses the verified local copy."],
+      "evidence": ["First-fetch and cache-hit behavior confirmed in Chrome; cache, authentication and quota integration checks pass."]
+    },
+    {
+      "id": "retrieval", "phase": "core", "title": "ChatGPT requests + reads PDFs", "status": "done",
+      "deliverable": "Connect MCP requests to a durable queue, the signed-in Chrome worker and a verified local PDF handoff.",
+      "acceptance": ["A chat finds an uncached PDF, requests it, waits for ready, reads its actual contents and can reuse the cache."],
+      "evidence": ["Live uncached syllabus fetch and cache repeat verified through MCP.", "A separate chat successfully requested a different Science of Happiness reading.", "37 automated checks passed at the retrieval milestone; GitHub CI passed."]
+    },
+    {
+      "id": "lifecycle", "phase": "readiness", "title": "Companion lifecycle", "status": "next",
+      "deliverable": "Provide start/stop controls, optional startup on sign-in, visible connection health and clean recovery after reboot or companion restart.",
+      "acceptance": ["A user can start and recover the companion without a terminal.", "Restarting the computer preserves pairing, catalog and cache, and retrieval resumes when enabled."]
+    },
+    {
+      "id": "onboarding", "phase": "readiness", "title": "Installer + guided connection", "status": "planned",
+      "deliverable": "Bundle the runtime, guide extension pairing and desktop MCP setup, and provide a supported update/uninstall path.",
+      "acceptance": ["A classmate installs on a fresh Windows account without Node, source checkout or shell commands.", "The setup flow verifies browser sign-in, companion connection and one retrieved PDF."]
+    },
+    {
+      "id": "controls", "phase": "readiness", "title": "User controls + account boundaries", "status": "planned",
+      "deliverable": "Add course selection, cache inspection/deletion, disconnect controls and cancellation; define browser-profile and Brightspace-account isolation.",
+      "acceptance": ["A user can inspect and remove stored course data, pause retrieval, cancel queued work and revoke pairing.", "Changing school accounts does not silently reuse another account's catalog or documents."]
+    },
+    {
+      "id": "hardening", "phase": "readiness", "title": "Release reliability checks", "status": "planned",
+      "deliverable": "Exercise the existing recovery behavior across real session expiry, course changes, permission loss, restarts and multiple tabs/profiles; improve actionable errors.",
+      "acceptance": ["Signed-out, inaccessible, changed and unsupported resources produce clear recovery steps.", "A fresh-profile check covers scan, fetch, read, repeat and restart without mixing courses."]
+    },
+    {
+      "id": "pilot", "phase": "release", "title": "Small NYU student pilot", "status": "planned",
+      "deliverable": "Invite 3-5 classmates with different courses and observe installation and document retrieval; collect consented, redacted bug reports.",
+      "acceptance": ["Participants complete setup and retrieve their own course PDFs without developer assistance.", "Pilot failures are recorded and resolved before broad distribution."]
+    },
+    {
+      "id": "desktop_release", "phase": "release", "title": "Accessible desktop release", "status": "planned",
+      "deliverable": "Prepare versioned installers, extension distribution, desktop plugin packaging, privacy disclosures, permission explanations and support instructions; complete applicable reviews.",
+      "acceptance": ["A new user can follow a public installation guide and reach a successful document answer without terminal commands.", "Update, uninstall, data deletion and supported-platform boundaries are documented and verified."]
+    },
+    {
+      "id": "web_handoff", "phase": "web", "title": "Prove hosted PDF handoff", "status": "research",
+      "deliverable": "Validate one authenticated PDF transfer into the intended hosted ChatGPT surface and confirm the model can read the actual document.",
+      "acceptance": ["A hosted chat answers from a test PDF without relying on a local filesystem path or a metadata-only link.", "Document delivery, consent, retention and client support are understood before selecting the cloud architecture."]
+    },
+    {
+      "id": "remote_bridge", "phase": "web", "title": "Authenticated extension relay", "status": "research",
+      "deliverable": "Design and implement user/device authentication, isolated catalogs and queues, a secure browser connection and bounded document retention using the validated handoff.",
+      "acceptance": ["Two test users cannot access each other's catalog, requests or files.", "Brightspace session credentials remain in each user's browser; device disconnect and deletion work."]
+    },
+    {
+      "id": "hosted_release", "phase": "web", "title": "Hosted plugin pilot + release", "status": "research",
+      "deliverable": "Package the hosted integration for the chosen ChatGPT surface; validate access requirements, cost, review and support with a small pilot.",
+      "acceptance": ["A supported hosted chat can discover and read a user's requested course PDF through the complete authenticated flow.", "Operational limits, costs, retention and publication requirements have been tested and documented."]
+    },
+    {
+      "id": "firefox", "phase": "later", "title": "Firefox port", "status": "deferred",
+      "deliverable": "Adapt background execution, browser APIs, absolute request URLs and moz-extension origin pairing; package and test Firefox support.",
+      "acceptance": ["Firefox passes scan, fetch, PDF read, cache repeat, sign-in recovery and popup-closed retrieval checks using its own session."]
+    },
+    {
+      "id": "platforms", "phase": "later", "title": "More platforms + Brightspace tenants", "status": "deferred",
+      "deliverable": "Expand installer/desktop support and parameterize tenant hosts and verified API behavior as demand justifies.",
+      "acceptance": ["Each advertised OS and tenant has installation and end-to-end retrieval evidence; unsupported configurations remain explicit."]
+    },
+    {
+      "id": "formats", "phase": "later", "title": "More document formats", "status": "deferred",
+      "deliverable": "Prioritize common course formats beyond PDF and define safe download, cache and model-reading behavior for each.",
+      "acceptance": ["Each supported format can be requested and actually read by the target chat host, with size and content checks."]
+    },
+    {
+      "id": "indexing", "phase": "later", "title": "Optional text search / RAG", "status": "deferred",
+      "deliverable": "Evaluate lightweight extraction of existing PDF text and retrieval quality against real pilot needs and operating cost.",
+      "acceptance": ["A measured evaluation demonstrates improved document discovery or context efficiency without requiring OCR."]
+    },
+    {
+      "id": "ocr", "phase": "later", "title": "OCR only if justified", "status": "deferred",
+      "deliverable": "Evaluate an explicit opt-in path for image-only documents if users need searchable text and the cost/quality tradeoff is acceptable.",
+      "acceptance": ["Measured accuracy, latency, storage and compute costs justify the feature; OCR is not required for the core PDF handoff."]
+    }
+  ],
+  "edges": [
+    {"from": "catalog", "to": "cache", "kind": "requires"},
+    {"from": "cache", "to": "retrieval", "kind": "requires"},
+    {"from": "retrieval", "to": "lifecycle", "kind": "requires"},
+    {"from": "lifecycle", "to": "onboarding", "kind": "requires"},
+    {"from": "retrieval", "to": "controls", "kind": "requires"},
+    {"from": "retrieval", "to": "hardening", "kind": "requires"},
+    {"from": "onboarding", "to": "pilot", "kind": "requires"},
+    {"from": "controls", "to": "pilot", "kind": "requires"},
+    {"from": "hardening", "to": "pilot", "kind": "requires"},
+    {"from": "pilot", "to": "desktop_release", "kind": "requires"},
+    {"from": "desktop_release", "to": "web_handoff", "kind": "optional", "reason": "Recommended sequencing; the handoff spike can also be explored earlier."},
+    {"from": "web_handoff", "to": "remote_bridge", "kind": "requires"},
+    {"from": "remote_bridge", "to": "hosted_release", "kind": "requires"},
+    {"from": "desktop_release", "to": "firefox", "kind": "optional"},
+    {"from": "desktop_release", "to": "platforms", "kind": "optional"},
+    {"from": "desktop_release", "to": "formats", "kind": "optional"},
+    {"from": "desktop_release", "to": "indexing", "kind": "optional"},
+    {"from": "desktop_release", "to": "ocr", "kind": "optional"}
+  ]
+}
