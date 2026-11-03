@@ -4,6 +4,10 @@ Catalog-first NYU Brightspace experiment. The extension needs no build step. Sem
 
 See the [development flowchart and milestone criteria](docs/ROADMAP.md). Its editable source is [roadmap.json](docs/roadmap.json), with a reusable [JSON schema](docs/roadmap.schema.json). Run `npm run roadmap` after editing it to regenerate the styled Mermaid chart.
 
+An initial [Windows installer preview](docs/WINDOWS-INSTALLER.md) now bundles the runtime, production dependencies, companion, MCP server and extension. Build with `npm run build:windows`; verify the packaged runtime with `npm run test:installer`. It provides per-user installation, Start menu shortcuts, a setup guide and uninstall support. Chrome extension loading and desktop MCP registration remain manual; tray controls, automatic startup, signing and other operating systems are still future work.
+
+The next distribution flow uses a [published extension store listing](docs/EXTENSION-DISTRIBUTION.md) so users can approve installation without Developer mode. The companion now has [terminal diagnostics and an optional verbose mode](docs/COMPANION-LOGGING.md); v0.8.4 adds a Troubleshooting shortcut for verbose logs.
+
 ## Extension views
 
 - **Connect** is the default popup: browser/companion connection status, first-time pairing, pause/resume and **Browse resources**. Pairing the browser does not itself configure ChatGPT's MCP connection; a short setup guide is available from this screen.
@@ -11,7 +15,7 @@ See the [development flowchart and milestone criteria](docs/ROADMAP.md). Its edi
 - **Settings** (gear on Connect) contains retrieval preferences, storage diagnostics, re-pairing and prototype setup instructions. **Disconnect browser** stops its retrieval connection and forgets the extension's pairing token, returning Connect to first-time pairing. Saved courses, cached PDFs and the Brightspace login are retained; this does not revoke the companion's separate desktop MCP access.
 - **Advanced** on Resources contains per-course scan, saved-catalog transfer, the experimental open-document fallback and an opt-in toggle for manual PDF cache buttons. Cache controls are hidden from resource rows by default; ChatGPT's automatic retrieval continues independently.
 
-To sync from Resources, select a semester in its sidebar and click **Sync semester**. **Refresh semester list** discovers available semesters directly from Brightspace. No website navigation, tab selection, module expansion or course-card clicks are involved. Sign into NYU Brightspace in the same Chrome profile if requested. Reload the extension after updating to v0.8.2.
+To sync from Resources, select a semester in its sidebar and click **Sync semester**. **Refresh semester list** discovers available semesters directly from Brightspace. No website navigation, tab selection, module expansion or course-card clicks are involved. Sign into NYU Brightspace in the same Chrome profile if requested. Reload the extension after updating to v0.8.3.
 
 ## Load in Chrome
 
@@ -47,7 +51,7 @@ Requires Node.js 22 or newer and standalone Chrome 116 or newer. Run `npm ci` af
 5. In Resources, scan your course if needed, then enable **Advanced → Show manual PDF cache buttons**. Click **Cache** beside a Brightspace-hosted PDF. Expect **Fetched and cached**.
 6. Click **Cache ↻** on the same PDF. Expect **Cache hit — no download**. The companion serves the cached version without another Brightspace file request.
 
-On Windows the default directory is `%LOCALAPPDATA%\BrightspaceContext\cache`, outside this OneDrive repository. On macOS/Linux it uses `XDG_CACHE_HOME` or `~/.cache/brightspace-context`. Override with `BRIGHTSPACE_CACHE_DIR` when needed. The terminal prints the resolved location. Closing the service stops cache access; restarting preserves pairing and cached files.
+On Windows the default directory is `%USERPROFILE%\BrightspaceContext\cache`, outside this OneDrive repository. On macOS/Linux it uses `XDG_CACHE_HOME` or `~/.cache/brightspace-context`. Override with `BRIGHTSPACE_CACHE_DIR` when needed. The terminal prints the resolved location. Closing the service stops cache access; restarting preserves pairing and cached files.
 
 - The service binds only to `127.0.0.1:47653`. Pairing issues a token scoped to this extension origin; normal requests require that token. School passwords/cookies never go to the companion.
 - Only selected PDFs are fetched. Files have a 50 MB limit; the cache has a 500 MiB budget including its document index. LRU eviction removes old cached PDFs. The small pairing configuration is outside that quota. No pinning is implemented yet.

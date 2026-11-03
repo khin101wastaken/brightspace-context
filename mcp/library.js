@@ -16,7 +16,7 @@ export class LocalLibrary {
     if(!/^chrome-extension:\/\/[a-p]{32}$/.test(pairing.origin) || !/^[a-f0-9]{64}$/.test(pairing.token)) throw new Error('Invalid local pairing configuration. Reconnect the extension.');
     let response;
     try {response=await fetch(this.url+endpoint,{method,headers:{Origin:pairing.origin,Authorization:`Bearer ${pairing.token}`,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(15000)});}
-    catch {throw new Error('The local companion is unavailable. Start it with npm run companion.');}
+    catch {throw new Error('The local companion is unavailable. Open Brightspace Context Companion from the Start menu, or run npm run companion from the source project.');}
     if(!response.ok) {
       let error;try {error=(await response.json()).error;} catch {}
       throw new Error(error || `Companion request failed (HTTP ${response.status}).`);

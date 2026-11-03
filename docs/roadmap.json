@@ -32,12 +32,14 @@
     {
       "id": "lifecycle", "phase": "readiness", "title": "Companion lifecycle", "status": "next",
       "deliverable": "Provide start/stop controls, optional startup on sign-in, visible connection health and clean recovery after reboot or companion restart.",
-      "acceptance": ["A user can start and recover the companion without a terminal.", "Restarting the computer preserves pairing, catalog and cache, and retrieval resumes when enabled."]
+      "acceptance": ["A user can start and recover the companion without a terminal.", "Restarting the computer preserves pairing, catalog and cache, and retrieval resumes when enabled."],
+      "evidence": ["Timestamped companion diagnostics and a verbose troubleshooting launcher are implemented. Tray controls, optional startup and full reboot acceptance remain pending."]
     },
     {
       "id": "onboarding", "phase": "readiness", "title": "Installer + guided connection", "status": "planned",
       "deliverable": "Bundle the runtime, guide extension pairing and desktop MCP setup, and provide a supported update/uninstall path.",
-      "acceptance": ["A classmate installs on a fresh Windows account without Node, source checkout or shell commands.", "The setup flow verifies browser sign-in, companion connection and one retrieved PDF."]
+      "acceptance": ["A classmate installs on a fresh Windows account without Node, source checkout or shell commands.", "The setup flow verifies browser sign-in, companion connection and one retrieved PDF."],
+      "evidence": ["Initial Windows x64 installer build includes a pinned Node runtime, production dependencies, Start menu launcher, setup guide and uninstall support. Packaged-runtime smoke coverage exercises isolated pairing, PDF handoff and restart persistence. Full fresh-account onboarding acceptance is still pending."]
     },
     {
       "id": "controls", "phase": "readiness", "title": "User controls + account boundaries", "status": "planned",

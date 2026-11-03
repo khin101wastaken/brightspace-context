@@ -134,6 +134,10 @@ Acceptance:
 - A user can start and recover the companion without a terminal.
 - Restarting the computer preserves pairing, catalog and cache, and retrieval resumes when enabled.
 
+Evidence:
+
+- Timestamped companion diagnostics and a verbose troubleshooting launcher are implemented. Tray controls, optional startup and full reboot acceptance remain pending.
+
 Prerequisites: ChatGPT requests + reads PDFs.
 
 ### Installer + guided connection - PLANNED
@@ -144,6 +148,10 @@ Acceptance:
 
 - A classmate installs on a fresh Windows account without Node, source checkout or shell commands.
 - The setup flow verifies browser sign-in, companion connection and one retrieved PDF.
+
+Evidence:
+
+- Initial Windows x64 installer build includes a pinned Node runtime, production dependencies, Start menu launcher, setup guide and uninstall support. Packaged-runtime smoke coverage exercises isolated pairing, PDF handoff and restart persistence. Full fresh-account onboarding acceptance is still pending.
 
 Prerequisites: Companion lifecycle.
 

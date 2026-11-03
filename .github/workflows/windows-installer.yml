@@ -1,0 +1,36 @@
+name: Windows installer preview
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - name: Install verified Inno Setup compiler
+        shell: pwsh
+        run: |
+          $config = Get-Content -Raw packaging/windows/build-config.json | ConvertFrom-Json
+          $download = Join-Path $env:RUNNER_TEMP 'inno-setup.exe'
+          Invoke-WebRequest -Uri $config.compilerUrl -OutFile $download
+          if ((Get-FileHash -LiteralPath $download -Algorithm SHA256).Hash.ToLowerInvariant() -ne $config.compilerSha256) { throw 'Compiler checksum mismatch' }
+          $destination = Join-Path $env:RUNNER_TEMP 'inno'
+          $setup = Start-Process -FilePath $download -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/CURRENTUSER','/NOICONS',('/DIR="'+$destination+'"')) -WindowStyle Hidden -Wait -PassThru
+          if ($setup.ExitCode -ne 0) { throw 'Compiler installation failed' }
+          'BRIGHTSPACE_ISCC=' + (Join-Path $destination 'ISCC.exe') | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - run: npm test
+      - run: npm run check
+      - run: npm run build:windows
+      - run: npm run test:installer
+      - uses: actions/upload-artifact@v4
+        with:
+          name: brightspace-context-windows-x64-preview
+          path: |
+            dist/*-setup.exe
+            dist/*-setup.exe.sha256
+          if-no-files-found: error
+          retention-days: 14

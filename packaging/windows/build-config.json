@@ -1,0 +1,8 @@
+{
+  "nodeVersion": "22.23.4",
+  "nodeArchive": "node-v22.23.4-win-x64.zip",
+  "nodeSha256": "cbc74b5e0982c9dbb41525fd8fb5dcd32fbee237863f7829072f4639a1ce5f20",
+  "compilerVersion": "7.1.1",
+  "compilerUrl": "https://github.com/jrsoftware/issrc/releases/download/is-7_1_1/innosetup-7.1.1-x64.exe",
+  "compilerSha256": "8a5a6711c3766a6e5fb74f280ba0e3551e719ce94538d901fdbd1f8f9920b3f0"
+}

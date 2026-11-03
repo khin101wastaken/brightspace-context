@@ -6,6 +6,9 @@
     "node": ">=22"
   },
   "scripts": {
+    "build:windows": "node scripts/build-windows.js",
+    "test:installer": "node scripts/smoke-windows.js",
+    "test:upgrade": "node scripts/test-upgrade-windows.js",
     "companion": "node companion/start.js",
     "mcp": "node mcp/start.js",
     "mcp:verify": "node scripts/verify-handoff.js",
