@@ -4,7 +4,7 @@ import {spawnSync} from 'node:child_process';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
-export const PAYLOAD_SOURCES=['extension','companion','mcp','package.json','package-lock.json'];
+export const PAYLOAD_SOURCES=['extension','companion','mcp','package.json','package-lock.json','LICENSE'];
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 export function verifyChecksum(bytes,expected) {

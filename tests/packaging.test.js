@@ -8,7 +8,7 @@ import {runInNewContext} from 'node:vm';
 import {PAYLOAD_SOURCES,inventory,verifyChecksum} from '../scripts/build-windows.js';
 
 test('packaging copies an explicit source allowlist rather than workspace or private runtime data',()=>{
-  assert.deepEqual(PAYLOAD_SOURCES,['extension','companion','mcp','package.json','package-lock.json']);
+  assert.deepEqual(PAYLOAD_SOURCES,['extension','companion','mcp','package.json','package-lock.json','LICENSE']);
 });
 test('runtime checksum rejects modified bytes and malformed expected hashes',()=>{
   const bytes=Buffer.from('runtime fixture'),digest=createHash('sha256').update(bytes).digest('hex');

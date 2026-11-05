@@ -22,7 +22,7 @@ npm.cmd run test:installer
 
 The build downloads the exact Node 22.23.4 Windows x64 ZIP from nodejs.org, checks its pinned SHA-256, and includes only `node.exe` and its third-party license notices. Version/checksum pins live in [build-config.json](../packaging/windows/build-config.json); update them together against official release checksums. A cached archive is rechecked on every build. No developer-machine Node executable is redistributed.
 
-The application payload uses an explicit source allowlist: extension, companion, MCP, and package manifests. Production dependencies are installed in fresh staging with `npm ci --omit=dev --ignore-scripts`; dependency licenses are retained. It never copies the workspace wholesale, existing `node_modules`, profiles, `.cache`, pairing, catalogs, logs or course files. Symlinks are rejected during payload inventory. The generated `PAYLOAD.json` records every packaged file's size and SHA-256. These hashes detect changes; they do not replace code signing.
+The application payload uses an explicit source allowlist: extension, companion, MCP, package manifests and the project's MIT license. Production dependencies are installed in fresh staging with `npm ci --omit=dev --ignore-scripts`; dependency licenses are retained. It never copies the workspace wholesale, existing `node_modules`, profiles, `.cache`, pairing, catalogs, logs or course files. Symlinks are rejected during payload inventory. The generated `PAYLOAD.json` records every packaged file's size and SHA-256. These hashes detect changes; they do not replace code signing.
 
 Build staging and downloaded tools stay under `.cache`; outputs stay in ignored `dist`:
 
@@ -30,7 +30,7 @@ Build staging and downloaded tools stay under `.cache`; outputs stay in ignored 
 - Matching `.exe.sha256`
 - `latest-build.json` pointing to the staged payload for local smoke testing (not a distribution file)
 
-The installer is currently unsigned. Do not describe it as a public, reviewed or production-ready release.
+The installer is an unsigned preview. Do not describe it as reviewed or production-ready.
 
 ## User flow
 

@@ -21,7 +21,7 @@ test('packaging rejects private extras, widened permissions and missing required
   assert.throws(()=>validateExtension(alteredManifest({host_permissions:['<all_urls>']})),/host permissions/);
   assert.throws(()=>validateExtension(alteredManifest({permissions:['storage','downloads','alarms','scripting','activeTab']})),/permissions/);
   assert.throws(()=>validateExtension(alteredManifest({permissions:['storage']})),/permissions/);
-  for(const name of ['manifest.json','download.js','resources.js','icons/icon-128.png']) {
+  for(const name of ['manifest.json','download.js','resources.js','LICENSE','icons/icon-128.png']) {
     const incomplete={...files};delete incomplete[name];assert.throws(()=>zipExtension(incomplete),/Missing packaged file/);
   }
 });

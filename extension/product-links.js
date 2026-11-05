@@ -1,4 +1,4 @@
-export const PRODUCT_VERSION='0.8.8';
+export const PRODUCT_VERSION='0.8.9';
 const website='https://brightspace-context.khin101.chatgpt.site';
 export const PRODUCT_LINKS=Object.freeze({
   setup:`${website}/setup/`,

@@ -7,7 +7,7 @@ import {zipSync,unzipSync,strFromU8} from 'fflate';
 export const EXTENSION_FILES=[
   'manifest.json','background.js','brightspace-client.js','catalog.js','companion-client.js','course-api.js',
   'download.js','file-downloads.js','popup.css','popup.html','popup.js','resources.html','resources.js',
-  'retrieval-worker.js','semester.js','tab-context.js','rich-text.js','document-formats.js','search-highlight.js','product-links.js','THIRD-PARTY-LICENSES.txt',
+  'retrieval-worker.js','semester.js','tab-context.js','rich-text.js','document-formats.js','search-highlight.js','product-links.js','LICENSE','THIRD-PARTY-LICENSES.txt',
   ...[16,32,48,128].map(size=>`icons/icon-${size}.png`),
 ];
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
@@ -17,6 +17,7 @@ function requireFile(files,value) {
 }
 export function validateExtension(files) {
   requireFile(files,'manifest.json');
+  requireFile(files,'LICENSE');requireFile(files,'THIRD-PARTY-LICENSES.txt');
   const manifest=JSON.parse(strFromU8(files['manifest.json'] || new Uint8Array()));
   if(manifest.manifest_version!==3 || !/^\d+\.\d+\.\d+$/.test(manifest.version) || !manifest.name || !manifest.description || manifest.description.length>132) throw new Error('Invalid store manifest metadata.');
   const allowed=new Set(['scripting','storage','downloads','alarms']);

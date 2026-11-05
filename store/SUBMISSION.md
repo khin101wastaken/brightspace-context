@@ -1,6 +1,6 @@
 # Chrome Web Store submission draft
 
-Package version: 0.8.8. Submission status: not uploaded or submitted.
+Package version: 0.8.9 (release candidate). Submission status: not uploaded or submitted.
 
 Pinned priority: finish the [submission essentials](../docs/RELEASE-CHECKLIST.md) and submit the unlisted pilot. Automatic MCP registration and other optional features can follow.
 
@@ -15,13 +15,13 @@ npm ci
 npm run package:extension
 ```
 
-Upload only `dist/BrightspaceContext-0.8.8-chrome-web-store.zip`. The SHA-256 and file inventory beside it are build records, not additional ZIP contents. The manifest is at the ZIP root. The ZIP includes 20 browser files, third-party licenses and four PNG icons; it excludes the companion, Node, MCP server, dependencies, course files, tokens, profiles, tests and developer-only inspection/expansion scripts. All executable JavaScript is readable and bundled locally. The checked-in HTML parser bundle is generated from `assets/rich-text.js` with `npm run build:rich-text`; `npm run build:rich-text -- --check` verifies it. `htmlparser2`, its entity decoder, the `fflate` package validator and their licenses are shipped as local browser assets; `esbuild` remains a development tool. `fflate` and the other bundling tools are development dependencies; only the generated local browser modules and their licenses ship, with no npm runtime dependency needed for document validation.
+Upload only `dist/BrightspaceContext-0.8.9-chrome-web-store.zip`. The SHA-256 and file inventory beside it are build records, not additional ZIP contents. The manifest is at the ZIP root. The ZIP includes 20 browser files, the MIT and third-party licenses, and four PNG icons; it excludes the companion, Node, MCP server, dependencies, course files, tokens, profiles, tests and developer-only inspection/expansion scripts. All executable JavaScript is readable and bundled locally. The checked-in HTML parser bundle is generated from `assets/rich-text.js` with `npm run build:rich-text`; `npm run build:rich-text -- --check` verifies it. `htmlparser2`, its entity decoder, the `fflate` package validator and their licenses are shipped as local browser assets; `esbuild` remains a development tool. `fflate` and the other bundling tools are development dependencies; only the generated local browser modules and their licenses ship, with no npm runtime dependency needed for document validation.
 
 Module landing-page context requires the v0.8.8 companion/MCP update as well as reloading the extension and syncing the semester again. Older catalogs remain readable and mark missing descriptions as not synced. Reload the desktop MCP connection after updating. The development extension stays loaded from its existing folder unless explicitly changed.
 
 The initial document-stack icon has an editable [SVG source](../assets/extension-icon.svg). Checked-in PNGs are 16, 32, 48 and 128 pixels. The store's 128px version centers a 96px mark with 16px transparent margins. Maintainers can regenerate them with `python scripts/generate-extension-icons.py` (Pillow is a development tool only).
 
-Source repository: https://github.com/khin101wastaken/brightspace-context . The public source is licensed under MIT; course materials retain their owners' rights. Source changes newer than the downloadable v0.8.8 installer must be tested and packaged together before store submission.
+Source repository: https://github.com/khin101wastaken/brightspace-context . The public source is licensed under MIT; course materials retain their owners' rights. The v0.8.9 candidate bundles the current source together; publish its matching installer and finish fresh-profile acceptance before store submission. The public setup page still serves the earlier v0.8.8 preview until that acceptance is complete.
 
 ## Draft listing text
 
