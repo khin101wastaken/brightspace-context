@@ -1,10 +1,10 @@
 # Chrome Web Store submission draft
 
-Package version: 0.8.9 (release candidate). Submission status: not uploaded or submitted.
+Package version: 0.9.1 (submission candidate). Submission status: not uploaded or submitted. Earlier artifacts are retained separately.
 
 Pinned priority: finish the [submission essentials](../docs/RELEASE-CHECKLIST.md) and submit the unlisted pilot. Automatic MCP registration and other optional features can follow.
 
-Publisher name: **Khin Aung**. Public support contact: **khinaungwrk@gmail.com**. The Chrome developer account still needs its own registration/verification.
+Publisher name: **Khin Aung**. Public support contact: **khinaungwrk@gmail.com**. The publisher confirmed developer registration on November 5; verify contact email and two-step verification in the dashboard before submission.
 
 Public privacy-policy URL: **https://brightspace-context.khin101.chatgpt.site**. The static page is published with public access and contains the policy/support information only. The privacy website does not host course content or the companion service.
 
@@ -15,17 +15,17 @@ npm ci
 npm run package:extension
 ```
 
-Upload only `dist/BrightspaceContext-0.8.9-chrome-web-store.zip`. The SHA-256 and file inventory beside it are build records, not additional ZIP contents. The manifest is at the ZIP root. The ZIP includes 20 browser files, the MIT and third-party licenses, and four PNG icons; it excludes the companion, Node, MCP server, dependencies, course files, tokens, profiles, tests and developer-only inspection/expansion scripts. All executable JavaScript is readable and bundled locally. The checked-in HTML parser bundle is generated from `assets/rich-text.js` with `npm run build:rich-text`; `npm run build:rich-text -- --check` verifies it. `htmlparser2`, its entity decoder, the `fflate` package validator and their licenses are shipped as local browser assets; `esbuild` remains a development tool. `fflate` and the other bundling tools are development dependencies; only the generated local browser modules and their licenses ship, with no npm runtime dependency needed for document validation.
+Upload only `dist/BrightspaceContext-0.9.1-chrome-web-store.zip`. The SHA-256 and file inventory beside it are build records, not additional ZIP contents. The manifest is at the ZIP root. The ZIP includes 25 browser files, the MIT and third-party licenses, and four PNG icons (31 entries); it excludes the companion, Node, MCP server, dependencies, course files, tokens, profiles, tests and developer-only inspection/expansion scripts. All executable JavaScript is bundled locally. The checked-in HTML parser bundle is generated from `assets/rich-text.js` with `npm run build:rich-text`; `npm run build:rich-text -- --check` verifies it. The parser, entity decoder and document validator ship as local browser assets with their licenses; bundling tools remain development dependencies.
 
 Module landing-page context requires the v0.8.8 companion/MCP update as well as reloading the extension and syncing the semester again. Older catalogs remain readable and mark missing descriptions as not synced. Reload the desktop MCP connection after updating. The development extension stays loaded from its existing folder unless explicitly changed.
 
 The initial document-stack icon has an editable [SVG source](../assets/extension-icon.svg). Checked-in PNGs are 16, 32, 48 and 128 pixels. The store's 128px version centers a 96px mark with 16px transparent margins. Maintainers can regenerate them with `python scripts/generate-extension-icons.py` (Pillow is a development tool only).
 
-Source repository: https://github.com/khin101wastaken/brightspace-context . The public source is licensed under MIT; course materials retain their owners' rights. The v0.8.9 candidate bundles the current source together; publish its matching installer and finish fresh-profile acceptance before store submission. The public setup page still serves the earlier v0.8.8 preview until that acceptance is complete.
+Source repository: https://github.com/khin101wastaken/brightspace-context . The public source is licensed under MIT; course materials retain their owners' rights. The v0.9.1 candidate includes the UI/search updates, extension-only motion/appearance preferences, completed-course sync ring, and MCP-initiated semester discovery/catalog sync. Release checks and remaining live acceptance are recorded in [RELEASE-CHECKLIST.md](../docs/RELEASE-CHECKLIST.md). The matching preview installer is linked from the public setup page; automated tests do not replace live NYU/client acceptance.
 
 ## Draft listing text
 
-Name from manifest: **Brightspace Catalog — NYU Prototype**. This can be changed before the first upload by changing the manifest and rebuilding.
+Name from manifest: **Brightspace Catalog (NYU Prototype)**. This can be changed before the first upload by changing the manifest and rebuilding.
 
 Short description from manifest:
 
@@ -37,9 +37,11 @@ Single purpose:
 
 Description draft:
 
-Browse your NYU Brightspace resources by semester, course and module. Search saved resource metadata, download individual Brightspace-hosted files with their module folders, and optionally connect a local companion to retrieve course PDF, PPTX and DOCX files through a supported desktop MCP client.
+Browse your NYU Brightspace resources by semester, course and module. Search filenames and module notes, view matching text, and download individual accessible Brightspace-hosted files with their module folders.
 
-The browser uses your existing NYU Brightspace session. Course catalogs are saved in Chrome and the paired companion; Supported files are cached individually on demand. There is no publisher-operated course-content server or analytics service.
+Optionally pair the local Windows companion with a supported desktop MCP client to refresh semester catalogs and retrieve original PDF, PPTX and DOCX files on demand. Keep Chrome signed in and the companion running for automatic requests. Files are cached individually rather than downloaded in bulk.
+
+The browser uses your existing NYU Brightspace session. Course catalogs are saved in Chrome and the paired companion. There is no publisher-operated course-content server or analytics service. Your chosen AI client may send requested context to its provider under its own settings and policies.
 
 Browsing/downloading requires access to your own NYU Brightspace courses. Desktop AI retrieval additionally requires the companion and a configured local MCP client. The packaged companion currently targets Windows 10/11 x64. This is an independent prototype, not an official NYU or D2L product.
 
@@ -61,9 +63,9 @@ The redundant `activeTab` permission was removed: the NYU host permission alread
 - Confirm the extension display name; the publisher/contact details above are supplied.
 - Use the published privacy-policy URL above. Store disclosures must match the [policy](privacy-policy.md) and actual handling of course content/pairing data even though storage is local.
 - Public setup URL: https://brightspace-context.khin101.chatgpt.site/setup/ . The guide links the matching installer and checksum; verify these published artifacts before submission.
-- Capture accurate screenshots with synthetic or appropriately cleared data. Do not publish a student's private course catalog or documents as listing screenshots.
+- Upload the three 1280×800 RGB JPEG screenshots in `store/assets/screenshots/`. They show actual extension UI with clearly labelled synthetic course data, not a student's private catalog. The data fixture is not an extension feature.
 - Provide the mandatory store icon and screenshot assets in the dashboard; the extension PNG icons are already included in the ZIP.
-- Finish [reviewer-instructions.md](reviewer-instructions.md), including a legitimate way for reviewers to assess the NYU-only functionality. An ordinary reviewer may not have NYU access.
+- Paste [reviewer-instructions.md](reviewer-instructions.md). No institutional test account has been arranged; do not assume reviewers have NYU access. The walkthrough supplements the access disclosure and does not guarantee approval. If review requests access, arrange an authorized institutional solution or address it through the review process.
 - Load the ZIP's extracted contents in a fresh Chrome profile and check pairing, catalog sync, nested modules, downloads, one uncached PDF, cache repeat and restart.
 - Select **Unlisted** for the pilot and complete store review. Unlisted items are accessible to anyone with the link and are reviewed too.
 

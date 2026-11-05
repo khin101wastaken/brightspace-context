@@ -6,13 +6,13 @@ const ORIGIN='https://brightspace.nyu.edu';
 async function json(path,fetcher,{optionalModule=false}={}) {
   let response;
   try {response=await fetcher(ORIGIN+path,{credentials:'include',redirect:'error',headers:{Accept:'application/json'},signal:AbortSignal.timeout(20000)});}
-  catch {throw new Error('Brightspace could not be reached. Check your connection and sign into NYU Brightspace in this Chrome profile.');}
+  catch(error) {if(error.code==='PAUSED') throw error;throw Object.assign(new Error('Brightspace could not be reached. Check your connection and sign into NYU Brightspace in this Chrome profile.'),{code:'NETWORK_ERROR'});}
   if(optionalModule && [403,404].includes(response.status)) return null;
-  if(response.status===403 && path.endsWith('/content/toc')) throw new Error('Brightspace denied access to this course outline. Check your course access in Brightspace.');
-  if([401,403].includes(response.status)) throw new Error('Brightspace access was denied. Sign into NYU Brightspace in this Chrome profile, then retry.');
-  if(response.status===429) throw new Error('Brightspace is limiting requests. Wait a moment before syncing again.');
+  if(response.status===403 && path.endsWith('/content/toc')) throw Object.assign(new Error('Brightspace denied access to this course outline. Check your course access in Brightspace.'),{code:'ACCESS_DENIED'});
+  if([401,403].includes(response.status)) throw Object.assign(new Error('Brightspace access was denied. Sign into NYU Brightspace in this Chrome profile, then retry.'),{code:'NEEDS_LOGIN'});
+  if(response.status===429) throw Object.assign(new Error('Brightspace is limiting requests. Wait a moment before syncing again.'),{code:'RATE_LIMITED'});
   if(!response.ok) throw new Error(`Brightspace request failed (HTTP ${response.status}).`);
-  if(!response.headers.get('content-type')?.includes('json')) throw new Error('Brightspace returned a sign-in page. Sign into NYU Brightspace in this Chrome profile, then retry.');
+  if(!response.headers.get('content-type')?.includes('json')) throw Object.assign(new Error('Brightspace returned a sign-in page. Sign into NYU Brightspace in this Chrome profile, then retry.'),{code:'NEEDS_LOGIN'});
   return response.json();
 }
 export async function listBrightspaceSemesters(fetcher=fetch) {

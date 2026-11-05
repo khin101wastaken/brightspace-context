@@ -51,8 +51,10 @@ export async function createCompanion({directory,port=47653,budgetBytes,pairingC
       }
       if(!client || client.origin!==origin || !same(req.headers.authorization,`Bearer ${client.token}`)) {emit('auth.rejected',{code:!client?'NOT_PAIRED':client.origin!==origin?'BROWSER_MISMATCH':'TOKEN_MISMATCH',origin});return send(res,401,{error:'Pair this extension with the companion first.',code:'PAIRING_REQUIRED'});}
       if(req.method==='POST' && url.pathname==='/v1/requests') return send(res,200,await requests.request(JSON.parse((await body(req,4096)).toString())));
-      if(req.method==='POST' && url.pathname==='/v1/requests/claim') return send(res,200,await requests.claim());
-      if(req.method==='POST' && url.pathname==='/v1/requests/finish') return send(res,200,await requests.finish(JSON.parse((await body(req,4096)).toString())));
+      if(req.method==='POST' && url.pathname==='/v1/requests/catalog-sync') return send(res,200,await requests.syncRequest(JSON.parse((await body(req,4096)).toString())));
+      if(req.method==='POST' && url.pathname==='/v1/requests/claim') {const value=JSON.parse((await body(req,4096)).toString() || '{}');return send(res,200,await requests.claim({catalogSync:Array.isArray(value.capabilities) && value.capabilities.includes('catalog-sync')}));}
+      if(req.method==='POST' && url.pathname==='/v1/requests/progress') return send(res,200,await requests.progress(JSON.parse((await body(req,4096)).toString())));
+      if(req.method==='POST' && url.pathname==='/v1/requests/finish') return send(res,200,await requests.finish(JSON.parse((await body(req,MAX_CATALOG_BYTES+4096)).toString())));
       if(req.method==='POST' && url.pathname==='/v1/requests/retry-login') return send(res,200,await requests.retryLogin());
       const request=url.pathname.match(/^\/v1\/requests\/([a-f0-9-]{36})$/);
       if(req.method==='GET' && request) return send(res,200,await requests.get(request[1]));
@@ -97,7 +99,7 @@ export async function createCompanion({directory,port=47653,budgetBytes,pairingC
   const workerChannel=createWorkerChannel(server,{getClient:()=>client,isReady:()=>!!requests,log:emit});
   server.requestTimeout=120000;
   await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,'127.0.0.1',resolve);});
-  try {catalog=await openCatalog(directory);cache=await openCache(directory,{budgetBytes});requests=await openRequests(directory,{catalog,cache,notify:workerChannel.notify,workerConnected:workerChannel.connected,log:emit});}
+  try {catalog=await openCatalog(directory);cache=await openCache(directory,{budgetBytes});requests=await openRequests(directory,{catalog,cache,notify:workerChannel.notify,workerConnected:workerChannel.connected,syncWorkerConnected:workerChannel.catalogSyncConnected,log:emit});}
   catch(error) {workerChannel.close();await new Promise(resolve=>server.close(resolve));throw error;}
   return {server,cache,requests,pairingCode,url:`http://127.0.0.1:${server.address().port}`,close:()=>new Promise(resolve=>{workerChannel.close();server.close(resolve);server.closeAllConnections();})};
 }

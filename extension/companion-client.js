@@ -17,8 +17,9 @@ export async function pairCompanion(code,fetcher=fetch) {
 // existing origin + token checks without treating a healthy process as offline.
 export const companionStatus=(token,fetcher=fetch,{timeoutMs=5000}={})=>request('/v1/status',{token,method:'POST',body:'{}',headers:{'Content-Type':'application/json'},timeoutMs},fetcher);
 export const syncCatalog=(snapshot,token,fetcher=fetch)=>request('/v1/catalog/semesters',{token,method:'PUT',body:JSON.stringify(snapshot),headers:{'Content-Type':'application/json'}},fetcher);
-export const claimRequest=(token,fetcher=fetch)=>request('/v1/requests/claim',{token,method:'POST'},fetcher);
+export const claimRequest=(token,fetcher=fetch,{catalogSync=false}={})=>request('/v1/requests/claim',{token,method:'POST',body:JSON.stringify({capabilities:catalogSync?['catalog-sync']:[]}),headers:{'Content-Type':'application/json'}},fetcher);
 export const finishRequest=(value,token,fetcher=fetch)=>request('/v1/requests/finish',{token,method:'POST',body:JSON.stringify(value),headers:{'Content-Type':'application/json'}},fetcher);
+export const progressRequest=(value,token,fetcher=fetch)=>request('/v1/requests/progress',{token,method:'POST',body:JSON.stringify(value),headers:{'Content-Type':'application/json'}},fetcher);
 export const retryLoginRequests=(token,fetcher=fetch)=>request('/v1/requests/retry-login',{token,method:'POST'},fetcher);
 
 export function documentMetadata(catalog,key) {

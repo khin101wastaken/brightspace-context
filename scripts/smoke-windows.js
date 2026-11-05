@@ -97,6 +97,17 @@ export async function smokeWindows(payload) {
       client=new Client({name:'installer-smoke',version:'1.0.0'});await client.connect(transport);
     };
     await connect();
+    const tools=await client.listTools();assert.ok(tools.tools.some(tool=>tool.name==='request_catalog_sync'));assert.ok(tools.tools.some(tool=>tool.name==='get_catalog_sync'));
+    const discovery=JSON.parse((await client.callTool({name:'request_catalog_sync',arguments:{waitSeconds:0}})).content[0].text);
+    assert.equal(discovery.state,'queued');
+    const claimed=await request('/v1/requests/claim',{capabilities:['catalog-sync']},'POST',token);
+    assert.equal(claimed.job.requestId,discovery.requestId);
+    await request('/v1/requests/finish',{requestId:discovery.requestId,leaseId:claimed.job.leaseId,result:{semesters:[{semesterId:'200',title:'Synthetic semester'}]}},'POST',token);
+    const checkDiscovery=async()=>{
+      const result=JSON.parse((await client.callTool({name:'get_catalog_sync',arguments:{requestId:discovery.requestId,waitSeconds:0}})).content[0].text);
+      assert.equal(result.state,'ready');assert.equal(result.semesters[0].semesterId,'200');
+    };
+    await checkDiscovery();
     const checkNotes=async()=>{
       const result=JSON.parse((await client.callTool({name:'search_catalog',arguments:{query:'fixture film'}})).content[0].text);
       assert.equal(result.total,1);assert.equal(result.entries[0].description,moduleNotes);assert.equal(result.entries[0].descriptionStatus,'synced');assert.equal(result.entries[0].descriptionTruncated,true);
@@ -122,12 +133,13 @@ export async function smokeWindows(payload) {
     const status=await request('/v1/status',undefined,'GET',token);
     assert.equal(status.files,3,'pairing and all verified formats survive companion restart');
     await connect();
+    await checkDiscovery();
     await checkNotes();
     await checkOffice();
     const repeated=JSON.parse((await client.callTool({name:'list_cached_documents',arguments:{}})).content[0].text);
     assert.equal(repeated.documents[0].id,listed.documents[0].id);
     await companion.waitForOutput(/DEBUG http\.request/);
-    console.log(`PASS: payload inventory, bundled Node ${manifest.nodeVersion}, normal/verbose launchers with spaces, fresh-cache startup, pairing, PDF/PPTX/DOCX bytes and module notes through packaged MCP, restart persistence.`);
+    console.log(`PASS: payload inventory, bundled Node ${manifest.nodeVersion}, normal/verbose launchers with spaces, fresh-cache startup, pairing, PDF/PPTX/DOCX bytes and module notes through packaged MCP, catalog-sync tools and discovery queue, restart persistence.`);
   } finally {
     await client?.close();await companion?.stop();
     const resolved=path.resolve(directory);

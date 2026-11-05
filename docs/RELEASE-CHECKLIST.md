@@ -1,37 +1,43 @@
 # Pinned priority: Chrome Web Store submission
 
-Updated November 5, 2026. Objective: submit an unlisted local Windows/NYU pilot once the essentials below are ready. The extension has not been uploaded, reviewed or approved.
+Updated November 5, 2026. Objective: submit an unlisted local Windows/NYU pilot. The extension has not been uploaded, reviewed or approved.
 
-## Frozen release candidate: v0.8.9
+## Submission candidate: v0.9.1
 
-The submission candidate packages the current source, search refinements, GitHub links and MIT license together. The public download remains v0.8.8 until the candidate passes acceptance. Follow [the candidate acceptance steps](RELEASE-0.8.9.md); retain its source commit and artifact hashes when recording results.
+- [x] 115 source tests and syntax checks pass.
+- [x] Final 31-entry ZIP validates, with root manifest, local code, licenses and icons only.
+- [x] Matching Windows installer built; packaged-runtime startup, original PDF/PPTX/DOCX transport, module notes, catalog-sync tools and restart checks pass.
+- [x] Three 1280×800 screenshots captured using labelled synthetic data; no real course catalog is published.
+- [x] Listing, permission/privacy answers and honest NYU access instructions prepared in `store/`.
+- [x] Publisher confirmed Chrome developer registration. Verify contact email and two-step verification in the dashboard.
+- [x] Final isolated v0.9.0-to-v0.9.1 upgrade check and source/ZIP/payload comparison recorded.
+- [x] Freeze source checkpoint and artifact hashes; see `store/RELEASE-0.9.1.md` and the local release record.
+- [x] Publish matching preview installer, updated privacy policy, setup guide and supplementary reviewer walkthrough.
+- [ ] Complete standalone Chrome/NYU acceptance, including [MCP catalog sync](MCP-CATALOG-SYNC.md) with Resources closed and an original uncached document read by the actual host.
+- [ ] Check the extracted final ZIP with a fresh Chrome profile: first pairing, semester hierarchy/notes, search, download, retrieval, cache hit and restart. Verify real host PPTX/DOCX reading before advertising tested client compatibility; original-byte transport is already covered automatically.
+- [ ] Upload ZIP as a draft; complete listing, privacy, test instructions and Unlisted distribution.
+- [ ] Submit for review, preferably with automatic publishing disabled for the initial pilot; record item ID and review outcome.
 
-- [x] 83 source tests pass; local bundles match their sources.
-- [x] Build and verify the matching v0.8.9 extension ZIP and Windows installer; their packaged browser files are byte-identical.
-- [x] Complete isolated packaged-runtime and v0.8.8-to-v0.8.9 upgrade checks, including retained state, one resumed request, shortcuts and uninstall retention.
-- [ ] Complete fresh-profile/live document-reading acceptance.
-- [ ] Publish the accepted installer and update reviewer instructions/download links.
+Artifact hashes and verification evidence live in the local `dist/BrightspaceContext-0.9.1-release-record.json` and the upload packet. Earlier v0.8.9/v0.9.0 artifacts are retained as historical checkpoints; use the final v0.9.1 ZIP for this draft.
 
-## Already prepared
+## Reviewer access
 
-- [x] v0.8.8 extension ZIP with local bundles, icons and dependency/integrity checks.
-- [x] v0.8.8 Windows companion installer and setup guide.
-- [x] Public privacy policy covering PDF/PPTX/DOCX handling.
-- [x] Publisher name, support email, draft listing and permission explanations.
-- [x] 83 local tests and packaged-runtime checks for supported file transport and restart persistence.
+No authorized institutional test account has been arranged. Reviewers should not be assumed to have NYU access. `store/reviewer-instructions.md` states the restriction explicitly and links a synthetic screenshot walkthrough. Google documents the Test instructions tab as optional; supplementary evidence does not guarantee acceptance of restricted functionality. Address any request for access through an authorized institutional arrangement or the store review process. Do not share personal school credentials.
 
-## Finish before submission
+## Public materials
 
-- [ ] Register/verify the Chrome developer account and complete required dashboard declarations.
-- [x] Public setup and companion download URLs: https://brightspace-context.khin101.chatgpt.site/setup/ . The public v0.8.8 installer and checksum were verified against the tested build.
-- [ ] Capture accurate store screenshots using synthetic or appropriately cleared material; finalize listing text and privacy/permission answers for the actual v0.8.8 behavior.
-- [ ] Finalize legitimate reviewer access and complete `store/reviewer-instructions.md`. NYU-only live features require authorized access. A synthetic demonstration and walkthrough can supplement testing but must be clearly identified and cannot be assumed to replace any reviewer access requirement.
-- [ ] Check the extracted release ZIP and installed companion in a fresh Chrome profile: pairing, semester hierarchy, module notes, download, on-demand retrieval, cache repeat and restart. Verify actual supported host file reading, including the real PPTX/DOCX path when advertised.
-- [ ] Save the tested source checkpoint and ensure the submitted ZIP, installer and instructions correspond to that release.
-- [ ] Upload the ZIP, select the intended pilot visibility, complete the dashboard and submit for review. Record the resulting listing URL and review outcome.
+- Privacy: https://brightspace-context.khin101.chatgpt.site/
+- Setup/installer: https://brightspace-context.khin101.chatgpt.site/setup/
+- Reviewer walkthrough: https://brightspace-context.khin101.chatgpt.site/review/
+- MIT source: https://github.com/khin101wastaken/brightspace-context
+- Publisher: Khin Aung; support: khinaungwrk@gmail.com
 
-## Follow-up improvements
+The static site hosts documentation and installers only. Course catalogs/files remain local until requested by the user's chosen AI client. No hosted course-data deployment is planned.
 
-Simpler ChatGPT MCP registration, a Claude MCPB, tray/autostart, automatic companion updates, Firefox, other platforms and RAG/OCR do not need to be implemented before this first submission. Clearly document the current manual MCP setup and supported environment. Hosted course-data deployment remains deferred.
+## After the first upload
 
-Sources of release details: `store/SUBMISSION.md`, `store/reviewer-instructions.md`, `docs/roadmap.json`.
+Record the real Chrome Web Store item ID/install URL and wire it into companion onboarding and the public setup guide. A store-installed copy has separate identity/storage from an unpacked development copy and must be paired explicitly. Do not run both workers against the same companion unintentionally. Normal updates to the same store item retain its ID.
+
+## Deferred improvements
+
+Terminal readability, simpler MCP registration, Claude MCPB packaging, tray/autostart, automatic companion updates, Firefox, other platforms and RAG/OCR remain follow-ups. They should not delay this submission. Current manual MCP setup and supported environment must remain clear.

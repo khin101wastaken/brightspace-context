@@ -4,6 +4,14 @@ import {atomicWrite} from './files.js';
 
 export const MAX_CATALOG_BYTES=10*1024*1024;
 const text=(value,max=1000)=>typeof value==='string' && value.length<=max;
+export function validateDiscovery(value) {
+  if(!Array.isArray(value) || value.length>200) throw new Error('Invalid semester discovery.');
+  const seen=new Set();
+  return value.map(item=>{
+    if(!item || typeof item.semesterId!=='string' || !/^\d+$/.test(item.semesterId) || seen.has(item.semesterId) || !text(item.title) || !item.title.trim()) throw new Error('Invalid discovered semester.');
+    seen.add(item.semesterId);return {semesterId:item.semesterId,title:item.title};
+  });
+}
 export function validateSemester(value) {
   if(!value || !/^\d+$/.test(value.semesterId) || !text(value.title) || !value.title || !Array.isArray(value.courses) || !value.courses.length || value.courses.length>200 || !Number.isFinite(Date.parse(value.updatedAt))) throw new Error('Invalid semester catalog.');
   const ids=new Set();let total=0;
@@ -53,13 +61,21 @@ export async function openCatalog(directory) {
     const parsed=JSON.parse(raw);
     if(parsed.version!==1 || !Array.isArray(parsed.semesters)) throw new Error('Unsupported catalog format.');
     // Validate persisted metadata with the same rules used for new uploads.
-    state={version:1,semesters:parsed.semesters.map(s=>{
+    state={version:1,...(parsed.availableSemesters?{availableSemesters:validateDiscovery(parsed.availableSemesters),discoveredAt:parsed.discoveredAt}:{}),semesters:parsed.semesters.map(s=>{
       const validated=validateSemester({...s,courses:s.courses.map(c=>c.entries?{...c,status:'complete'}:c)});
       return {...validated,courses:validated.courses.map((c,i)=>({...c,status:s.courses[i].status,...(s.courses[i].error?{error:s.courses[i].error}:{}),stale:s.courses[i].stale===true}))};
     })};
   } catch(error) {if(error.code!=='ENOENT') throw error;}
   return {
     async read(){await queue;return structuredClone(state);},
+    discover(value) {
+      const task=queue.then(async()=>{
+        const availableSemesters=validateDiscovery(value),discoveredAt=new Date().toISOString();
+        const next={...state,availableSemesters,discoveredAt},raw=JSON.stringify(next);
+        if(Buffer.byteLength(raw)>MAX_CATALOG_BYTES) throw new Error('Catalog exceeds its 10 MB metadata budget.');
+        await atomicWrite(filename,raw);state=next;return {semesterCount:availableSemesters.length,discoveredAt};
+      });queue=task.catch(()=>{});return task;
+    },
     put(value) {
       const task=queue.then(async()=>{
         const snapshot=validateSemester(value),old=state.semesters.find(s=>s.semesterId===snapshot.semesterId);
@@ -67,7 +83,7 @@ export async function openCatalog(directory) {
           const previous=old?.courses.find(c=>c.courseId===course.courseId);
           return course.status==='failed' && previous?.entries?{...previous,...course,stale:true}:course;
         });
-        const next={version:1,semesters:[...state.semesters.filter(s=>s.semesterId!==snapshot.semesterId),snapshot]};
+        const next={...state,version:1,semesters:[...state.semesters.filter(s=>s.semesterId!==snapshot.semesterId),snapshot]};
         const serialized=JSON.stringify(next);
         if(Buffer.byteLength(serialized)>MAX_CATALOG_BYTES) throw new Error('Catalog exceeds its 10 MB metadata budget.');
         await atomicWrite(filename,serialized);state=next;

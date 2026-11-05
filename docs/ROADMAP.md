@@ -1,8 +1,8 @@
 # Brightspace Context - Development Roadmap
 
-Current checkpoint: Windows v0.8.8 preview, NYU Brightspace and Chrome/Chromium. Semester catalogs, module landing text, bounded PDF/PPTX/DOCX caching and desktop MCP transport are implemented. PDF answers and module text have live evidence; Office transport has automated and packaged-runtime evidence, with real client reading still to verify. Pinned priority: finish the essential Chrome Web Store submission requirements and submit an unlisted pilot as soon as they are ready. Simpler MCP installation and a small student pilot follow; optional client/platform features must not delay submission. Operator-hosted course-data deployment is deferred.
+Current submission candidate and public Windows preview: v0.9.1, NYU Brightspace and Chrome/Chromium. Semester catalogs, module landing text, bounded PDF/PPTX/DOCX caching and desktop MCP transport are implemented. PDF answers and module text have live evidence; Office transport has automated and packaged-runtime evidence, with real client reading still to verify. Pinned priority: finish the essential Chrome Web Store submission requirements and submit an unlisted pilot as soon as they are ready. Simpler MCP installation and a small student pilot follow; optional client/platform features must not delay submission. Operator-hosted course-data deployment is deferred.
 
-**7 done | 5 in_progress | 1 next | 4 planned | 0 research | 7 deferred**
+**7 done | 6 in_progress | 1 next | 5 planned | 0 research | 7 deferred**
 
 > Editable source: [roadmap.json](roadmap.json). Reusable structure: [roadmap.schema.json](roadmap.schema.json). Regenerate with `npm run roadmap`.
 
@@ -17,6 +17,7 @@ flowchart TB
     m_catalog["DONE<br/>Semester catalog + hierarchy"]:::done
     m_cache["DONE<br/>Bounded local document cache"]:::done
     m_retrieval["DONE<br/>On-demand desktop MCP retrieval"]:::done
+    m_catalog_sync["IN PROGRESS<br/>Model-initiated catalog refresh"]:::in_progress
     m_formats["DONE<br/>PDF / PPTX / DOCX transport"]:::done
     m_module_notes["DONE<br/>Module landing-page context"]:::done
   end
@@ -29,6 +30,7 @@ flowchart TB
     m_installer["DONE<br/>Windows installer preview"]:::done
     m_mcp_install["PLANNED<br/>Simpler ChatGPT MCP installation"]:::planned
     m_file_readers["PLANNED<br/>Real client file-reading checks"]:::planned
+    m_terminal_readability["PLANNED<br/>Readable companion terminal output"]:::planned
   end
   subgraph p_release["03 / Desktop beta and distribution"]
     direction LR
@@ -81,6 +83,8 @@ flowchart TB
   m_store_assets --> m_store_listing
   m_store_listing --> m_pilot
   m_installer -.-> m_claude
+  m_catalog --> m_catalog_sync
+  m_retrieval --> m_catalog_sync
   classDef done fill:#e8f5ee,stroke:#319465,color:#164b33,stroke-width:1.5px;
   classDef in_progress fill:#e0f2fe,stroke:#0284c7,color:#075985,stroke-width:2px;
   classDef next fill:#ede9fe,stroke:#7c3aed,color:#4c1d95,stroke-width:3px;
@@ -147,6 +151,23 @@ Evidence:
 - 80 local tests passed at v0.8.8; the packaged-runtime smoke check also passed.
 
 Prerequisites: Bounded local document cache.
+
+### Model-initiated catalog refresh - IN PROGRESS
+
+Discover semesters and refresh one semester through durable MCP requests and the paired Chrome worker, without opening Resources.
+
+Acceptance:
+
+- A connected desktop model refreshes a live semester and searches its current readings with Resources closed.
+- Expired sessions preserve partial results and resume through MCP after browser sign-in.
+
+Evidence:
+
+- Real STDIO MCP, authenticated companion/WebSocket and actual extension background integration tests pass with synthetic school responses.
+- Shared leases, progress renewal, deduplication, rate limiting, login retry, pause at module boundaries and version-one queue migration are tested.
+- Standalone NYU acceptance with the matching v0.9.0 components remains pending.
+
+Prerequisites: Semester catalog + hierarchy; On-demand desktop MCP retrieval.
 
 ### PDF / PPTX / DOCX transport - DONE
 
@@ -297,6 +318,19 @@ Evidence:
 
 Prerequisites: PDF / PPTX / DOCX transport; Simpler ChatGPT MCP installation.
 
+### Readable companion terminal output - PLANNED
+
+Make ordinary companion output concise and readable, while retaining useful detail in verbose mode.
+
+Acceptance:
+
+- Normal output summarizes connection, sync and retrieval outcomes without flooding the terminal with IDs and repeated events.
+- Login, failure and recovery actions remain clear; verbose mode retains structured diagnostic detail without exposing credentials or course contents.
+
+Evidence:
+
+- Requested by the user and explicitly deferred; finish the sync-ring polish and return to Chrome Web Store publishing first.
+
 ## 03 / Desktop beta and distribution
 
 ### Small NYU student pilot - PLANNED
@@ -340,12 +374,13 @@ Evidence:
 - Validated BrightspaceContext-0.8.8-chrome-web-store.zip was built.
 - The public privacy policy was updated at https://brightspace-context.khin101.chatgpt.site.
 - Public setup/download page: https://brightspace-context.khin101.chatgpt.site/setup/ . The v0.8.8 public installer was downloaded and its SHA-256 verified against the tested build.
+- v0.9.1 ZIP validates with 31 entries; three labelled synthetic 1280×800 screenshots, privacy answers and reviewer instructions are ready. Matching preview installer/setup/privacy/walkthrough published November 5, 2026.
 
 Prerequisites: Windows installer preview.
 
 ### Chrome Web Store submission — pinned priority - NEXT
 
-Finish developer-account setup, listing screenshot(s), public installer/setup links and a legitimate NYU reviewer-access plan, then submit an unlisted pilot listing.
+Complete final live acceptance and dashboard fields, disclose the NYU access limitation, and submit an unlisted pilot listing.
 
 Acceptance:
 
@@ -355,7 +390,7 @@ Acceptance:
 Evidence:
 
 - The ZIP, icons, publisher/support details, privacy URL and listing drafts are ready.
-- Developer account, screenshots, reviewer access and submission/approval remain pending. Public setup and installer hosting are complete.
+- Developer registration confirmed and screenshots prepared. Final live acceptance, dashboard draft and review remain pending; no institutional reviewer account has been arranged.
 - Pinned by the user on November 4, 2026. Finish release essentials before adding optional installation, Claude, tray or indexing features. See docs/RELEASE-CHECKLIST.md.
 
 Prerequisites: Store ZIP + public privacy policy.

@@ -16,6 +16,7 @@ The Windows x64 preview is available from the setup page. Chrome Web Store submi
 | Module notes, readings and links through MCP | Implemented; live-tested |
 | Individual browser Download / Save as | Accessible NYU-hosted file formats supported |
 | On-demand MCP retrieval and local cache | PDF, PPTX and DOCX supported |
+| MCP semester discovery and catalog refresh | Implemented in source; real background-worker/MCP integration tests pass; live acceptance pending |
 | Answers using actual PDF contents | Live-tested with a local desktop client |
 | PPTX/DOCX file handoff | Worker, byte-equality, MIME-type and packaged-runtime tests pass; real host reading still needs acceptance testing |
 | Firefox, other Brightspace tenants, Mac/Linux installers | Not yet supported as tested releases |
@@ -47,7 +48,9 @@ Load this repository's `extension/` folder as an unpacked Chrome extension, sign
 
 For desktop MCP, configure a STDIO process using your Node executable and the absolute path to `mcp/start.js` as its argument. Run it on the same computer as the companion. `npm run mcp` starts that server for development; protocol messages use stdout, so it is not an interactive terminal command.
 
-Searches accept word prefixes, such as `if i ha` for “If I had…”. Single letters match standalone words. Matching text is highlighted, notes open when relevant, and the deepest direct match gets soft row emphasis while ancestor folders remain visible for context.
+The updated MCP exposes `request_catalog_sync` and `get_catalog_sync`. A model can discover semesters, refresh one semester's course outlines and module notes, then search and request individual files without opening the extension UI. Chrome must be running with the paired extension and a valid Brightspace session. [Catalog-sync workflow and acceptance steps](docs/MCP-CATALOG-SYNC.md).
+
+Searches match completed words and allow the final word to be unfinished, such as `if i ha` for “If I had…”. Single letters match standalone words. Notes match and highlight only passages containing all query terms; unrelated lines remain plain context. Only branches leading to relevant files or notes open automatically. A match in a folder's own title leaves it collapsed unless there is a deeper result. The deepest direct match gets soft row emphasis while ancestor folders remain visible for context.
 
 ## How it works
 

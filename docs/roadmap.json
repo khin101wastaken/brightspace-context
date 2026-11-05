@@ -2,7 +2,7 @@
   "$schema": "./roadmap.schema.json",
   "schemaVersion": 1,
   "title": "Brightspace Context - Development Roadmap",
-  "scope": "Current checkpoint: Windows v0.8.8 preview, NYU Brightspace and Chrome/Chromium. Semester catalogs, module landing text, bounded PDF/PPTX/DOCX caching and desktop MCP transport are implemented. PDF answers and module text have live evidence; Office transport has automated and packaged-runtime evidence, with real client reading still to verify. Pinned priority: finish the essential Chrome Web Store submission requirements and submit an unlisted pilot as soon as they are ready. Simpler MCP installation and a small student pilot follow; optional client/platform features must not delay submission. Operator-hosted course-data deployment is deferred.",
+  "scope": "Current submission candidate and public Windows preview: v0.9.1, NYU Brightspace and Chrome/Chromium. Semester catalogs, module landing text, bounded PDF/PPTX/DOCX caching and desktop MCP transport are implemented. PDF answers and module text have live evidence; Office transport has automated and packaged-runtime evidence, with real client reading still to verify. Pinned priority: finish the essential Chrome Web Store submission requirements and submit an unlisted pilot as soon as they are ready. Simpler MCP installation and a small student pilot follow; optional client/platform features must not delay submission. Operator-hosted course-data deployment is deferred.",
   "phases": [
     {
       "id": "core",
@@ -71,6 +71,22 @@
         "Live uncached PDF fetch, PDF reading and repeat cache hits were verified through desktop MCP.",
         "PPTX and DOCX pass complete worker-to-cache-to-MCP tests; live Office file reading remains a separate acceptance check.",
         "80 local tests passed at v0.8.8; the packaged-runtime smoke check also passed."
+      ]
+    },
+    {
+      "id": "catalog_sync",
+      "phase": "core",
+      "title": "Model-initiated catalog refresh",
+      "status": "in_progress",
+      "deliverable": "Discover semesters and refresh one semester through durable MCP requests and the paired Chrome worker, without opening Resources.",
+      "acceptance": [
+        "A connected desktop model refreshes a live semester and searches its current readings with Resources closed.",
+        "Expired sessions preserve partial results and resume through MCP after browser sign-in."
+      ],
+      "evidence": [
+        "Real STDIO MCP, authenticated companion/WebSocket and actual extension background integration tests pass with synthetic school responses.",
+        "Shared leases, progress renewal, deduplication, rate limiting, login retry, pause at module boundaries and version-one queue migration are tested.",
+        "Standalone NYU acceptance with the matching v0.9.0 components remains pending."
       ]
     },
     {
@@ -332,7 +348,8 @@
       "evidence": [
         "Validated BrightspaceContext-0.8.8-chrome-web-store.zip was built.",
         "The public privacy policy was updated at https://brightspace-context.khin101.chatgpt.site.",
-        "Public setup/download page: https://brightspace-context.khin101.chatgpt.site/setup/ . The v0.8.8 public installer was downloaded and its SHA-256 verified against the tested build."
+        "Public setup/download page: https://brightspace-context.khin101.chatgpt.site/setup/ . The v0.8.8 public installer was downloaded and its SHA-256 verified against the tested build.",
+        "v0.9.1 ZIP validates with 31 entries; three labelled synthetic 1280×800 screenshots, privacy answers and reviewer instructions are ready. Matching preview installer/setup/privacy/walkthrough published November 5, 2026."
       ]
     },
     {
@@ -340,14 +357,14 @@
       "phase": "release",
       "title": "Chrome Web Store submission — pinned priority",
       "status": "next",
-      "deliverable": "Finish developer-account setup, listing screenshot(s), public installer/setup links and a legitimate NYU reviewer-access plan, then submit an unlisted pilot listing.",
+      "deliverable": "Complete final live acceptance and dashboard fields, disclose the NYU access limitation, and submit an unlisted pilot listing.",
       "acceptance": [
         "All required listing/privacy/reviewer fields and assets are complete.",
         "A real listing URL is approved and used by onboarding, allowing Chrome installation without Developer mode."
       ],
       "evidence": [
         "The ZIP, icons, publisher/support details, privacy URL and listing drafts are ready.",
-        "Developer account, screenshots, reviewer access and submission/approval remain pending. Public setup and installer hosting are complete.",
+        "Developer registration confirmed and screenshots prepared. Final live acceptance, dashboard draft and review remain pending; no institutional reviewer account has been arranged.",
         "Pinned by the user on November 4, 2026. Finish release essentials before adding optional installation, Claude, tray or indexing features. See docs/RELEASE-CHECKLIST.md."
       ]
     },
@@ -364,6 +381,20 @@
       "evidence": [
         "The MCPB installation route was researched; no Claude package or live Claude test has been completed.",
         "This is an optional client expansion, not a prerequisite for the first ChatGPT pilot."
+      ]
+    },
+    {
+      "id": "terminal_readability",
+      "phase": "readiness",
+      "title": "Readable companion terminal output",
+      "status": "planned",
+      "deliverable": "Make ordinary companion output concise and readable, while retaining useful detail in verbose mode.",
+      "acceptance": [
+        "Normal output summarizes connection, sync and retrieval outcomes without flooding the terminal with IDs and repeated events.",
+        "Login, failure and recovery actions remain clear; verbose mode retains structured diagnostic detail without exposing credentials or course contents."
+      ],
+      "evidence": [
+        "Requested by the user and explicitly deferred; finish the sync-ring polish and return to Chrome Web Store publishing first."
       ]
     }
   ],
@@ -520,6 +551,16 @@
       "to": "claude",
       "kind": "optional",
       "reason": "Reuse the local foundation when expanding to another AI client; the initial pilot can target ChatGPT."
+    },
+    {
+      "from": "catalog",
+      "to": "catalog_sync",
+      "kind": "requires"
+    },
+    {
+      "from": "retrieval",
+      "to": "catalog_sync",
+      "kind": "requires"
     }
   ]
 }

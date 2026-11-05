@@ -41,3 +41,9 @@ Supported levels are `debug`, `info`, `warn`, `error` and `silent`. The ordinary
 The diagnostic logger uses an explicit event/field allowlist. It never dumps request objects, error stacks, authentication headers, bearer tokens, pairing codes, upload tickets, leases, PDF contents, course/document titles, descriptions or Brightspace resource URLs. Text fields are bounded and terminal control characters are stripped. The local cache directory and loopback URL are intentional startup fields.
 
 The pairing code is still displayed once in the existing interactive setup prompt, outside diagnostic event lines. This implementation writes diagnostics to the terminal only; it does not create or upload persistent log files. The STDIO MCP server remains quiet except for its JSON-RPC transport.
+
+Catalog requests emit `sync.queued`, `sync.fetching`, `sync.ready` and `sync.failed` with request/semester IDs and bounded failure codes. They share the retrieval worker and lease queue; no course titles, module notes or authentication values are added to these logs.
+
+## Deferred readability pass
+
+Planned: simplify normal terminal output to short connection, sync and retrieval summaries, keeping actionable errors visible and structured details in verbose mode. This is parked while the final UI polish and Chrome Web Store publishing take priority.

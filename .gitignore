@@ -17,6 +17,7 @@ cache/
 data/
 downloads/
 artifacts/
+.codex-remote-attachments/
 sites/
 tmp/pdfs/
 *.har

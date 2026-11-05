@@ -7,7 +7,7 @@ const size=bytes=>`${(bytes/1024/1024).toFixed(1)} MB`;
 // window merely because it later gains focus. Connection setup needs no LMS tab.
 const sourceTab=chrome.tabs.query({active:true,currentWindow:true}).then(([tab])=>tab).catch(()=>null);
 function feedback(message) {$('connection-feedback').textContent=message;$('connection-feedback').hidden=!message;}
-function showSettings(show) {$('connect-view').hidden=show;$('settings-view').hidden=!show;$('open-settings').hidden=show;}
+function showSettings(show) {$('connect-view').hidden=show;$('settings-view').hidden=!show;$('open-settings').hidden=show;$(show?'close-settings':'open-settings').focus();}
 function renderRequest() {
   const relevant=requestStatus && ['fetching','ready','needs_login','failed'].includes(requestStatus.state);
   $('request-notice').hidden=!relevant;

@@ -19,7 +19,10 @@ async function refreshRetrieval() {
 // The socket delivers requests immediately; an alarm reconnects a suspended
 // worker or a companion that was restarted while Chrome remained open.
 if(chrome.alarms?.onAlarm && chrome.runtime.onStartup) {
-  retrievalWorker=createRetrievalWorker({getSettings:retrievalSettings,report:value=>chrome.storage.local.set({retrievalStatus:value})});
+  retrievalWorker=createRetrievalWorker({getSettings:retrievalSettings,report:value=>chrome.storage.local.set({retrievalStatus:value}),syncCatalogRequest:async(sync,{onProgress,assertActive})=>{
+    if(!sync.semesterId) {await onProgress({phase:'discovering'});return availableSemesters(async(url,options)=>{await assertActive();return fetch(url,options);});}
+    return syncSemester(sync,{remote:true,onProgress,assertActive});
+  }});
   chrome.alarms.onAlarm.addListener(alarm=>{if(alarm.name==='retrieval-reconnect') retrievalWorker.connect().catch(()=>{});});
   const start=async()=>{await chrome.alarms.create('retrieval-reconnect',{periodInMinutes:1});await retrievalWorker.connect();};
   chrome.runtime.onStartup.addListener(()=>{start().catch(()=>{});});
@@ -27,31 +30,48 @@ if(chrome.alarms?.onAlarm && chrome.runtime.onStartup) {
   start().catch(()=>{});
 }
 
-async function availableSemesters() {
-  const semesters=await listBrightspaceSemesters();
+async function availableSemesters(fetcher=fetch) {
+  const semesters=await listBrightspaceSemesters(fetcher);
   await chrome.storage.local.set({availableSemesters:semesters});return {semesters};
 }
-let semesterTask=null,semesterTaskId=null;
-async function syncSemester(message) {
+let semesterTask=null,semesterTaskId=null,semesterTaskRemote=false;
+async function syncSemester(message,{remote=false,onProgress=async()=>{},assertActive=async()=>{}}={}) {
   if(typeof message.semesterId!=='string' || !/^\d+$/.test(message.semesterId)) throw new Error('Choose a semester in Resources first.');
-  if(semesterTask) {if(semesterTaskId!==message.semesterId) throw new Error('Another semester is syncing. Wait for it to finish.');return semesterTask;}
-  semesterTaskId=message.semesterId;
+  if(semesterTask) {if(semesterTaskId!==message.semesterId || semesterTaskRemote!==remote) throw new Error('Another semester is syncing. Wait for it to finish.');return semesterTask;}
+  semesterTaskId=message.semesterId;semesterTaskRemote=remote;
   const task=(async()=>{
-    await chrome.storage.local.set({semesterSync:{state:'running',semesterId:message.semesterId,message:'Loading the selected semester from Brightspace…',startedAt:Date.now()}});
+    const fetcher=async(url,options)=>{await assertActive();return fetch(url,options);};
+    let progress={state:'running',semesterId:message.semesterId,phase:'loading',startedAt:Date.now()};
+    const writeSync=async value=>{progress={...progress,...value};await chrome.storage.local.set({semesterSync:progress});};
+    await writeSync({message:'Loading the selected semester from Brightspace…'});
     try {
-      const {semesters}=await availableSemesters();
+      await onProgress({phase:'discovering'});
+      const {semesters}=await availableSemesters(fetcher);
       const selected=semesters.find(s=>s.semesterId===message.semesterId);
       if(!selected) throw new Error('This semester is no longer available. Refresh the semester list.');
-      const courses=await listSemesterCourses(selected.semesterId);
+      await onProgress({phase:'listing_courses'});
+      const courses=await listSemesterCourses(selected.semesterId,fetcher);
       if(!courses.length) throw new Error('Brightspace returned no courses for this semester. No saved outlines were removed.');
       const semester={...selected,courses};
       const snapshot=await scanSemester(semester,{
-        readOutline:readCourseOutline,
+        readOutline:courseId=>readCourseOutline(courseId,fetcher),
         saveCourse:catalog=>chrome.storage.local.set({[`course:${catalog.courseId}`]:catalog}),
-        onProgress:progress=>chrome.storage.local.set({semesterSync:{state:'running',semesterId:semester.semesterId,message:`${semester.title}: ${progress.completed}/${progress.total} courses · ${progress.title}`,startedAt:Date.now()}}),
+        onProgress:async update=>{
+          const synced=update.courses.filter(course=>course.state==='complete').length;
+          await writeSync({...update,phase:'scanning',message:update.title?`${semester.title}: syncing ${update.title}`:`${semester.title}: ${synced}/${update.total} course outlines synced`});
+          await onProgress({phase:'scanning',completed:update.completed,total:update.total});
+        },
       });
       const summary={...snapshot,courses:snapshot.courses.map(({entries,...course})=>({...course,entryCount:entries?.length??null}))};
       await chrome.storage.local.set({[`semester:${semester.semesterId}`]:summary});
+      await writeSync({phase:'saving',message:`${semester.title}: saving catalog to companion…`});
+      await onProgress({phase:'saving',completed:snapshot.courses.length,total:snapshot.courses.length});
+      if(remote) {
+        const failed=snapshot.courses.filter(course=>course.status==='failed');
+        const code=failed.some(course=>course.code==='NEEDS_LOGIN')?'NEEDS_LOGIN':failed.some(course=>course.code==='RATE_LIMITED')?'RATE_LIMITED':failed.length?'SYNC_FAILED':null;
+        await writeSync({state:code?'failed':'complete',phase:'finished',message:`${snapshot.title}: ${snapshot.courses.length-failed.length}/${snapshot.courses.length} course outlines scanned. No files downloaded.`,finishedAt:Date.now()});
+        return {snapshot,...(code?{code}:{})};
+      }
       const pairing=(await chrome.storage.local.get('companionPairing')).companionPairing;
       const complete=snapshot.courses.filter(c=>c.status==='complete').length;
       let transfer;
@@ -60,13 +80,13 @@ async function syncSemester(message) {
         transfer=await syncCatalog(snapshot,pairing.token);
       } catch(error) {
         const message=`Saved ${complete}/${snapshot.courses.length} course outlines locally. Companion sync failed: ${error.message} Start or pair the companion, then use Send saved catalog.`;
-        await chrome.storage.local.set({semesterSync:{state:'saved',semesterId:semester.semesterId,message}});
+        await writeSync({state:'saved',phase:'finished',message,finishedAt:Date.now()});
         return {message};
       }
       const completionMessage=`${snapshot.title}: ${complete}/${snapshot.courses.length} courses synced to companion${complete<snapshot.courses.length?' · Some courses failed; expand their status below.':''}. No files downloaded.`;
-      await chrome.storage.local.set({semesterSync:{state:'complete',semesterId:semester.semesterId,message:completionMessage}});
+      await writeSync({state:complete===snapshot.courses.length?'complete':'partial',phase:'finished',message:completionMessage,finishedAt:Date.now()});
       return {message:completionMessage,...transfer};
-    } catch(error) {await chrome.storage.local.set({semesterSync:{state:'failed',message:error.message}});throw error;}
+    } catch(error) {await writeSync({state:'failed',phase:'stopped',message:error.message,finishedAt:Date.now()});throw error;}
   })();
   semesterTask=task;
   try {return await task;} finally {semesterTask=null;semesterTaskId=null;}
@@ -125,7 +145,7 @@ async function companionMessage(message) {
     try {
       const result=await cacheDocument(catalog,key,pairing?.token,fetch,(message)=>{phaseWrites=phaseWrites.then(()=>update({state:'pending',message}));});
       await phaseWrites;
-      await update({state:'complete',source:result.source,bytes:result.entry.bytes,message:result.source==='cache'?'Cache hit — no download':'Fetched and cached',id:result.id});
+      await update({state:'complete',source:result.source,bytes:result.entry.bytes,message:result.source==='cache'?'Cache hit. No download needed.':'Fetched and cached',id:result.id});
       return result;
     } catch(error) {await phaseWrites.catch(()=>{});await update({state:'failed',message:error.message});throw error;}
   })();

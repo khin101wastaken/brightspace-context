@@ -1,15 +1,20 @@
 import { mergeCatalog } from './catalog.js';
 import {captureTarget,validateTarget} from './tab-context.js';
 import {flattenOutline,searchOutline} from './course-api.js';
-import {appendHighlightedText} from './search-highlight.js';
+import {appendHighlightedText,appendHighlightedPassages} from './search-highlight.js';
 import {wireProductLinks} from './product-links.js';
 import {readCourseOutline} from './brightspace-client.js';
 import {downloadableFile,resourceTypeLabel} from './file-downloads.js';
 import {documentFormat} from './document-formats.js';
+import {enhanceSemesterPicker} from './semester-picker.js';
+import {animateDisclosure} from './ui-motion.js';
+import {createSyncStatus} from './sync-progress.js';
 const $ = id => document.getElementById(id);
+const semesterPicker=enhanceSemesterPicker($('semester-select'));
 wireProductLinks(document);
 const status = message => {$('status').textContent=message;$('status').hidden=!message;};
-const semesterStatus=message=>{$('semester-status').textContent=message;$('semester-status').hidden=!message;};
+const syncStatus=createSyncStatus($('semester-status'));
+const semesterStatus=message=>syncStatus.message(message);
 let busy = false;
 let currentCatalog = null;
 let selectedSemester='',showCacheControls=false,libraryValues={};
@@ -80,6 +85,7 @@ async function refreshSavedCourses() {
     if(!semesters.some(s=>s.semesterId===selectedSemester)) selectedSemester=semesters[0]?.semesterId || '';
   }
   select.value=selectedSemester;
+  semesterPicker.refresh();
   $('sync-semester').disabled=busy || !/^\d+$/.test(selectedSemester);
   const semester=semesters.find(s=>s.semesterId===selectedSemester);
   $('semester-name').textContent=semester?.title || 'YOUR LIBRARY';
@@ -96,7 +102,7 @@ async function refreshSavedCourses() {
   }
   const courseId=semester?.courses.find(c=>c.courseId===currentCatalog?.courseId)?.courseId || semester?.courses.find(c=>c.courseId===libraryValues.resourcesSelection?.courseId)?.courseId || semester?.courses.find(c=>libraryValues[`course:${c.courseId}`])?.courseId;
   selectCourse(courseId,false);
-  if(libraryValues.semesterSync?.state && !['complete'].includes(libraryValues.semesterSync.state)) semesterStatus(libraryValues.semesterSync.message);
+  if(libraryValues.semesterSync?.state) syncStatus.render(libraryValues.semesterSync,{restore:true});
 }
 function selectCourse(id,persist=true) {
   const saved=libraryValues[`course:${id}`];
@@ -112,7 +118,7 @@ async function loadSemesters() {
     const result=await chrome.runtime.sendMessage({type:'list-semesters'});
     if(!result?.ok) throw new Error(result?.error || 'Unable to load semesters.');
     await refreshSavedCourses();
-    if(!busy && (!libraryValues.semesterSync || libraryValues.semesterSync.state==='complete')) semesterStatus('');
+    if(!busy && !libraryValues.semesterSync) semesterStatus('');
   } catch(error) {semesterStatus(error.message+' Saved course outlines are still available.');}
   finally {$('refresh-semesters').disabled=false;}
 }
@@ -123,16 +129,17 @@ for(const [id,type] of [['sync-semester','sync-semester'],['send-catalog','send-
     semesterStatus(type==='sync-semester'?'Loading this semester’s courses from Brightspace…':'Sending saved catalog…');
     const result=await chrome.runtime.sendMessage({type,...(type==='sync-semester'?{semesterId:selectedSemester}:{})});
     if(!result?.ok) throw new Error(result?.error || 'Catalog sync failed.');
-    await refreshSavedCourses();semesterStatus(result.message);
-  } catch(error) {semesterStatus(error.message);}
+    await refreshSavedCourses();if(type==='sync-semester' && libraryValues.semesterSync) syncStatus.render(libraryValues.semesterSync);else semesterStatus(result.message);
+  } catch(error) {if(type==='sync-semester' && libraryValues.semesterSync?.state==='failed') syncStatus.render(libraryValues.semesterSync);else semesterStatus(error.message);}
   finally {busy=false;$(id).disabled=type==='sync-semester' && !/^\d+$/.test(selectedSemester);}
 });
 function render(catalog) {
   $('catalog').replaceChildren();
   currentCatalog=catalog;
   $('resources-empty').hidden=!!catalog;$('resource-tools').hidden=!catalog;
-  if(!catalog) {$('course').textContent='Your semester, organized.';$('summary').textContent='Choose a saved course, or sync a semester to get started.';return;}
-  const query=$('search').value.trim(),search=searchOutline(catalog.entries,query),filtered=search.entries;
+  if(!catalog) {$('course').textContent='Course resources';$('summary').textContent='Choose a saved course, or sync a semester to get started.';return;}
+  const rawQuery=$('search').value,query=rawQuery.trim(),search=searchOutline(catalog.entries,rawQuery),filtered=search.entries;
+  const highlightOptions={prefixTerms:search.prefixTerms};
   $('course').textContent = catalog.title || `Course ${catalog.courseId}`;
   const matches=[search.resourceMatches?`${search.resourceMatches} resource match${search.resourceMatches===1?'':'es'}`:'',search.moduleMatches?`${search.moduleMatches} module match${search.moduleMatches===1?'':'es'}`:''].filter(Boolean).join(' · ') || 'No matches';
   $('summary').textContent = `${catalog.entries.filter(e=>e.kind==='document').length} resources · ${catalog.entries.filter(e=>e.kind==='module').length} modules · Updated ${new Date(catalog.lastScannedAt).toLocaleDateString()}${query?` · ${matches}`:''}`;
@@ -155,15 +162,16 @@ function render(catalog) {
       const li=document.createElement('li'), kind=document.createElement('span'), a=document.createElement('a');
       kind.className='kind'; kind.textContent=resourceTypeLabel(e);
       if(e.contentType==='file') kind.title=kind.textContent==='Unknown'?'File type not supplied in the resource URL':`${kind.textContent} file${e.locked?' · locked':''}`;
-      appendHighlightedText(a,e.title,search.matches.has(e.key)?search.terms:[]);a.href=e.url; a.target='_blank'; a.rel='noopener';
+      appendHighlightedText(a,e.title,search.matches.has(e.key)?search.terms:[],highlightOptions);a.href=e.url; a.target='_blank'; a.rel='noopener';
       let content=li;
       if(e.kind==='module') {
         const details=document.createElement('details'), summary=document.createElement('summary');
-        details.open=!!query || openFolders.has(e.key);
-        appendHighlightedText(summary,e.title,search.matches.has(e.key)?search.terms:[]);
+        details.open=query?search.expandedModules.has(e.key):openFolders.has(e.key);
+        appendHighlightedText(summary,e.title,search.matches.has(e.key)?search.terms:[],highlightOptions);
         if(search.deepestMatches.has(e.key)) summary.classList.add('search-match');
         const count=document.createElement('span'),childCount=children.get(e.key)?.length || 0;count.className='count';count.textContent=` ${childCount}`;count.hidden=!!query && !childCount;summary.append(count);
         details.append(summary); li.append(details); content=details;
+        animateDisclosure(details);
         details.addEventListener('toggle',()=>{
           if(!mounted || query) return;
           if(details.open) openFolders.add(e.key); else openFolders.delete(e.key);
@@ -174,8 +182,11 @@ function render(catalog) {
         if(e.description) {
           const notes=document.createElement('details'),heading=document.createElement('summary'),text=document.createElement('p');
           notes.className='module-notes';notes.open=search.noteMatches.has(e.key);heading.textContent=notes.open?'Module notes · matching text':'Module notes';
-          appendHighlightedText(text,e.description+(e.descriptionTruncated?'\n[Notes truncated; open module for the full text.]':''),search.noteMatches.has(e.key)?search.terms:[]);
+          text.tabIndex=0;text.setAttribute('aria-label','Module notes');
+          appendHighlightedPassages(text,e.description,search.noteMatches.has(e.key)?search.terms:[],highlightOptions);
+          if(e.descriptionTruncated) text.append(document.createTextNode('\n[Notes truncated; open module for the full text.]'));
           notes.append(heading,text);content.append(notes);
+          animateDisclosure(notes);
         }
         if(e.descriptionStatus==='unavailable') {
           const note=document.createElement('p');note.className='module-notes-unavailable';note.textContent='Module notes unavailable. Open in Brightspace to check access.';content.append(note);
@@ -252,7 +263,7 @@ function render(catalog) {
 chrome.storage.onChanged.addListener((changes,area)=>{
   if(area==='local') {
     for(const [key,change] of Object.entries(changes)) if(key.startsWith('folders:')) libraryValues[key]=change.newValue;
-    if(changes.semesterSync?.newValue) semesterStatus(changes.semesterSync.newValue.message);
+    if(changes.semesterSync?.newValue) {libraryValues.semesterSync=changes.semesterSync.newValue;syncStatus.render(changes.semesterSync.newValue);}
     if(Object.keys(changes).some(key=>key==='availableSemesters' || key.startsWith('semester:') || key.startsWith('course:'))) refreshSavedCourses().catch(error=>status(error.message));
     return;
   }

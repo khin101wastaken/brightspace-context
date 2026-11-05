@@ -42,7 +42,9 @@ export class LocalLibrary {
     for(const semester of catalog.semesters) if(!semesterId || semester.semesterId===semesterId) {
       for(const course of semester.courses) if(terms.every(term=>`${course.title} ${semester.title}`.toLowerCase().includes(term))) courses.push({courseId:course.courseId,title:course.title,semesterId:semester.semesterId,semesterTitle:semester.title,status:course.status,stale:course.stale===true,error:course.error || null,lastScannedAt:course.lastScannedAt || null,entries:course.entries?.length ?? 0});
     }
-    return {semesters:catalog.semesters.map(s=>({semesterId:s.semesterId,title:s.title,updatedAt:s.updatedAt})),courses:courses.slice(offset,offset+limit),total:courses.length,nextOffset:offset+limit<courses.length?offset+limit:null,coverage:'Only semesters explicitly synced in the Chrome extension. Failed courses may have an older outline; dates and status show freshness.'};
+    const semesters=new Map(catalog.semesters.map(s=>[s.semesterId,{semesterId:s.semesterId,title:s.title,updatedAt:s.updatedAt,hasSavedCatalog:true}]));
+    for(const semester of catalog.availableSemesters || []) semesters.set(semester.semesterId,{...semesters.get(semester.semesterId),...semester,available:true,hasSavedCatalog:semesters.has(semester.semesterId),discoveredAt:catalog.discoveredAt});
+    return {semesters:[...semesters.values()],courses:courses.slice(offset,offset+limit),total:courses.length,nextOffset:offset+limit<courses.length?offset+limit:null,coverage:'Saved course outlines and the latest discovered semester list. Use request_catalog_sync without semesterId to discover semesters, or with semesterId to refresh one semester through Chrome. Failed courses may have older outlines; dates and status show freshness.'};
   }
   async searchCatalog(args={}) {
     const {query,courseId,semesterId,offset,limit}=this.catalogParams(args);
@@ -71,6 +73,29 @@ export class LocalLibrary {
     if(typeof courseId!=='string' || !/^\d+$/.test(courseId) || typeof key!=='string' || !/^document:\d+$/.test(key) || typeof retry!=='boolean') throw new Error('Use courseId and a document key from search_catalog.');
     const result=await this.request('/v1/requests',false,{method:'POST',body:{courseId,key,retry}});
     return this.waitForDocument(result,waitSeconds);
+  }
+  async requestCatalogSync({semesterId,retry=false,waitSeconds=10}={}) {
+    this.checkWait(waitSeconds);
+    if((semesterId!=null && (typeof semesterId!=='string' || !/^\d+$/.test(semesterId))) || typeof retry!=='boolean') throw new Error('Use an optional semesterId returned by discovery or list_courses.');
+    const result=await this.request('/v1/requests/catalog-sync',false,{method:'POST',body:{...(semesterId!=null?{semesterId}:{}),retry}});
+    return this.waitForCatalogSync(result,waitSeconds);
+  }
+  async getCatalogSync({requestId,waitSeconds=10}={}) {
+    this.checkWait(waitSeconds);
+    if(typeof requestId!=='string' || !/^[a-f0-9-]{36}$/.test(requestId)) throw new Error('Use a requestId returned by request_catalog_sync.');
+    return this.waitForCatalogSync(await this.request(`/v1/requests/${requestId}`),waitSeconds);
+  }
+  async waitForCatalogSync(result,seconds) {
+    if(result.kind!=='catalog-sync') throw new Error('This request is not a catalog sync.');
+    const deadline=Date.now()+seconds*1000;
+    while(['queued','fetching'].includes(result.state) && result.workerConnected && Date.now()<deadline) {
+      await delay(Math.min(1000,deadline-Date.now()));result=await this.request(`/v1/requests/${result.requestId}`);
+    }
+    if(result.state==='ready' && result.scope==='discovery') {
+      const catalog=await this.request('/v1/catalog');
+      return {...result,semesters:catalog.availableSemesters || [],semestersDiscoveredAt:catalog.discoveredAt};
+    }
+    return result;
   }
   checkWait(seconds) {if(!Number.isInteger(seconds) || seconds<0 || seconds>20) throw new Error('waitSeconds must be an integer from 0 to 20.');}
   async getRequest({requestId,waitSeconds=10}={}) {

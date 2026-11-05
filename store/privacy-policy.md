@@ -2,7 +2,7 @@
 
 Publisher: Khin Aung
 Contact: khinaungwrk@gmail.com
-Last updated: November 4, 2026
+Last updated: November 5, 2026
 
 ## Purpose and data handled
 
@@ -19,6 +19,10 @@ The extension requests course metadata/files directly from NYU Brightspace using
 The browser transfers catalog metadata and selected requested files to the paired companion on `127.0.0.1`. The publisher operates no hosted course-content service, advertising service or analytics endpoint for this product, and does not receive those catalogs or files through such a service.
 
 When you connect and use an AI/MCP client, that client can receive catalog metadata and requested documents. Its own processing and retention practices, including any transmission to its AI provider, are governed by the provider and your settings. The extension's local storage architecture does not control the AI client's practices.
+
+While the browser is paired and automatic retrieval is enabled, your connected MCP client can also request semester discovery and catalog refreshes through the extension. These refreshes use the existing browser session, update local course/module metadata and notes, and do not download every course file. You can pause automatic retrieval or disconnect the browser in the extension.
+
+Course data and connection information are used to provide these user-facing features. They are not sold, used for advertising, or used to determine creditworthiness or lending eligibility. Data use and transfer comply with the Chrome Web Store User Data Policy, including its Limited Use requirements.
 
 External resource links open their own websites when you choose to visit them. Those websites have their own privacy practices.
 
