@@ -63,7 +63,7 @@ The redundant `activeTab` permission was removed: the NYU host permission alread
 - Confirm the extension display name; the publisher/contact details above are supplied.
 - Use the published privacy-policy URL above. Store disclosures must match the [policy](privacy-policy.md) and actual handling of course content/pairing data even though storage is local.
 - Public setup URL: https://brightspace-context.khin101.chatgpt.site/setup/ . The guide links the matching installer and checksum; verify these published artifacts before submission.
-- Upload the three 1280×800 RGB JPEG screenshots in `store/assets/screenshots/`. They show actual extension UI with clearly labelled synthetic course data, not a student's private catalog. The data fixture is not an extension feature.
+- Upload the four 1280×800 RGB JPEG screenshots in `store/assets/screenshots/`. The first three show actual extension UI with clearly labelled synthetic course data, not a student's private catalog. The fourth includes the publisher-supplied actual Chrome popup capture. The data fixture is not an extension feature.
 - Provide the mandatory store icon and screenshot assets in the dashboard; the extension PNG icons are already included in the ZIP.
 - Paste [reviewer-instructions.md](reviewer-instructions.md). No institutional test account has been arranged; do not assume reviewers have NYU access. The walkthrough supplements the access disclosure and does not guarantee approval. If review requests access, arrange an authorized institutional solution or address it through the review process.
 - Load the ZIP's extracted contents in a fresh Chrome profile and check pairing, catalog sync, nested modules, downloads, one uncached PDF, cache repeat and restart.
