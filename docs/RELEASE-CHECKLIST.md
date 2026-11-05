@@ -7,8 +7,8 @@ Updated November 5, 2026. Objective: submit an unlisted local Windows/NYU pilot 
 The submission candidate packages the current source, search refinements, GitHub links and MIT license together. The public download remains v0.8.8 until the candidate passes acceptance. Follow [the candidate acceptance steps](RELEASE-0.8.9.md); retain its source commit and artifact hashes when recording results.
 
 - [x] 83 source tests pass; local bundles match their sources.
-- [ ] Build and verify the matching v0.8.9 extension ZIP and Windows installer.
-- [ ] Complete isolated packaged-runtime and v0.8.8-to-v0.8.9 upgrade checks.
+- [x] Build and verify the matching v0.8.9 extension ZIP and Windows installer; their packaged browser files are byte-identical.
+- [x] Complete isolated packaged-runtime and v0.8.8-to-v0.8.9 upgrade checks, including retained state, one resumed request, shortcuts and uninstall retention.
 - [ ] Complete fresh-profile/live document-reading acceptance.
 - [ ] Publish the accepted installer and update reviewer instructions/download links.
 

@@ -8,6 +8,17 @@ Run `npm test`, `npm run build:rich-text -- --check` and `npm run check`. From t
 
 The final extension ZIP and staged installer's packaged browser files must have identical bytes. Check the MIT license in both packages. Record the source commit, installer/ZIP SHA-256 values and check results in the ignored `dist` release record. No pairing credentials, course documents or private catalog data belong in that record.
 
+## Automated results
+
+Passed on November 5, 2026, from clean source commit `d244f9b9b6c8df3e2f9f233708a9765125f6d4eb`: all 83 tests, generated-bundle and syntax checks, [GitHub CI](https://github.com/khin101wastaken/brightspace-context/actions/runs/42060539220), packaged-runtime smoke, and isolated v0.8.8-to-v0.8.9 upgrade/uninstall acceptance. All 26 store ZIP files match the corresponding packaged installer files exactly, and both distributions contain the MIT license. These automated checks do not establish fresh-profile or actual host file-reading acceptance.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `BrightspaceContext-0.8.9-chrome-web-store.zip` | 83,253 | `4d6af8fb9b9ef26a5ccdcda00114117e6d76622c1ea4abebbfe5f87a8ae8cdd0` |
+| `BrightspaceContext-0.8.9-windows-x64-setup.exe` | 25,718,555 | `aa23c83ccc056a74f97e48feff7beed8c85d571075e7c9ed59cee1c9bca46bcb` |
+
+The local release record is `dist/BrightspaceContext-0.8.9-release-record.json`. An exact extraction of the ZIP is available at `dist/chrome-acceptance-0.8.9` for the manual Chrome check. Do not rebuild or replace these artifacts while recording acceptance against these hashes; changed files require a new record.
+
 ## Manual acceptance, guided one step at a time
 
 1. Register the Chrome Web Store developer account and reach the developer dashboard.
