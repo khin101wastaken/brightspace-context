@@ -7,7 +7,7 @@ for(const name of ['rich-text','document-formats']) {
   files.push([`extension/${name}.js`,result.outputFiles[0].text]);
 }
 const licenses=await Promise.all(['htmlparser2','entities','fflate'].map(async name=>`${name}\n${await readFile(`node_modules/${name}/LICENSE`,'utf8')}`));
-files.push(['extension/THIRD-PARTY-LICENSES.txt',licenses.join('\n\n')]);
+files.push(['extension/THIRD-PARTY-LICENSES.txt',licenses.join('\n\n').replace(/[ \t]+$/gm,'')]);
 for(const [filename,contents] of files) {
   if(process.argv.includes('--check')) {
     if((await readFile(filename,'utf8')).replace(/\r\n/g,'\n')!==contents.replace(/\r\n/g,'\n')) throw new Error(`Stale generated file: ${filename}. Run npm run build:rich-text.`);
