@@ -5,6 +5,8 @@ import path from 'node:path';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
 import {createCompanion} from '../companion/server.js';
+import {flattenOutline} from '../extension/course-api.js';
+import {readCourseOutline} from '../extension/brightspace-client.js';
 
 test('desktop MCP process lists, resolves and serves an actual cached PDF without exposing pairing credentials',async t=>{
   const root=path.resolve('.cache/tests');await mkdir(root,{recursive:true});
@@ -27,6 +29,8 @@ test('desktop MCP process lists, resolves and serves an actual cached PDF withou
     {key:'module:20',id:'20',kind:'module',title:'Readings',parentKey:'module:10'},
     {key:'document:30',id:'30',kind:'document',title:'Gratitude lecture',parentKey:'module:20',contentType:'file',sourceUrl:'https://brightspace.nyu.edu/content/enforced/200/gratitude.pdf'},
   ]}]};
+  const moduleNotes='Reading: Dahl RE. Adolescent brain development.\nFilm: Me, Earl and the Dying Girl';
+  catalog.courses[0].entries=flattenOutline(await readCourseOutline('200',async url=>new Response(JSON.stringify(url.endsWith('/toc')?{Modules:[{ModuleId:10,Title:'Week 1',Modules:[{ModuleId:20,Title:'Readings',Modules:[],Topics:[{TopicId:30,Title:'Gratitude lecture',TypeIdentifier:'File',Url:'/content/enforced/200/gratitude.pdf'}]}],Topics:[]}]}:{Id:Number(url.split('/').at(-1)),Type:0,Description:url.endsWith('/20')?{Text:moduleNotes}:null}),{headers:{'Content-Type':'application/json'}})),'200');
   const rejected=await fetch(`${companion.url}/v1/catalog/semesters`,{method:'PUT',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(catalog)});assert.equal(rejected.status,401);
   const synced=await fetch(`${companion.url}/v1/catalog/semesters`,{method:'PUT',headers,body:JSON.stringify(catalog)});assert.equal(synced.status,200);
   await client.connect(transport);
@@ -36,6 +40,9 @@ test('desktop MCP process lists, resolves and serves an actual cached PDF withou
   const uncached=await client.callTool({name:'search_catalog',arguments:{query:'gratitude'}});
   const found=JSON.parse(uncached.content[0].text);assert.equal(found.total,1);assert.equal(found.entries[0].cachedDocumentId,null);assert.equal(found.entries[0].cacheSupported,true);assert.deepEqual(found.entries[0].modulePath,['Week 1','Readings']);
   const outline=JSON.parse((await client.callTool({name:'search_catalog',arguments:{courseId:'200',limit:2}})).content[0].text);assert.equal(outline.total,3);assert.equal(outline.nextOffset,2);assert.equal(outline.entries[1].parentKey,'module:10');
+  const notes=JSON.parse((await client.callTool({name:'search_catalog',arguments:{query:'Earl Dahl'}})).content[0].text);
+  assert.equal(notes.total,1);assert.equal(notes.entries[0].description,moduleNotes);assert.equal(notes.entries[0].descriptionStatus,'synced');assert.equal(notes.entries[0].descriptionTruncated,false);
+  assert.equal(notes.entries[0].url,'https://brightspace.nyu.edu/d2l/le/lessons/200/units/20');assert.equal(notes.entries[0].cacheSupported,false);
   assert.equal((await companion.cache.stats()).files,1,'catalog sync must not download or cache PDFs');
   assert.equal(JSON.stringify([courses,found]).includes(pairing.token),false);
   const listed=await client.callTool({name:'list_cached_documents',arguments:{query:'syllabus'}});

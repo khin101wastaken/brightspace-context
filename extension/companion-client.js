@@ -1,6 +1,7 @@
 import {downloadableFile} from './file-downloads.js';
+import {documentFormat,validateDocument,MAX_FILE_BYTES} from './document-formats.js';
 export const COMPANION_URL='http://127.0.0.1:47653';
-const pdfRequests=new Map();
+const documentRequests=new Map();
 
 async function request(path,{token,method='GET',body,headers={},timeoutMs=30000}={},fetcher=fetch) {
   const response=await fetcher(COMPANION_URL+path,{method,headers:{...headers,...(token?{Authorization:`Bearer ${token}`}:{})},body,signal:AbortSignal.timeout(timeoutMs)});
@@ -20,9 +21,9 @@ export const claimRequest=(token,fetcher=fetch)=>request('/v1/requests/claim',{t
 export const finishRequest=(value,token,fetcher=fetch)=>request('/v1/requests/finish',{token,method:'POST',body:JSON.stringify(value),headers:{'Content-Type':'application/json'}},fetcher);
 export const retryLoginRequests=(token,fetcher=fetch)=>request('/v1/requests/retry-login',{token,method:'POST'},fetcher);
 
-export function pdfMetadata(catalog,key) {
+export function documentMetadata(catalog,key) {
   const entry=catalog?.entries.find(e=>e.key===key),file=downloadableFile(entry);
-  if(!file || !/\.pdf$/i.test(new URL(file.url).pathname)) throw new Error('Local caching currently supports Brightspace-hosted PDFs only.');
+  if(!file || !documentFormat(file.url)) throw new Error('Local caching supports Brightspace-hosted PDF, PPTX and DOCX files.');
   const byKey=new Map(catalog.entries.map(e=>[e.key,e])),modulePath=[],seen=new Set([key]);
   for(let parent=byKey.get(entry.parentKey);parent;parent=byKey.get(parent.parentKey)) {
     if(seen.has(parent.key)) throw new Error('Invalid module hierarchy. Rescan the course.');
@@ -31,41 +32,46 @@ export function pdfMetadata(catalog,key) {
   return {courseId:catalog.courseId,topicId:entry.id,title:entry.title,courseTitle:catalog.title,modulePath,sourceUrl:file.url,lastModifiedAt:entry.lastModifiedAt || null};
 }
 
-export async function cachePdf(catalog,key,token,fetcher=fetch,onPhase=()=>{}) {
-  return cachePdfMetadata(pdfMetadata(catalog,key),token,fetcher,onPhase);
+export async function cacheDocument(catalog,key,token,fetcher=fetch,onPhase=()=>{}) {
+  return cacheDocumentMetadata(documentMetadata(catalog,key),token,fetcher,onPhase);
 }
-export function cachePdfMetadata(metadata,token,fetcher=fetch,onPhase=()=>{}) {
+export function cacheDocumentMetadata(metadata,token,fetcher=fetch,onPhase=()=>{}) {
   const key=JSON.stringify([token,metadata?.courseId,metadata?.topicId,metadata?.sourceUrl,metadata?.lastModifiedAt]);
-  if(pdfRequests.has(key)) return pdfRequests.get(key);
-  const task=fetchPdfMetadata(metadata,token,fetcher,onPhase).finally(()=>pdfRequests.delete(key));
-  pdfRequests.set(key,task);return task;
+  if(documentRequests.has(key)) return documentRequests.get(key);
+  const task=fetchDocumentMetadata(metadata,token,fetcher,onPhase).finally(()=>documentRequests.delete(key));
+  documentRequests.set(key,task);return task;
 }
-async function fetchPdfMetadata(metadata,token,fetcher,onPhase) {
+async function fetchDocumentMetadata(metadata,token,fetcher,onPhase) {
   if(!token) throw new Error('Start the companion and pair it in the Local cache panel first.');
   const file=downloadableFile({contentType:'file',sourceUrl:metadata?.sourceUrl});
-  if(!file || !/\.pdf$/i.test(new URL(file.url).pathname)) throw new Error('Only supported NYU-hosted PDFs may be retrieved.');
+  const format=file && documentFormat(file.url);
+  if(!format) throw new Error('Only supported NYU-hosted PDF, PPTX and DOCX files may be retrieved.');
   onPhase('Checking local cache…');
   const lookup=await request('/v1/cache/lookup',{token,method:'POST',body:JSON.stringify(metadata),headers:{'Content-Type':'application/json'}},fetcher);
   if(lookup.hit) return {...lookup,source:'cache'};
-  onPhase('Fetching PDF from Brightspace…');
+  onPhase(`Fetching ${format.extension.toUpperCase()} from Brightspace…`);
   let response;
   try {response=await fetcher(metadata.sourceUrl,{credentials:'include',redirect:'error',signal:AbortSignal.timeout(90000)});}
-  catch {throw Object.assign(new Error('Chrome could not fetch this PDF. Check your connection and Brightspace sign-in.'),{code:'NETWORK_ERROR'});}
-  if(response.status===401 || response.redirected) throw Object.assign(new Error('Sign into Brightspace in Chrome, then retry caching this PDF.'),{code:'NEEDS_LOGIN'});
-  if(response.status===403) throw Object.assign(new Error('Brightspace denied access to this PDF.'),{code:'ACCESS_DENIED'});
-  if(!response.ok) throw new Error(`Brightspace PDF request failed (HTTP ${response.status}).`);
-  if(!/application\/pdf|application\/octet-stream/i.test(response.headers.get('content-type') || '')) throw Object.assign(new Error('Brightspace did not return PDF data. Check your sign-in.'),{code:/text\/html/i.test(response.headers.get('content-type') || '')?'NEEDS_LOGIN':'INVALID_PDF'});
-  const limit=Math.min(lookup.maxPdfBytes,50*1024*1024);
+  catch {throw Object.assign(new Error('Chrome could not fetch this document. Check your connection and Brightspace sign-in.'),{code:'NETWORK_ERROR'});}
+  if(response.status===401 || response.redirected) throw Object.assign(new Error('Sign into Brightspace in Chrome, then retry caching this document.'),{code:'NEEDS_LOGIN'});
+  if(response.status===403) throw Object.assign(new Error('Brightspace denied access to this document.'),{code:'ACCESS_DENIED'});
+  if(!response.ok) throw new Error(`Brightspace document request failed (HTTP ${response.status}).`);
+  const mime=(response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+  if(['text/html','application/xhtml+xml'].includes(mime)) {await response.body?.cancel();throw Object.assign(new Error(`Brightspace did not return ${format.extension.toUpperCase()} data. Check your sign-in.`),{code:'NEEDS_LOGIN'});}
+  // Office downloads may be labelled ZIP/octet-stream by the LMS. Validate
+  // package contents below, independently of the response's Content-Type.
+  if(!['',format.mimeType,'application/octet-stream',...(format.extension==='pdf'?[]:['application/zip','application/x-zip-compressed'])].includes(mime)) {await response.body?.cancel();throw Object.assign(new Error('Brightspace returned an unexpected document type.'),{code:format.extension==='pdf'?'INVALID_PDF':'INVALID_FILE'});}
+  const limit=Math.min(lookup.maxFileBytes??lookup.maxPdfBytes,MAX_FILE_BYTES);
   if(!Number.isSafeInteger(limit) || limit<=0) throw new Error('Invalid companion upload limit.');
-  if(Number(response.headers.get('content-length'))>limit) {await response.body?.cancel();throw new Error('PDF exceeds the 50 MB per-file limit.');}
-  const reader=response.body?.getReader();if(!reader) throw new Error('The PDF response has no body.');
+  if(Number(response.headers.get('content-length'))>limit) {await response.body?.cancel();throw new Error('Document exceeds the 50 MB per-file limit.');}
+  const reader=response.body?.getReader();if(!reader) throw new Error('The document response has no body.');
   const chunks=[];let length=0;
   try {
-    while(true) {const {done,value}=await reader.read();if(done) break;length+=value.length;if(length>limit) {await reader.cancel();throw new Error('PDF exceeds the 50 MB per-file limit.');}chunks.push(value);}
+    while(true) {const {done,value}=await reader.read();if(done) break;length+=value.length;if(length>limit) {await reader.cancel();throw new Error('Document exceeds the 50 MB per-file limit.');}chunks.push(value);}
   } finally {reader.releaseLock();}
-  const blob=new Blob(chunks,{type:'application/pdf'});
-  if(await blob.slice(0,5).text()!=='%PDF-') throw new Error('Downloaded data is not a PDF. Nothing was cached.');
+  const blob=new Blob(chunks,{type:format.mimeType});
+  validateDocument(new Uint8Array(await blob.arrayBuffer()),format);
   onPhase('Saving to local cache…');
-  const saved=await request(`/v1/cache/uploads/${lookup.uploadId}`,{token,method:'PUT',body:blob,headers:{'Content-Type':'application/pdf'}},fetcher);
+  const saved=await request(`/v1/cache/uploads/${lookup.uploadId}`,{token,method:'PUT',body:blob,headers:{'Content-Type':format.mimeType}},fetcher);
   return {...saved,source:'brightspace'};
 }

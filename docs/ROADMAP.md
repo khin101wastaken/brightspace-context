@@ -1,12 +1,12 @@
 # Brightspace Context - Development Roadmap
 
-Working baseline: NYU Brightspace, Chrome/Chromium, supported NYU-hosted PDFs, and desktop MCP. Goal: make the proven retrieval flow easy for other students to install and use.
+Current checkpoint: Windows v0.8.8 preview, NYU Brightspace and Chrome/Chromium. Semester catalogs, module landing text, bounded PDF/PPTX/DOCX caching and desktop MCP transport are implemented. PDF answers and module text have live evidence; Office transport has automated and packaged-runtime evidence, with real client reading still to verify. Pinned priority: finish the essential Chrome Web Store submission requirements and submit an unlisted pilot as soon as they are ready. Simpler MCP installation and a small student pilot follow; optional client/platform features must not delay submission. Operator-hosted course-data deployment is deferred.
 
-**3 done | 1 next | 5 planned | 3 research | 5 deferred**
+**7 done | 5 in_progress | 1 next | 4 planned | 0 research | 7 deferred**
 
 > Editable source: [roadmap.json](roadmap.json). Reusable structure: [roadmap.schema.json](roadmap.schema.json). Regenerate with `npm run roadmap`.
 
-**Reading the chart:** green = working; purple = recommended next; blue-gray = planned; amber = needs validation; dashed gray = deferred. Solid arrows are prerequisites. Dashed arrows are optional follow-ups, not release blockers. No dates or effort estimates are implied.
+**Reading the chart:** green = completed with evidence; sky blue = partly implemented; purple = recommended next; blue-gray = planned; amber = research; dashed gray = deferred. Solid arrows are prerequisites. Dashed arrows are optional follow-ups, not release blockers. No dates or effort estimates are implied.
 
 ```mermaid
 %% Generated from roadmap.json. Edit the source, then run npm run roadmap.
@@ -15,39 +15,45 @@ flowchart TB
   subgraph p_core["01 / Working foundation"]
     direction LR
     m_catalog["DONE<br/>Semester catalog + hierarchy"]:::done
-    m_cache["DONE<br/>Bounded local PDF cache"]:::done
-    m_retrieval["DONE<br/>ChatGPT requests + reads PDFs"]:::done
+    m_cache["DONE<br/>Bounded local document cache"]:::done
+    m_retrieval["DONE<br/>On-demand desktop MCP retrieval"]:::done
+    m_formats["DONE<br/>PDF / PPTX / DOCX transport"]:::done
+    m_module_notes["DONE<br/>Module landing-page context"]:::done
   end
   subgraph p_readiness["02 / Ready for classmates"]
     direction LR
-    m_lifecycle["NEXT<br/>Companion lifecycle"]:::next
-    m_onboarding["PLANNED<br/>Installer + guided connection"]:::planned
-    m_controls["PLANNED<br/>User controls + account boundaries"]:::planned
-    m_hardening["PLANNED<br/>Release reliability checks"]:::planned
+    m_lifecycle["IN PROGRESS<br/>Companion lifecycle"]:::in_progress
+    m_onboarding["IN PROGRESS<br/>Installer + guided connection"]:::in_progress
+    m_controls["IN PROGRESS<br/>User controls + account boundaries"]:::in_progress
+    m_hardening["IN PROGRESS<br/>Release reliability checks"]:::in_progress
+    m_installer["DONE<br/>Windows installer preview"]:::done
+    m_mcp_install["PLANNED<br/>Simpler ChatGPT MCP installation"]:::planned
+    m_file_readers["PLANNED<br/>Real client file-reading checks"]:::planned
   end
   subgraph p_release["03 / Desktop beta and distribution"]
     direction LR
     m_pilot["PLANNED<br/>Small NYU student pilot"]:::planned
-    m_desktop_release["PLANNED<br/>Accessible desktop release"]:::planned
+    m_desktop_release["IN PROGRESS<br/>Accessible desktop release"]:::in_progress
+    m_store_assets["DONE<br/>Store ZIP + public privacy policy"]:::done
+    m_store_listing["NEXT<br/>Chrome Web Store submission — pinned priority"]:::next
   end
-  subgraph p_web["04 / Hosted access - validate separately"]
+  subgraph p_web["Deferred / Hosted course-data access"]
     direction LR
-    m_web_handoff["RESEARCH<br/>Prove hosted PDF handoff"]:::research
-    m_remote_bridge["RESEARCH<br/>Authenticated extension relay"]:::research
-    m_hosted_release["RESEARCH<br/>Hosted plugin pilot + release"]:::research
+    m_web_handoff["DEFERRED<br/>Prove hosted PDF handoff"]:::deferred
+    m_remote_bridge["DEFERRED<br/>Authenticated extension relay"]:::deferred
+    m_hosted_release["DEFERRED<br/>Hosted plugin pilot + release"]:::deferred
   end
   subgraph p_later["Later / Optional expansion"]
     direction LR
     m_firefox["DEFERRED<br/>Firefox port"]:::deferred
     m_platforms["DEFERRED<br/>More platforms + Brightspace tenants"]:::deferred
-    m_formats["DEFERRED<br/>More document formats"]:::deferred
     m_indexing["DEFERRED<br/>Optional text search / RAG"]:::deferred
     m_ocr["DEFERRED<br/>OCR only if justified"]:::deferred
+    m_claude["PLANNED<br/>Claude Desktop package"]:::planned
   end
   m_catalog --> m_cache
   m_cache --> m_retrieval
   m_retrieval --> m_lifecycle
-  m_lifecycle --> m_onboarding
   m_retrieval --> m_controls
   m_retrieval --> m_hardening
   m_onboarding --> m_pilot
@@ -59,10 +65,24 @@ flowchart TB
   m_remote_bridge --> m_hosted_release
   m_desktop_release -.-> m_firefox
   m_desktop_release -.-> m_platforms
-  m_desktop_release -.-> m_formats
   m_desktop_release -.-> m_indexing
   m_desktop_release -.-> m_ocr
+  m_catalog --> m_module_notes
+  m_cache --> m_formats
+  m_retrieval --> m_installer
+  m_installer --> m_mcp_install
+  m_installer --> m_onboarding
+  m_mcp_install --> m_onboarding
+  m_lifecycle -.-> m_onboarding
+  m_formats --> m_file_readers
+  m_mcp_install --> m_file_readers
+  m_file_readers --> m_pilot
+  m_installer --> m_store_assets
+  m_store_assets --> m_store_listing
+  m_store_listing --> m_pilot
+  m_installer -.-> m_claude
   classDef done fill:#e8f5ee,stroke:#319465,color:#164b33,stroke-width:1.5px;
+  classDef in_progress fill:#e0f2fe,stroke:#0284c7,color:#075985,stroke-width:2px;
   classDef next fill:#ede9fe,stroke:#7c3aed,color:#4c1d95,stroke-width:3px;
   classDef planned fill:#eef3f9,stroke:#94a3b8,color:#334155,stroke-width:1px;
   classDef research fill:#fff4df,stroke:#d99a24,color:#783c0b,stroke-width:1.5px;
@@ -82,7 +102,7 @@ The schema supports editor validation. The generator performs structural and gra
 
 ### Semester catalog + hierarchy - DONE
 
-Discover the selected semester's courses and preserve nested modules, resource metadata and stable IDs; expose catalog search through MCP.
+Discover semesters and courses inside Resources, preserve all accessible nested modules and stable resource IDs, and expose catalog search through MCP.
 
 Acceptance:
 
@@ -90,42 +110,80 @@ Acceptance:
 
 Evidence:
 
-- Semester sync and cross-course catalog discovery confirmed in a separate desktop chat.
-- Inline download and Save as controls work in standalone Chrome.
+- User confirmed 5/5 courses synced from Resources without navigating Brightspace tabs.
+- A separate desktop chat located Science of Happiness readings.
+- Inline Download and Save as support accessible NYU-hosted files across formats.
 
-### Bounded local PDF cache - DONE
+### Bounded local document cache - DONE
 
-Pair the extension with the companion and cache individual PDFs with version checks, integrity verification and LRU eviction.
+Pair Chrome with the local companion and cache individual PDF, PPTX and DOCX files with freshness checks, SHA-256 verification, a shared 500 MiB LRU budget and a 50 MiB per-file limit.
 
 Acceptance:
 
-- A first request fetches the PDF; repeating it uses the verified local copy.
+- First requests fetch original file bytes; repeats use the verified cache.
+- Old PDF cache entries remain usable after adding Office formats.
 
 Evidence:
 
-- First-fetch and cache-hit behavior confirmed in Chrome; cache, authentication and quota integration checks pass.
+- Chrome PDF first-fetch/cache-hit behavior confirmed live.
+- Automated Office transport, invalid-package rejection, cache restart and PDF compatibility tests pass.
+- The v0.8.8 packaged runtime passed PDF/PPTX/DOCX byte-equality, MIME-type and restart checks.
 
 Prerequisites: Semester catalog + hierarchy.
 
-### ChatGPT requests + reads PDFs - DONE
+### On-demand desktop MCP retrieval - DONE
 
-Connect MCP requests to a durable queue, the signed-in Chrome worker and a verified local PDF handoff.
+Connect catalog requests to a durable queue, the signed-in Chrome worker and verified original-file handoff through MCP.
 
 Acceptance:
 
-- A chat finds an uncached PDF, requests it, waits for ready, reads its actual contents and can reuse the cache.
+- A chat can request one catalogued file and receive verified bytes, MIME type and a matching local filename.
+- PDF answers use actual document contents, and offline/login/failure states provide recovery steps.
 
 Evidence:
 
-- Live uncached syllabus fetch and cache repeat verified through MCP.
-- A separate chat successfully requested a different Science of Happiness reading.
-- 37 automated checks passed at the retrieval milestone; GitHub CI passed.
+- Live uncached PDF fetch, PDF reading and repeat cache hits were verified through desktop MCP.
+- PPTX and DOCX pass complete worker-to-cache-to-MCP tests; live Office file reading remains a separate acceptance check.
+- 80 local tests passed at v0.8.8; the packaged-runtime smoke check also passed.
 
-Prerequisites: Bounded local PDF cache.
+Prerequisites: Bounded local document cache.
+
+### PDF / PPTX / DOCX transport - DONE
+
+Retrieve and cache original PDF, PPTX and DOCX files and return the correct extension and MIME type through MCP, without OCR or conversion.
+
+Acceptance:
+
+- Each format passes fetch, cache-hit, byte-equality and restart checks.
+- Malformed/mismatched Office containers and login HTML do not become cached documents.
+
+Evidence:
+
+- 80 local tests passed, including full PPTX and DOCX browser-worker/MCP flows.
+- The final Windows payload passed PDF/PPTX/DOCX handoff checks using its bundled runtime.
+- The real Adolescence and Peers Fall 26 CC deck is recognized as a supported PPTX; real host reading is still pending.
+
+Prerequisites: Bounded local document cache.
+
+### Module landing-page context - DONE
+
+Preserve module descriptions, readings, film references and links in the local catalog and return them through MCP; expose collapsed Module notes in Resources.
+
+Acceptance:
+
+- The real Topic 9 module text is visible in Resources and returned by MCP with its source URL.
+
+Evidence:
+
+- User confirmed the readings and Me, Earl and the Dying Girl appear in Module notes.
+- A fresh MCP process returned the actual Topic 9 reading list, film reference and module URL.
+- v0.8.8 search highlighting was verified in standalone Chrome: matching notes open with highlighted text and direct-match counts; the deepest filename match receives row emphasis.
+
+Prerequisites: Semester catalog + hierarchy.
 
 ## 02 / Ready for classmates
 
-### Companion lifecycle - NEXT
+### Companion lifecycle - IN PROGRESS
 
 Provide start/stop controls, optional startup on sign-in, visible connection health and clean recovery after reboot or companion restart.
 
@@ -136,13 +194,14 @@ Acceptance:
 
 Evidence:
 
-- Timestamped companion diagnostics and a verbose troubleshooting launcher are implemented. Tray controls, optional startup and full reboot acceptance remain pending.
+- Installed Start menu launcher, timestamped diagnostics, verbose mode and browser reconnect/recovery are implemented.
+- Tray controls, optional startup on sign-in and full reboot acceptance remain pending.
 
-Prerequisites: ChatGPT requests + reads PDFs.
+Prerequisites: On-demand desktop MCP retrieval.
 
-### Installer + guided connection - PLANNED
+### Installer + guided connection - IN PROGRESS
 
-Bundle the runtime, guide extension pairing and desktop MCP setup, and provide a supported update/uninstall path.
+Guide companion installation, browser installation/pairing and desktop MCP setup, with an end-to-end verification step and supported update/uninstall instructions.
 
 Acceptance:
 
@@ -151,11 +210,13 @@ Acceptance:
 
 Evidence:
 
-- Initial Windows x64 installer build includes a pinned Node runtime, production dependencies, Start menu launcher, setup guide and uninstall support. Packaged-runtime smoke coverage exercises isolated pairing, PDF handoff and restart persistence. Full fresh-account onboarding acceptance is still pending.
+- The v0.8.8 Windows installer bundles Node, companion, MCP and extension; isolated payload/restart checks pass.
+- An isolated v0.8.3-to-v0.8.4 install/upgrade/uninstall test previously passed; v0.8.8 has packaged-runtime and cache compatibility checks.
+- Chrome loading and MCP registration are still manual. Fresh-account onboarding acceptance remains pending.
 
-Prerequisites: Companion lifecycle.
+Prerequisites: Windows installer preview; Simpler ChatGPT MCP installation.
 
-### User controls + account boundaries - PLANNED
+### User controls + account boundaries - IN PROGRESS
 
 Add course selection, cache inspection/deletion, disconnect controls and cancellation; define browser-profile and Brightspace-account isolation.
 
@@ -164,9 +225,14 @@ Acceptance:
 - A user can inspect and remove stored course data, pause retrieval, cancel queued work and revoke pairing.
 - Changing school accounts does not silently reuse another account's catalog or documents.
 
-Prerequisites: ChatGPT requests + reads PDFs.
+Evidence:
 
-### Release reliability checks - PLANNED
+- Course browsing/selection, automatic-retrieval pause/resume, browser disconnect and pairing reset are implemented.
+- Cache inspection/deletion, queued-request cancellation and explicit Brightspace-account isolation remain incomplete.
+
+Prerequisites: On-demand desktop MCP retrieval.
+
+### Release reliability checks - IN PROGRESS
 
 Exercise the existing recovery behavior across real session expiry, course changes, permission loss, restarts and multiple tabs/profiles; improve actionable errors.
 
@@ -175,7 +241,61 @@ Acceptance:
 - Signed-out, inaccessible, changed and unsupported resources produce clear recovery steps.
 - A fresh-profile check covers scan, fetch, read, repeat and restart without mixing courses.
 
-Prerequisites: ChatGPT requests + reads PDFs.
+Evidence:
+
+- 80 local tests cover existing downloads, pairing, queue recovery, catalog persistence, file validation, PDF compatibility and Office transport.
+- The v0.8.8 packaged-runtime smoke test passed.
+- Fresh-profile/account, reboot and multi-profile acceptance remain; the live Office deck fetch/read has not yet been confirmed.
+
+Prerequisites: On-demand desktop MCP retrieval.
+
+### Windows installer preview - DONE
+
+Provide a Windows x64 installer with pinned Node, production dependencies, a companion launcher, setup guide and uninstall support.
+
+Acceptance:
+
+- The packaged runtime starts, pairs, serves supported cached files through MCP and preserves them across restart.
+
+Evidence:
+
+- v0.8.8 installer and its SHA-256 were built.
+- Isolated packaged-runtime checks passed for PDF, PPTX, DOCX and module notes; no real user cache was used.
+
+Prerequisites: On-demand desktop MCP retrieval.
+
+### Simpler ChatGPT MCP installation - PLANNED
+
+Package the existing MCP server for supported local ChatGPT plugin installation and guide users through installation and connection.
+
+Acceptance:
+
+- A fresh installation can register the local MCP without manually entering executable paths.
+- ChatGPT discovers tools and retrieves a file using the existing paired browser and shared companion.
+
+Evidence:
+
+- Supported local-plugin installation was researched; the package and installer integration are not implemented yet.
+- Public ChatGPT local-plugin distribution has separate eligibility/review requirements; local packaging is not public directory approval.
+- Chrome Web Store submission is the pinned priority. Automatic MCP setup is a follow-up improvement; document the working manual setup for the initial release.
+
+Prerequisites: Windows installer preview.
+
+### Real client file-reading checks - PLANNED
+
+Verify that advertised desktop clients can read real returned PDF, PPTX and DOCX files, and clearly report unsupported host readers.
+
+Acceptance:
+
+- The actual Adolescence and Peers PPTX is fetched and its slide content is read in a supported chat.
+- A real DOCX is retrieved/read and repeated requests use the cache.
+- Each advertised client/format combination has an actual file-reading check; transport alone is not evidence of document interpretation.
+
+Evidence:
+
+- Live PDF reading and module-note context are confirmed. Office bytes/MIME types are tested; actual Office interpretation by chat hosts is still unverified.
+
+Prerequisites: PDF / PPTX / DOCX transport; Simpler ChatGPT MCP installation.
 
 ## 03 / Desktop beta and distribution
 
@@ -185,12 +305,12 @@ Invite 3-5 classmates with different courses and observe installation and docume
 
 Acceptance:
 
-- Participants complete setup and retrieve their own course PDFs without developer assistance.
+- Participants complete setup and retrieve/read their own supported course files without developer assistance.
 - Pilot failures are recorded and resolved before broad distribution.
 
-Prerequisites: Installer + guided connection; User controls + account boundaries; Release reliability checks.
+Prerequisites: Installer + guided connection; User controls + account boundaries; Release reliability checks; Real client file-reading checks; Chrome Web Store submission — pinned priority.
 
-### Accessible desktop release - PLANNED
+### Accessible desktop release - IN PROGRESS
 
 Prepare versioned installers, extension distribution, desktop plugin packaging, privacy disclosures, permission explanations and support instructions; complete applicable reviews.
 
@@ -199,11 +319,50 @@ Acceptance:
 - A new user can follow a public installation guide and reach a successful document answer without terminal commands.
 - Update, uninstall, data deletion and supported-platform boundaries are documented and verified.
 
+Evidence:
+
+- Versioned Windows preview installers, a validated Chrome Web Store ZIP, icons, listing drafts and a public privacy policy are prepared.
+- Public setup and checksum-verified installer downloads are available. Store upload/approval and the classmate pilot remain pending.
+
 Prerequisites: Small NYU student pilot.
 
-## 04 / Hosted access - validate separately
+### Store ZIP + public privacy policy - DONE
 
-### Prove hosted PDF handoff - RESEARCH
+Prepare a minimal browser ZIP, local readable JavaScript bundles, icons, listing/permission drafts and a public policy matching local file handling.
+
+Acceptance:
+
+- ZIP integrity and local dependency checks pass without including private runtime/course files.
+- The privacy policy is publicly readable and covers PDF/PPTX/DOCX handling.
+
+Evidence:
+
+- Validated BrightspaceContext-0.8.8-chrome-web-store.zip was built.
+- The public privacy policy was updated at https://brightspace-context.khin101.chatgpt.site.
+- Public setup/download page: https://brightspace-context.khin101.chatgpt.site/setup/ . The v0.8.8 public installer was downloaded and its SHA-256 verified against the tested build.
+
+Prerequisites: Windows installer preview.
+
+### Chrome Web Store submission — pinned priority - NEXT
+
+Finish developer-account setup, listing screenshot(s), public installer/setup links and a legitimate NYU reviewer-access plan, then submit an unlisted pilot listing.
+
+Acceptance:
+
+- All required listing/privacy/reviewer fields and assets are complete.
+- A real listing URL is approved and used by onboarding, allowing Chrome installation without Developer mode.
+
+Evidence:
+
+- The ZIP, icons, publisher/support details, privacy URL and listing drafts are ready.
+- Developer account, screenshots, reviewer access and submission/approval remain pending. Public setup and installer hosting are complete.
+- Pinned by the user on November 4, 2026. Finish release essentials before adding optional installation, Claude, tray or indexing features. See docs/RELEASE-CHECKLIST.md.
+
+Prerequisites: Store ZIP + public privacy policy.
+
+## Deferred / Hosted course-data access
+
+### Prove hosted PDF handoff - DEFERRED
 
 Validate one authenticated PDF transfer into the intended hosted ChatGPT surface and confirm the model can read the actual document.
 
@@ -212,7 +371,11 @@ Acceptance:
 - A hosted chat answers from a test PDF without relying on a local filesystem path or a metadata-only link.
 - Document delivery, consent, retention and client support are understood before selecting the cloud architecture.
 
-### Authenticated extension relay - RESEARCH
+Evidence:
+
+- Deferred by the user: prioritize local installation and avoid operating a hosted course-data service. The static public privacy website hosts no course data.
+
+### Authenticated extension relay - DEFERRED
 
 Design and implement user/device authentication, isolated catalogs and queues, a secure browser connection and bounded document retention using the validated handoff.
 
@@ -221,9 +384,13 @@ Acceptance:
 - Two test users cannot access each other's catalog, requests or files.
 - Brightspace session credentials remain in each user's browser; device disconnect and deletion work.
 
+Evidence:
+
+- Deferred by the user: prioritize local installation and avoid operating a hosted course-data service. The static public privacy website hosts no course data.
+
 Prerequisites: Prove hosted PDF handoff.
 
-### Hosted plugin pilot + release - RESEARCH
+### Hosted plugin pilot + release - DEFERRED
 
 Package the hosted integration for the chosen ChatGPT surface; validate access requirements, cost, review and support with a small pilot.
 
@@ -231,6 +398,10 @@ Acceptance:
 
 - A supported hosted chat can discover and read a user's requested course PDF through the complete authenticated flow.
 - Operational limits, costs, retention and publication requirements have been tested and documented.
+
+Evidence:
+
+- Deferred by the user: prioritize local installation and avoid operating a hosted course-data service. The static public privacy website hosts no course data.
 
 Prerequisites: Authenticated extension relay.
 
@@ -252,14 +423,6 @@ Acceptance:
 
 - Each advertised OS and tenant has installation and end-to-end retrieval evidence; unsupported configurations remain explicit.
 
-### More document formats - DEFERRED
-
-Prioritize common course formats beyond PDF and define safe download, cache and model-reading behavior for each.
-
-Acceptance:
-
-- Each supported format can be requested and actually read by the target chat host, with size and content checks.
-
 ### Optional text search / RAG - DEFERRED
 
 Evaluate lightweight extraction of existing PDF text and retrieval quality against real pilot needs and operating cost.
@@ -275,3 +438,17 @@ Evaluate an explicit opt-in path for image-only documents if users need searchab
 Acceptance:
 
 - Measured accuracy, latency, storage and compute costs justify the feature; OCR is not required for the core PDF handoff.
+
+### Claude Desktop package - PLANNED
+
+Bundle the existing MCP as a Claude Desktop MCPB and reuse the paired Chrome extension, companion and cache.
+
+Acceptance:
+
+- A fresh Claude installation discovers the MCP tools and retrieves a supported file.
+- Actual PDF/PowerPoint/Word reading behavior is verified and unsupported host readers are clearly reported.
+
+Evidence:
+
+- The MCPB installation route was researched; no Claude package or live Claude test has been completed.
+- This is an optional client expansion, not a prerequisite for the first ChatGPT pilot.

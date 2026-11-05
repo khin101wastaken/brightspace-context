@@ -1,22 +1,5 @@
-// Self-contained: Chrome serializes this function into the selected tab's
-// isolated world. Browser session credentials stay inside that browser.
-export async function requestCourseOutline(courseId) {
-  if (!/^\d+$/.test(String(courseId)) || location.origin !== 'https://brightspace.nyu.edu') {
-    throw new Error('Open the NYU Brightspace course before scanning.');
-  }
-  const response = await fetch(`/d2l/api/le/1.82/${courseId}/content/toc`, {
-    credentials:'include', redirect:'error', headers:{Accept:'application/json'},
-    signal:AbortSignal.timeout(15000),
-  });
-  if(response.status===401) throw new Error('Your Brightspace session expired. Sign in and scan again.');
-  if(response.status===403) throw new Error('Brightspace denied access to this course outline. Check your sign-in and course access.');
-  if(response.status===429) throw new Error('Brightspace is limiting requests. Wait a moment before scanning again.');
-  if(!response.ok) throw new Error(`Course-outline request failed (HTTP ${response.status}).`);
-  if(!response.headers.get('content-type')?.includes('json')) throw new Error('Brightspace returned a sign-in page or an unexpected response. Sign in and try again.');
-  const payload=await response.json();
-  if(!payload || !Array.isArray(payload.Modules)) throw new Error('Brightspace returned an unsupported course-outline format.');
-  return payload;
-}
+import {descriptionText} from './rich-text.js';
+import {searchTermPattern} from './search-highlight.js';
 
 export function flattenOutline(payload,courseId) {
   if(!/^\d+$/.test(String(courseId)) || !Array.isArray(payload?.Modules)) throw new Error('Invalid course outline.');
@@ -37,7 +20,8 @@ export function flattenOutline(payload,courseId) {
       order:Number.isFinite(item.SortOrder)?item.SortOrder:entries.length,
       url:`${origin}/d2l/le/lessons/${courseId}/${kind==='module'?'units':'topics'}/${id}`,
       sourceUrl:item.Url?safeUrl(item.Url):null,
-      description:typeof item.Description?.Text==='string'?item.Description.Text:'',
+      ...descriptionText(item.Description,`${origin}/d2l/le/lessons/${courseId}/units/${id}`),
+      descriptionStatus:item.DescriptionStatus || (Object.hasOwn(item,'Description')?'synced':'not_synced'),
       lastModifiedAt:item.LastModifiedDate || null,locked:item.IsLocked===true,
     });
     if(kind==='module') {
@@ -51,15 +35,31 @@ export function flattenOutline(payload,courseId) {
   return entries;
 }
 
-export function filterOutline(entries,query) {
+export function searchOutline(entries,query) {
   const terms=query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
-  if(!terms.length) return entries;
-  const byKey=new Map(entries.map(e=>[e.key,e])), included=new Set();
+  const patterns=terms.map(term=>searchTermPattern([term]));
+  const matches=new Set(),noteMatches=new Set(),deepestMatches=new Set();
+  if(!terms.length) return {entries,terms,matches,noteMatches,deepestMatches,resourceMatches:0,moduleMatches:0};
+  const byKey=new Map(entries.map(e=>[e.key,e])),included=new Set(),ancestorsByKey=new Map();
   for(const entry of entries) {
     const ancestors=[], visited=new Set([entry.key]);
     for(let p=byKey.get(entry.parentKey);p && !visited.has(p.key);p=byKey.get(p.parentKey)) {ancestors.push(p);visited.add(p.key);}
+    ancestorsByKey.set(entry.key,ancestors);
     const text=[entry.title,entry.description,...ancestors.map(e=>e.title)].join(' ').toLocaleLowerCase();
-    if(terms.every(term=>text.includes(term))) {included.add(entry.key);ancestors.forEach(e=>included.add(e.key));}
+    if(patterns.every(pattern=>pattern.test(text))) {
+      included.add(entry.key);ancestors.forEach(e=>included.add(e.key));
+      const title=(entry.title || '').toLocaleLowerCase(),notes=(entry.description || '').toLocaleLowerCase();
+      // Inherited module-path matches keep files visible as context; only the
+      // item whose own title/notes matches gets the direct-match treatment.
+      if(patterns.some(pattern=>pattern.test(title) || pattern.test(notes))) matches.add(entry.key);
+      if(entry.kind==='module' && patterns.some(pattern=>pattern.test(notes))) noteMatches.add(entry.key);
+    }
   }
-  return entries.filter(e=>included.has(e.key));
+  for(const key of matches) deepestMatches.add(key);
+  for(const key of matches) for(const ancestor of ancestorsByKey.get(key)) deepestMatches.delete(ancestor.key);
+  return {entries:entries.filter(e=>included.has(e.key)),terms,matches,noteMatches,deepestMatches,
+    resourceMatches:entries.filter(e=>e.kind==='document' && matches.has(e.key)).length,
+    moduleMatches:entries.filter(e=>e.kind==='module' && matches.has(e.key)).length};
 }
+
+export const filterOutline=(entries,query)=>searchOutline(entries,query).entries;

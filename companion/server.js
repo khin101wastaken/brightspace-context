@@ -2,7 +2,7 @@ import http from 'node:http';
 import {readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {randomBytes,randomUUID,timingSafeEqual} from 'node:crypto';
-import {openCache,validateMetadata,MAX_PDF_BYTES} from './cache.js';
+import {openCache,validateMetadata,MAX_FILE_BYTES} from './cache.js';
 import {atomicWrite} from './files.js';
 import {openCatalog,MAX_CATALOG_BYTES} from './catalog.js';
 import {openRequests} from './requests.js';
@@ -63,7 +63,7 @@ export async function createCompanion({directory,port=47653,budgetBytes,pairingC
       const document=url.pathname.match(/^\/v1\/cache\/documents\/([a-f0-9]{64})$/);
       if(req.method==='GET' && document) {
         const result=await cache.read(document[1]);
-        if(!result) return send(res,404,{error:'PDF is no longer cached or failed its integrity check.'});
+        if(!result) return send(res,404,{error:'Document is no longer cached or failed its integrity check.'});
         return send(res,200,{document:result.entry});
       }
       if(req.method==='POST' && url.pathname==='/v1/cache/lookup') {
@@ -74,22 +74,22 @@ export async function createCompanion({directory,port=47653,budgetBytes,pairingC
         for(const [key,ticket] of tickets) if(ticket.expires<Date.now()) tickets.delete(key);
         if(tickets.size>=100) return send(res,429,{error:'Too many pending file requests.'});
         const uploadId=randomUUID();tickets.set(uploadId,{metadata,expires:Date.now()+5*60*1000,origin});
-        return send(res,200,{...result,uploadId,maxPdfBytes:MAX_PDF_BYTES});
+        return send(res,200,{...result,uploadId,maxFileBytes:MAX_FILE_BYTES,maxPdfBytes:MAX_FILE_BYTES});
       }
       const upload=url.pathname.match(/^\/v1\/cache\/uploads\/([a-f0-9-]{36})$/);
       if(req.method==='PUT' && upload) {
         const ticket=tickets.get(upload[1]);
         if(!ticket || ticket.origin!==origin || ticket.expires<Date.now()) return send(res,404,{error:'Upload request expired. Retry the cache request.'});
         tickets.delete(upload[1]);
-        const bytes=await body(req,MAX_PDF_BYTES);
+        const bytes=await body(req,MAX_FILE_BYTES);
         const result=await cache.put(ticket.metadata,bytes);
         emit('cache.stored',{courseId:ticket.metadata.courseId,topicId:ticket.metadata.topicId,bytes:result.entry.bytes,evicted:result.evicted});
         return send(res,200,result);
       }
       const file=url.pathname.match(/^\/v1\/cache\/files\/([a-f0-9]{64})$/);
       if(req.method==='GET' && file) {
-        const result=await cache.read(file[1]);if(!result) return send(res,404,{error:'PDF is no longer cached.'});
-        res.writeHead(200,{'Content-Type':'application/pdf','Content-Length':result.bytes.length,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(result.bytes);return;
+        const result=await cache.read(file[1]);if(!result) return send(res,404,{error:'Document is no longer cached.'});
+        res.writeHead(200,{'Content-Type':result.entry.mimeType,'Content-Length':result.bytes.length,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(result.bytes);return;
       }
       send(res,404,{error:'Not found.'});
     } catch(error) {emit('http.failed',{route,code:'REQUEST_FAILED'});if(!res.headersSent) send(res,400,{error:error.message});else res.destroy();}

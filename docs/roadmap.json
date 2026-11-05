@@ -2,124 +2,524 @@
   "$schema": "./roadmap.schema.json",
   "schemaVersion": 1,
   "title": "Brightspace Context - Development Roadmap",
-  "scope": "Working baseline: NYU Brightspace, Chrome/Chromium, supported NYU-hosted PDFs, and desktop MCP. Goal: make the proven retrieval flow easy for other students to install and use.",
+  "scope": "Current checkpoint: Windows v0.8.8 preview, NYU Brightspace and Chrome/Chromium. Semester catalogs, module landing text, bounded PDF/PPTX/DOCX caching and desktop MCP transport are implemented. PDF answers and module text have live evidence; Office transport has automated and packaged-runtime evidence, with real client reading still to verify. Pinned priority: finish the essential Chrome Web Store submission requirements and submit an unlisted pilot as soon as they are ready. Simpler MCP installation and a small student pilot follow; optional client/platform features must not delay submission. Operator-hosted course-data deployment is deferred.",
   "phases": [
-    {"id": "core", "title": "01 / Working foundation"},
-    {"id": "readiness", "title": "02 / Ready for classmates"},
-    {"id": "release", "title": "03 / Desktop beta and distribution"},
-    {"id": "web", "title": "04 / Hosted access - validate separately"},
-    {"id": "later", "title": "Later / Optional expansion"}
+    {
+      "id": "core",
+      "title": "01 / Working foundation"
+    },
+    {
+      "id": "readiness",
+      "title": "02 / Ready for classmates"
+    },
+    {
+      "id": "release",
+      "title": "03 / Desktop beta and distribution"
+    },
+    {
+      "id": "web",
+      "title": "Deferred / Hosted course-data access"
+    },
+    {
+      "id": "later",
+      "title": "Later / Optional expansion"
+    }
   ],
   "milestones": [
     {
-      "id": "catalog", "phase": "core", "title": "Semester catalog + hierarchy", "status": "done",
-      "deliverable": "Discover the selected semester's courses and preserve nested modules, resource metadata and stable IDs; expose catalog search through MCP.",
-      "acceptance": ["A desktop chat can locate Science of Happiness readings across a synced semester without downloading every file."],
-      "evidence": ["Semester sync and cross-course catalog discovery confirmed in a separate desktop chat.", "Inline download and Save as controls work in standalone Chrome."]
+      "id": "catalog",
+      "phase": "core",
+      "title": "Semester catalog + hierarchy",
+      "status": "done",
+      "deliverable": "Discover semesters and courses inside Resources, preserve all accessible nested modules and stable resource IDs, and expose catalog search through MCP.",
+      "acceptance": [
+        "A desktop chat can locate Science of Happiness readings across a synced semester without downloading every file."
+      ],
+      "evidence": [
+        "User confirmed 5/5 courses synced from Resources without navigating Brightspace tabs.",
+        "A separate desktop chat located Science of Happiness readings.",
+        "Inline Download and Save as support accessible NYU-hosted files across formats."
+      ]
     },
     {
-      "id": "cache", "phase": "core", "title": "Bounded local PDF cache", "status": "done",
-      "deliverable": "Pair the extension with the companion and cache individual PDFs with version checks, integrity verification and LRU eviction.",
-      "acceptance": ["A first request fetches the PDF; repeating it uses the verified local copy."],
-      "evidence": ["First-fetch and cache-hit behavior confirmed in Chrome; cache, authentication and quota integration checks pass."]
+      "id": "cache",
+      "phase": "core",
+      "title": "Bounded local document cache",
+      "status": "done",
+      "deliverable": "Pair Chrome with the local companion and cache individual PDF, PPTX and DOCX files with freshness checks, SHA-256 verification, a shared 500 MiB LRU budget and a 50 MiB per-file limit.",
+      "acceptance": [
+        "First requests fetch original file bytes; repeats use the verified cache.",
+        "Old PDF cache entries remain usable after adding Office formats."
+      ],
+      "evidence": [
+        "Chrome PDF first-fetch/cache-hit behavior confirmed live.",
+        "Automated Office transport, invalid-package rejection, cache restart and PDF compatibility tests pass.",
+        "The v0.8.8 packaged runtime passed PDF/PPTX/DOCX byte-equality, MIME-type and restart checks."
+      ]
     },
     {
-      "id": "retrieval", "phase": "core", "title": "ChatGPT requests + reads PDFs", "status": "done",
-      "deliverable": "Connect MCP requests to a durable queue, the signed-in Chrome worker and a verified local PDF handoff.",
-      "acceptance": ["A chat finds an uncached PDF, requests it, waits for ready, reads its actual contents and can reuse the cache."],
-      "evidence": ["Live uncached syllabus fetch and cache repeat verified through MCP.", "A separate chat successfully requested a different Science of Happiness reading.", "37 automated checks passed at the retrieval milestone; GitHub CI passed."]
+      "id": "retrieval",
+      "phase": "core",
+      "title": "On-demand desktop MCP retrieval",
+      "status": "done",
+      "deliverable": "Connect catalog requests to a durable queue, the signed-in Chrome worker and verified original-file handoff through MCP.",
+      "acceptance": [
+        "A chat can request one catalogued file and receive verified bytes, MIME type and a matching local filename.",
+        "PDF answers use actual document contents, and offline/login/failure states provide recovery steps."
+      ],
+      "evidence": [
+        "Live uncached PDF fetch, PDF reading and repeat cache hits were verified through desktop MCP.",
+        "PPTX and DOCX pass complete worker-to-cache-to-MCP tests; live Office file reading remains a separate acceptance check.",
+        "80 local tests passed at v0.8.8; the packaged-runtime smoke check also passed."
+      ]
     },
     {
-      "id": "lifecycle", "phase": "readiness", "title": "Companion lifecycle", "status": "next",
+      "id": "lifecycle",
+      "phase": "readiness",
+      "title": "Companion lifecycle",
+      "status": "in_progress",
       "deliverable": "Provide start/stop controls, optional startup on sign-in, visible connection health and clean recovery after reboot or companion restart.",
-      "acceptance": ["A user can start and recover the companion without a terminal.", "Restarting the computer preserves pairing, catalog and cache, and retrieval resumes when enabled."],
-      "evidence": ["Timestamped companion diagnostics and a verbose troubleshooting launcher are implemented. Tray controls, optional startup and full reboot acceptance remain pending."]
+      "acceptance": [
+        "A user can start and recover the companion without a terminal.",
+        "Restarting the computer preserves pairing, catalog and cache, and retrieval resumes when enabled."
+      ],
+      "evidence": [
+        "Installed Start menu launcher, timestamped diagnostics, verbose mode and browser reconnect/recovery are implemented.",
+        "Tray controls, optional startup on sign-in and full reboot acceptance remain pending."
+      ]
     },
     {
-      "id": "onboarding", "phase": "readiness", "title": "Installer + guided connection", "status": "planned",
-      "deliverable": "Bundle the runtime, guide extension pairing and desktop MCP setup, and provide a supported update/uninstall path.",
-      "acceptance": ["A classmate installs on a fresh Windows account without Node, source checkout or shell commands.", "The setup flow verifies browser sign-in, companion connection and one retrieved PDF."],
-      "evidence": ["Initial Windows x64 installer build includes a pinned Node runtime, production dependencies, Start menu launcher, setup guide and uninstall support. Packaged-runtime smoke coverage exercises isolated pairing, PDF handoff and restart persistence. Full fresh-account onboarding acceptance is still pending."]
+      "id": "onboarding",
+      "phase": "readiness",
+      "title": "Installer + guided connection",
+      "status": "in_progress",
+      "deliverable": "Guide companion installation, browser installation/pairing and desktop MCP setup, with an end-to-end verification step and supported update/uninstall instructions.",
+      "acceptance": [
+        "A classmate installs on a fresh Windows account without Node, source checkout or shell commands.",
+        "The setup flow verifies browser sign-in, companion connection and one retrieved PDF."
+      ],
+      "evidence": [
+        "The v0.8.8 Windows installer bundles Node, companion, MCP and extension; isolated payload/restart checks pass.",
+        "An isolated v0.8.3-to-v0.8.4 install/upgrade/uninstall test previously passed; v0.8.8 has packaged-runtime and cache compatibility checks.",
+        "Chrome loading and MCP registration are still manual. Fresh-account onboarding acceptance remains pending."
+      ]
     },
     {
-      "id": "controls", "phase": "readiness", "title": "User controls + account boundaries", "status": "planned",
+      "id": "controls",
+      "phase": "readiness",
+      "title": "User controls + account boundaries",
+      "status": "in_progress",
       "deliverable": "Add course selection, cache inspection/deletion, disconnect controls and cancellation; define browser-profile and Brightspace-account isolation.",
-      "acceptance": ["A user can inspect and remove stored course data, pause retrieval, cancel queued work and revoke pairing.", "Changing school accounts does not silently reuse another account's catalog or documents."]
+      "acceptance": [
+        "A user can inspect and remove stored course data, pause retrieval, cancel queued work and revoke pairing.",
+        "Changing school accounts does not silently reuse another account's catalog or documents."
+      ],
+      "evidence": [
+        "Course browsing/selection, automatic-retrieval pause/resume, browser disconnect and pairing reset are implemented.",
+        "Cache inspection/deletion, queued-request cancellation and explicit Brightspace-account isolation remain incomplete."
+      ]
     },
     {
-      "id": "hardening", "phase": "readiness", "title": "Release reliability checks", "status": "planned",
+      "id": "hardening",
+      "phase": "readiness",
+      "title": "Release reliability checks",
+      "status": "in_progress",
       "deliverable": "Exercise the existing recovery behavior across real session expiry, course changes, permission loss, restarts and multiple tabs/profiles; improve actionable errors.",
-      "acceptance": ["Signed-out, inaccessible, changed and unsupported resources produce clear recovery steps.", "A fresh-profile check covers scan, fetch, read, repeat and restart without mixing courses."]
+      "acceptance": [
+        "Signed-out, inaccessible, changed and unsupported resources produce clear recovery steps.",
+        "A fresh-profile check covers scan, fetch, read, repeat and restart without mixing courses."
+      ],
+      "evidence": [
+        "80 local tests cover existing downloads, pairing, queue recovery, catalog persistence, file validation, PDF compatibility and Office transport.",
+        "The v0.8.8 packaged-runtime smoke test passed.",
+        "Fresh-profile/account, reboot and multi-profile acceptance remain; the live Office deck fetch/read has not yet been confirmed."
+      ]
     },
     {
-      "id": "pilot", "phase": "release", "title": "Small NYU student pilot", "status": "planned",
+      "id": "pilot",
+      "phase": "release",
+      "title": "Small NYU student pilot",
+      "status": "planned",
       "deliverable": "Invite 3-5 classmates with different courses and observe installation and document retrieval; collect consented, redacted bug reports.",
-      "acceptance": ["Participants complete setup and retrieve their own course PDFs without developer assistance.", "Pilot failures are recorded and resolved before broad distribution."]
+      "acceptance": [
+        "Participants complete setup and retrieve/read their own supported course files without developer assistance.",
+        "Pilot failures are recorded and resolved before broad distribution."
+      ]
     },
     {
-      "id": "desktop_release", "phase": "release", "title": "Accessible desktop release", "status": "planned",
+      "id": "desktop_release",
+      "phase": "release",
+      "title": "Accessible desktop release",
+      "status": "in_progress",
       "deliverable": "Prepare versioned installers, extension distribution, desktop plugin packaging, privacy disclosures, permission explanations and support instructions; complete applicable reviews.",
-      "acceptance": ["A new user can follow a public installation guide and reach a successful document answer without terminal commands.", "Update, uninstall, data deletion and supported-platform boundaries are documented and verified."]
+      "acceptance": [
+        "A new user can follow a public installation guide and reach a successful document answer without terminal commands.",
+        "Update, uninstall, data deletion and supported-platform boundaries are documented and verified."
+      ],
+      "evidence": [
+        "Versioned Windows preview installers, a validated Chrome Web Store ZIP, icons, listing drafts and a public privacy policy are prepared.",
+        "Public setup and checksum-verified installer downloads are available. Store upload/approval and the classmate pilot remain pending."
+      ]
     },
     {
-      "id": "web_handoff", "phase": "web", "title": "Prove hosted PDF handoff", "status": "research",
+      "id": "web_handoff",
+      "phase": "web",
+      "title": "Prove hosted PDF handoff",
+      "status": "deferred",
       "deliverable": "Validate one authenticated PDF transfer into the intended hosted ChatGPT surface and confirm the model can read the actual document.",
-      "acceptance": ["A hosted chat answers from a test PDF without relying on a local filesystem path or a metadata-only link.", "Document delivery, consent, retention and client support are understood before selecting the cloud architecture."]
+      "acceptance": [
+        "A hosted chat answers from a test PDF without relying on a local filesystem path or a metadata-only link.",
+        "Document delivery, consent, retention and client support are understood before selecting the cloud architecture."
+      ],
+      "evidence": [
+        "Deferred by the user: prioritize local installation and avoid operating a hosted course-data service. The static public privacy website hosts no course data."
+      ]
     },
     {
-      "id": "remote_bridge", "phase": "web", "title": "Authenticated extension relay", "status": "research",
+      "id": "remote_bridge",
+      "phase": "web",
+      "title": "Authenticated extension relay",
+      "status": "deferred",
       "deliverable": "Design and implement user/device authentication, isolated catalogs and queues, a secure browser connection and bounded document retention using the validated handoff.",
-      "acceptance": ["Two test users cannot access each other's catalog, requests or files.", "Brightspace session credentials remain in each user's browser; device disconnect and deletion work."]
+      "acceptance": [
+        "Two test users cannot access each other's catalog, requests or files.",
+        "Brightspace session credentials remain in each user's browser; device disconnect and deletion work."
+      ],
+      "evidence": [
+        "Deferred by the user: prioritize local installation and avoid operating a hosted course-data service. The static public privacy website hosts no course data."
+      ]
     },
     {
-      "id": "hosted_release", "phase": "web", "title": "Hosted plugin pilot + release", "status": "research",
+      "id": "hosted_release",
+      "phase": "web",
+      "title": "Hosted plugin pilot + release",
+      "status": "deferred",
       "deliverable": "Package the hosted integration for the chosen ChatGPT surface; validate access requirements, cost, review and support with a small pilot.",
-      "acceptance": ["A supported hosted chat can discover and read a user's requested course PDF through the complete authenticated flow.", "Operational limits, costs, retention and publication requirements have been tested and documented."]
+      "acceptance": [
+        "A supported hosted chat can discover and read a user's requested course PDF through the complete authenticated flow.",
+        "Operational limits, costs, retention and publication requirements have been tested and documented."
+      ],
+      "evidence": [
+        "Deferred by the user: prioritize local installation and avoid operating a hosted course-data service. The static public privacy website hosts no course data."
+      ]
     },
     {
-      "id": "firefox", "phase": "later", "title": "Firefox port", "status": "deferred",
+      "id": "firefox",
+      "phase": "later",
+      "title": "Firefox port",
+      "status": "deferred",
       "deliverable": "Adapt background execution, browser APIs, absolute request URLs and moz-extension origin pairing; package and test Firefox support.",
-      "acceptance": ["Firefox passes scan, fetch, PDF read, cache repeat, sign-in recovery and popup-closed retrieval checks using its own session."]
+      "acceptance": [
+        "Firefox passes scan, fetch, PDF read, cache repeat, sign-in recovery and popup-closed retrieval checks using its own session."
+      ]
     },
     {
-      "id": "platforms", "phase": "later", "title": "More platforms + Brightspace tenants", "status": "deferred",
+      "id": "platforms",
+      "phase": "later",
+      "title": "More platforms + Brightspace tenants",
+      "status": "deferred",
       "deliverable": "Expand installer/desktop support and parameterize tenant hosts and verified API behavior as demand justifies.",
-      "acceptance": ["Each advertised OS and tenant has installation and end-to-end retrieval evidence; unsupported configurations remain explicit."]
+      "acceptance": [
+        "Each advertised OS and tenant has installation and end-to-end retrieval evidence; unsupported configurations remain explicit."
+      ]
     },
     {
-      "id": "formats", "phase": "later", "title": "More document formats", "status": "deferred",
-      "deliverable": "Prioritize common course formats beyond PDF and define safe download, cache and model-reading behavior for each.",
-      "acceptance": ["Each supported format can be requested and actually read by the target chat host, with size and content checks."]
+      "id": "formats",
+      "phase": "core",
+      "title": "PDF / PPTX / DOCX transport",
+      "status": "done",
+      "deliverable": "Retrieve and cache original PDF, PPTX and DOCX files and return the correct extension and MIME type through MCP, without OCR or conversion.",
+      "acceptance": [
+        "Each format passes fetch, cache-hit, byte-equality and restart checks.",
+        "Malformed/mismatched Office containers and login HTML do not become cached documents."
+      ],
+      "evidence": [
+        "80 local tests passed, including full PPTX and DOCX browser-worker/MCP flows.",
+        "The final Windows payload passed PDF/PPTX/DOCX handoff checks using its bundled runtime.",
+        "The real Adolescence and Peers Fall 26 CC deck is recognized as a supported PPTX; real host reading is still pending."
+      ]
     },
     {
-      "id": "indexing", "phase": "later", "title": "Optional text search / RAG", "status": "deferred",
+      "id": "indexing",
+      "phase": "later",
+      "title": "Optional text search / RAG",
+      "status": "deferred",
       "deliverable": "Evaluate lightweight extraction of existing PDF text and retrieval quality against real pilot needs and operating cost.",
-      "acceptance": ["A measured evaluation demonstrates improved document discovery or context efficiency without requiring OCR."]
+      "acceptance": [
+        "A measured evaluation demonstrates improved document discovery or context efficiency without requiring OCR."
+      ]
     },
     {
-      "id": "ocr", "phase": "later", "title": "OCR only if justified", "status": "deferred",
+      "id": "ocr",
+      "phase": "later",
+      "title": "OCR only if justified",
+      "status": "deferred",
       "deliverable": "Evaluate an explicit opt-in path for image-only documents if users need searchable text and the cost/quality tradeoff is acceptable.",
-      "acceptance": ["Measured accuracy, latency, storage and compute costs justify the feature; OCR is not required for the core PDF handoff."]
+      "acceptance": [
+        "Measured accuracy, latency, storage and compute costs justify the feature; OCR is not required for the core PDF handoff."
+      ]
+    },
+    {
+      "id": "module_notes",
+      "phase": "core",
+      "title": "Module landing-page context",
+      "status": "done",
+      "deliverable": "Preserve module descriptions, readings, film references and links in the local catalog and return them through MCP; expose collapsed Module notes in Resources.",
+      "acceptance": [
+        "The real Topic 9 module text is visible in Resources and returned by MCP with its source URL."
+      ],
+      "evidence": [
+        "User confirmed the readings and Me, Earl and the Dying Girl appear in Module notes.",
+        "A fresh MCP process returned the actual Topic 9 reading list, film reference and module URL.",
+        "v0.8.8 search highlighting was verified in standalone Chrome: matching notes open with highlighted text and direct-match counts; the deepest filename match receives row emphasis."
+      ]
+    },
+    {
+      "id": "installer",
+      "phase": "readiness",
+      "title": "Windows installer preview",
+      "status": "done",
+      "deliverable": "Provide a Windows x64 installer with pinned Node, production dependencies, a companion launcher, setup guide and uninstall support.",
+      "acceptance": [
+        "The packaged runtime starts, pairs, serves supported cached files through MCP and preserves them across restart."
+      ],
+      "evidence": [
+        "v0.8.8 installer and its SHA-256 were built.",
+        "Isolated packaged-runtime checks passed for PDF, PPTX, DOCX and module notes; no real user cache was used."
+      ]
+    },
+    {
+      "id": "mcp_install",
+      "phase": "readiness",
+      "title": "Simpler ChatGPT MCP installation",
+      "status": "planned",
+      "deliverable": "Package the existing MCP server for supported local ChatGPT plugin installation and guide users through installation and connection.",
+      "acceptance": [
+        "A fresh installation can register the local MCP without manually entering executable paths.",
+        "ChatGPT discovers tools and retrieves a file using the existing paired browser and shared companion."
+      ],
+      "evidence": [
+        "Supported local-plugin installation was researched; the package and installer integration are not implemented yet.",
+        "Public ChatGPT local-plugin distribution has separate eligibility/review requirements; local packaging is not public directory approval.",
+        "Chrome Web Store submission is the pinned priority. Automatic MCP setup is a follow-up improvement; document the working manual setup for the initial release."
+      ]
+    },
+    {
+      "id": "file_readers",
+      "phase": "readiness",
+      "title": "Real client file-reading checks",
+      "status": "planned",
+      "deliverable": "Verify that advertised desktop clients can read real returned PDF, PPTX and DOCX files, and clearly report unsupported host readers.",
+      "acceptance": [
+        "The actual Adolescence and Peers PPTX is fetched and its slide content is read in a supported chat.",
+        "A real DOCX is retrieved/read and repeated requests use the cache.",
+        "Each advertised client/format combination has an actual file-reading check; transport alone is not evidence of document interpretation."
+      ],
+      "evidence": [
+        "Live PDF reading and module-note context are confirmed. Office bytes/MIME types are tested; actual Office interpretation by chat hosts is still unverified."
+      ]
+    },
+    {
+      "id": "store_assets",
+      "phase": "release",
+      "title": "Store ZIP + public privacy policy",
+      "status": "done",
+      "deliverable": "Prepare a minimal browser ZIP, local readable JavaScript bundles, icons, listing/permission drafts and a public policy matching local file handling.",
+      "acceptance": [
+        "ZIP integrity and local dependency checks pass without including private runtime/course files.",
+        "The privacy policy is publicly readable and covers PDF/PPTX/DOCX handling."
+      ],
+      "evidence": [
+        "Validated BrightspaceContext-0.8.8-chrome-web-store.zip was built.",
+        "The public privacy policy was updated at https://brightspace-context.khin101.chatgpt.site.",
+        "Public setup/download page: https://brightspace-context.khin101.chatgpt.site/setup/ . The v0.8.8 public installer was downloaded and its SHA-256 verified against the tested build."
+      ]
+    },
+    {
+      "id": "store_listing",
+      "phase": "release",
+      "title": "Chrome Web Store submission — pinned priority",
+      "status": "next",
+      "deliverable": "Finish developer-account setup, listing screenshot(s), public installer/setup links and a legitimate NYU reviewer-access plan, then submit an unlisted pilot listing.",
+      "acceptance": [
+        "All required listing/privacy/reviewer fields and assets are complete.",
+        "A real listing URL is approved and used by onboarding, allowing Chrome installation without Developer mode."
+      ],
+      "evidence": [
+        "The ZIP, icons, publisher/support details, privacy URL and listing drafts are ready.",
+        "Developer account, screenshots, reviewer access and submission/approval remain pending. Public setup and installer hosting are complete.",
+        "Pinned by the user on November 4, 2026. Finish release essentials before adding optional installation, Claude, tray or indexing features. See docs/RELEASE-CHECKLIST.md."
+      ]
+    },
+    {
+      "id": "claude",
+      "phase": "later",
+      "title": "Claude Desktop package",
+      "status": "planned",
+      "deliverable": "Bundle the existing MCP as a Claude Desktop MCPB and reuse the paired Chrome extension, companion and cache.",
+      "acceptance": [
+        "A fresh Claude installation discovers the MCP tools and retrieves a supported file.",
+        "Actual PDF/PowerPoint/Word reading behavior is verified and unsupported host readers are clearly reported."
+      ],
+      "evidence": [
+        "The MCPB installation route was researched; no Claude package or live Claude test has been completed.",
+        "This is an optional client expansion, not a prerequisite for the first ChatGPT pilot."
+      ]
     }
   ],
   "edges": [
-    {"from": "catalog", "to": "cache", "kind": "requires"},
-    {"from": "cache", "to": "retrieval", "kind": "requires"},
-    {"from": "retrieval", "to": "lifecycle", "kind": "requires"},
-    {"from": "lifecycle", "to": "onboarding", "kind": "requires"},
-    {"from": "retrieval", "to": "controls", "kind": "requires"},
-    {"from": "retrieval", "to": "hardening", "kind": "requires"},
-    {"from": "onboarding", "to": "pilot", "kind": "requires"},
-    {"from": "controls", "to": "pilot", "kind": "requires"},
-    {"from": "hardening", "to": "pilot", "kind": "requires"},
-    {"from": "pilot", "to": "desktop_release", "kind": "requires"},
-    {"from": "desktop_release", "to": "web_handoff", "kind": "optional", "reason": "Recommended sequencing; the handoff spike can also be explored earlier."},
-    {"from": "web_handoff", "to": "remote_bridge", "kind": "requires"},
-    {"from": "remote_bridge", "to": "hosted_release", "kind": "requires"},
-    {"from": "desktop_release", "to": "firefox", "kind": "optional"},
-    {"from": "desktop_release", "to": "platforms", "kind": "optional"},
-    {"from": "desktop_release", "to": "formats", "kind": "optional"},
-    {"from": "desktop_release", "to": "indexing", "kind": "optional"},
-    {"from": "desktop_release", "to": "ocr", "kind": "optional"}
+    {
+      "from": "catalog",
+      "to": "cache",
+      "kind": "requires"
+    },
+    {
+      "from": "cache",
+      "to": "retrieval",
+      "kind": "requires"
+    },
+    {
+      "from": "retrieval",
+      "to": "lifecycle",
+      "kind": "requires"
+    },
+    {
+      "from": "retrieval",
+      "to": "controls",
+      "kind": "requires"
+    },
+    {
+      "from": "retrieval",
+      "to": "hardening",
+      "kind": "requires"
+    },
+    {
+      "from": "onboarding",
+      "to": "pilot",
+      "kind": "requires"
+    },
+    {
+      "from": "controls",
+      "to": "pilot",
+      "kind": "requires"
+    },
+    {
+      "from": "hardening",
+      "to": "pilot",
+      "kind": "requires"
+    },
+    {
+      "from": "pilot",
+      "to": "desktop_release",
+      "kind": "requires"
+    },
+    {
+      "from": "desktop_release",
+      "to": "web_handoff",
+      "kind": "optional",
+      "reason": "Recommended sequencing; the handoff spike can also be explored earlier."
+    },
+    {
+      "from": "web_handoff",
+      "to": "remote_bridge",
+      "kind": "requires"
+    },
+    {
+      "from": "remote_bridge",
+      "to": "hosted_release",
+      "kind": "requires"
+    },
+    {
+      "from": "desktop_release",
+      "to": "firefox",
+      "kind": "optional"
+    },
+    {
+      "from": "desktop_release",
+      "to": "platforms",
+      "kind": "optional"
+    },
+    {
+      "from": "desktop_release",
+      "to": "indexing",
+      "kind": "optional"
+    },
+    {
+      "from": "desktop_release",
+      "to": "ocr",
+      "kind": "optional"
+    },
+    {
+      "from": "catalog",
+      "to": "module_notes",
+      "kind": "requires"
+    },
+    {
+      "from": "cache",
+      "to": "formats",
+      "kind": "requires"
+    },
+    {
+      "from": "retrieval",
+      "to": "installer",
+      "kind": "requires"
+    },
+    {
+      "from": "installer",
+      "to": "mcp_install",
+      "kind": "requires"
+    },
+    {
+      "from": "installer",
+      "to": "onboarding",
+      "kind": "requires"
+    },
+    {
+      "from": "mcp_install",
+      "to": "onboarding",
+      "kind": "requires"
+    },
+    {
+      "from": "lifecycle",
+      "to": "onboarding",
+      "kind": "optional",
+      "reason": "Startup/tray polish improves setup, while a documented manual launcher can support an initial pilot."
+    },
+    {
+      "from": "formats",
+      "to": "file_readers",
+      "kind": "requires"
+    },
+    {
+      "from": "mcp_install",
+      "to": "file_readers",
+      "kind": "requires"
+    },
+    {
+      "from": "file_readers",
+      "to": "pilot",
+      "kind": "requires"
+    },
+    {
+      "from": "installer",
+      "to": "store_assets",
+      "kind": "requires"
+    },
+    {
+      "from": "store_assets",
+      "to": "store_listing",
+      "kind": "requires"
+    },
+    {
+      "from": "store_listing",
+      "to": "pilot",
+      "kind": "requires"
+    },
+    {
+      "from": "installer",
+      "to": "claude",
+      "kind": "optional",
+      "reason": "Reuse the local foundation when expanding to another AI client; the initial pilot can target ChatGPT."
+    }
   ]
 }

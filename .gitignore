@@ -17,6 +17,7 @@ cache/
 data/
 downloads/
 artifacts/
+sites/
 tmp/pdfs/
 *.har
 cookies*.txt

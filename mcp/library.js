@@ -2,6 +2,7 @@ import {readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {downloadableFile} from '../extension/file-downloads.js';
+import {documentFormat} from '../extension/document-formats.js';
 import {setTimeout as delay} from 'node:timers/promises';
 
 export class LocalLibrary {
@@ -29,7 +30,7 @@ export class LocalLibrary {
     const terms=query.trim().toLowerCase().split(/\s+/).filter(Boolean);
     const matches=documents.filter(d=>(!courseId || d.courseId===courseId) && terms.every(term=>[d.title,d.courseTitle,...d.modulePath].join(' ').toLowerCase().includes(term)));
     matches.sort((a,b)=>a.courseTitle.localeCompare(b.courseTitle) || a.modulePath.join('/').localeCompare(b.modulePath.join('/')) || a.title.localeCompare(b.title));
-    return {documents:matches.slice(offset,offset+limit).map(d=>({id:d.id,title:d.title,courseId:d.courseId,courseTitle:d.courseTitle,modulePath:d.modulePath,bytes:d.bytes,lastModifiedAt:d.lastModifiedAt})),total:matches.length,nextOffset:offset+limit<matches.length?offset+limit:null,coverage:'cached PDFs only; search covers metadata, not document text'};
+    return {documents:matches.slice(offset,offset+limit).map(d=>({id:d.id,title:d.title,courseId:d.courseId,courseTitle:d.courseTitle,modulePath:d.modulePath,bytes:d.bytes,lastModifiedAt:d.lastModifiedAt,mimeType:documentFormat(d.sourceUrl)?.mimeType,extension:documentFormat(d.sourceUrl)?.extension})),total:matches.length,nextOffset:offset+limit<matches.length?offset+limit:null,coverage:'cached PDF, PPTX and DOCX files only; search covers metadata, not document text'};
   }
   catalogParams({query='',courseId,semesterId,offset=0,limit=25}={}) {
     if(typeof query!=='string' || query.length>500 || (courseId!=null && (typeof courseId!=='string' || !/^\d+$/.test(courseId))) || (semesterId!=null && (typeof semesterId!=='string' || !/^\d+$/.test(semesterId))) || !Number.isInteger(offset) || offset<0 || !Number.isInteger(limit) || limit<1 || limit>100) throw new Error('Invalid catalog search parameters.');
@@ -54,15 +55,16 @@ export class LocalLibrary {
           const modulePath=[];
           for(let parent=byKey.get(entry.parentKey);parent;parent=byKey.get(parent.parentKey)) modulePath.unshift(parent.title);
           if(!terms.every(term=>[course.title,semester.title,entry.title,entry.description,...modulePath].join(' ').toLowerCase().includes(term))) continue;
-          const file=downloadableFile(entry),pdf=!!file && /\.pdf$/i.test(new URL(file.url).pathname);
+          const file=downloadableFile(entry),format=file && documentFormat(file.url);
           const id=entry.kind==='document'?createHash('sha256').update(`${course.courseId}:${entry.id}`).digest('hex'):null;
-          const candidate=id && cached.get(id),fresh=!!candidate && candidate.sourceUrl===entry.sourceUrl && candidate.lastModifiedAt===(entry.lastModifiedAt || null) && (candidate.lastModifiedAt || Date.now()-candidate.fetchedAt<5*60*1000);
+          const candidate=id && cached.get(id),fresh=!!candidate && candidate.sourceUrl===file?.url && candidate.lastModifiedAt===(entry.lastModifiedAt || null) && (candidate.lastModifiedAt || Date.now()-candidate.fetchedAt<5*60*1000);
           entries.push({courseId:course.courseId,courseTitle:course.title,semesterId:semester.semesterId,semesterTitle:semester.title,key:entry.key,parentKey:entry.parentKey,title:entry.title,kind:entry.kind,contentType:entry.contentType,modulePath,url:entry.url,lastModifiedAt:entry.lastModifiedAt,outlineScannedAt:course.lastScannedAt,outlineStale:course.stale===true,locked:entry.locked,
-            cacheSupported:pdf,cachedDocumentId:fresh?id:null,availability:fresh?'cache entry present; verify with get_cached_document':pdf?'not cached; use request_document with courseId and key':'catalog only; retrieval not supported'});
+            description:entry.description || '',descriptionStatus:entry.descriptionStatus || (entry.description?'synced':'not_synced'),descriptionTruncated:entry.descriptionTruncated===true,
+            cacheSupported:!!format,mimeType:format?.mimeType || null,extension:format?.extension || null,cachedDocumentId:fresh?id:null,availability:entry.kind==='module'?(entry.description?'module landing-page text included; cite url':'module metadata only; no landing-page text available'):fresh?'cache entry present; verify with get_cached_document':format?'not cached; use request_document with courseId and key':'catalog only; retrieval not supported'});
         }
       }
     }
-    return {entries:entries.slice(offset,offset+limit),total:entries.length,nextOffset:offset+limit<entries.length?offset+limit:null,coverage:'Saved catalog metadata only, including uncached resources. Does not search document contents or download files. For a course hierarchy, pass courseId with no query and follow pagination; parentKey and modulePath preserve nesting.'};
+    return {entries:entries.slice(offset,offset+limit),total:entries.length,nextOffset:offset+limit<entries.length?offset+limit:null,coverage:'Saved catalog, including uncached resources and module landing-page descriptions. Descriptions are source text, not PDF contents; cite each entry url and check outlineScannedAt, outlineStale, descriptionStatus and descriptionTruncated. Does not search PDF contents or download files. For a course hierarchy, pass courseId with no query and follow pagination; parentKey and modulePath preserve nesting.'};
   }
   async requestDocument({courseId,key,retry=false,waitSeconds=10}={}) {
     this.checkWait(waitSeconds);
@@ -81,21 +83,23 @@ export class LocalLibrary {
     while(['queued','fetching'].includes(result.state) && result.workerConnected && Date.now()<deadline) {
       await delay(Math.min(1000,deadline-Date.now()));result=await this.request(`/v1/requests/${result.requestId}`);
     }
-    if(result.state==='ready') return {...result,document:await this.get(result.documentId),readingRequired:'Read document.localPath with the desktop PDF tools before answering. Metadata and resource links are not document contents.'};
+    if(result.state==='ready') return {...result,document:await this.get(result.documentId),readingRequired:'Read document.localPath with host tools appropriate to document.mimeType (PDF, PowerPoint or Word) before answering. Retrieval does not automatically parse or attach the file. If the host cannot read this format, say so. Metadata and resource links are not document contents.'};
     return result;
   }
   validId(id) {if(typeof id!=='string' || !/^[a-f0-9]{64}$/.test(id)) throw new Error('Use a document ID returned by list_cached_documents.');return id;}
   async get(id) {
     this.validId(id);
     const {document}=await this.request(`/v1/cache/documents/${id}`);
-    return {...document,uri:`brightspace-cache://documents/${id}`,localPath:path.join(this.directory,`${id}.pdf`),mimeType:'application/pdf',sourceUrl:`https://brightspace.nyu.edu/d2l/le/lessons/${document.courseId}/topics/${document.topicId}`};
+    const format=documentFormat(document.sourceUrl);
+    if(!format) throw new Error('Unsupported cached document format.');
+    return {...document,uri:`brightspace-cache://documents/${id}`,localPath:path.join(this.directory,`${id}.${format.extension}`),mimeType:format.mimeType,extension:format.extension,sourceUrl:`https://brightspace.nyu.edu/d2l/le/lessons/${document.courseId}/topics/${document.topicId}`};
   }
   async readResource(uri) {
     const id=uri?.match(/^brightspace-cache:\/\/documents\/([a-f0-9]{64})$/)?.[1];
     this.validId(id);
     const document=await this.get(id);
-    if(document.bytes>10*1024*1024) throw new Error('This PDF is too large for an embedded MCP resource. Read its localPath using the desktop host PDF reader.');
+    if(document.bytes>10*1024*1024) throw new Error('This document is too large for an embedded MCP resource. Read its localPath using the desktop host tools.');
     const bytes=await this.request(`/v1/cache/files/${id}`,true);
-    return {contents:[{uri,mimeType:'application/pdf',blob:bytes.toString('base64')}]};
+    return {contents:[{uri,mimeType:document.mimeType,blob:bytes.toString('base64')}]};
   }
 }

@@ -1,0 +1,10 @@
+{
+  "project_id": "appgprj_6aea61cb220c8191be883c7364f04f79",
+  "public_url": "https://brightspace-context.khin101.chatgpt.site",
+  "audience": "public",
+  "source_directory": "sites/brightspace-context-privacy",
+  "policy_source": "store/privacy-policy.md",
+  "render_command": "node scripts/render-privacy-policy.js",
+  "setup_url": "https://brightspace-context.khin101.chatgpt.site/setup/",
+  "download_prepare_command": "node scripts/prepare-public-download.js"
+}

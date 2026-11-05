@@ -1,0 +1,23 @@
+import {readFile,writeFile,mkdir,cp,lstat} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {PRODUCT_LINKS,PRODUCT_VERSION} from '../extension/product-links.js';
+
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const manifest=JSON.parse(await readFile(path.join(root,'extension/manifest.json'),'utf8'));
+const build=JSON.parse(await readFile(path.join(root,'dist/latest-build.json'),'utf8'));
+if(build.version!==PRODUCT_VERSION || manifest.version!==PRODUCT_VERSION) throw new Error('Build, links and extension versions must match.');
+const expected=path.join(root,'dist',`BrightspaceContext-${PRODUCT_VERSION}-windows-x64-setup.exe`);
+if(path.resolve(build.artifact)!==expected) throw new Error('Unexpected installer path.');
+const info=await lstat(expected);if(!info.isFile() || info.isSymbolicLink() || info.size>25*1024*1024) throw new Error('Installer must be a regular file within the static asset size limit.');
+const digest=createHash('sha256').update(await readFile(expected)).digest('hex');
+if(digest!==build.sha256) throw new Error('Installer checksum differs from the verified build.');
+const site=path.join(root,'sites/brightspace-context-privacy/dist');await mkdir(path.join(site,'downloads'),{recursive:true});await mkdir(path.join(site,'setup'),{recursive:true});
+await cp(expected,path.join(site,'downloads',path.basename(expected)));
+await cp(expected+'.sha256',path.join(site,'downloads',path.basename(expected)+'.sha256'));
+let html=await readFile(path.join(root,'store/setup-guide.html'),'utf8');
+for(const [key,value] of Object.entries({VERSION:PRODUCT_VERSION,DOWNLOAD_URL:PRODUCT_LINKS.download,CHECKSUM_URL:PRODUCT_LINKS.download+'.sha256',SIZE:`${(info.size/1024/1024).toFixed(1)} MiB`})) html=html.replaceAll(`{{${key}}}`,value);
+if(/\{\{[A-Z_]+\}\}/.test(html)) throw new Error('Unfilled setup placeholder.');
+await writeFile(path.join(site,'setup/index.html'),html);
+console.log(`Prepared public setup and checksum-verified installer: ${PRODUCT_VERSION} (${info.size} bytes).`);

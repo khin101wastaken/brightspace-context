@@ -6,7 +6,7 @@ const project=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const source=path.resolve(process.argv[2] || path.join(project,'docs/roadmap.json'));
 const output=path.resolve(process.argv[3] || path.dirname(source));
 const data=JSON.parse(await readFile(source,'utf8'));
-const labels={done:'DONE',next:'NEXT',planned:'PLANNED',research:'RESEARCH',deferred:'DEFERRED'};
+const labels={done:'DONE',in_progress:'IN PROGRESS',next:'NEXT',planned:'PLANNED',research:'RESEARCH',deferred:'DEFERRED'};
 const id=value=>typeof value==='string' && /^[a-z][a-z0-9_]*$/.test(value);
 const text=value=>typeof value==='string' && value.trim().length>0;
 const fail=message=>{throw new Error(`Invalid roadmap: ${message}`);};
@@ -47,6 +47,7 @@ for(const phase of data.phases) {
 for(const edge of data.edges) chart.push(`  m_${edge.from} ${edge.kind==='requires'?'-->':'-.->'} m_${edge.to}`);
 chart.push(
   '  classDef done fill:#e8f5ee,stroke:#319465,color:#164b33,stroke-width:1.5px;',
+  '  classDef in_progress fill:#e0f2fe,stroke:#0284c7,color:#075985,stroke-width:2px;',
   '  classDef next fill:#ede9fe,stroke:#7c3aed,color:#4c1d95,stroke-width:3px;',
   '  classDef planned fill:#eef3f9,stroke:#94a3b8,color:#334155,stroke-width:1px;',
   '  classDef research fill:#fff4df,stroke:#d99a24,color:#783c0b,stroke-width:1.5px;',
@@ -56,7 +57,7 @@ const mermaid=chart.join('\n')+'\n';
 const counts=Object.keys(labels).map(status=>`${data.milestones.filter(m=>m.status===status).length} ${status}`).join(' | ');
 const document=[`# ${data.title}`,'',data.scope,'',`**${counts}**`,'',
   '> Editable source: [roadmap.json](roadmap.json). Reusable structure: [roadmap.schema.json](roadmap.schema.json). Regenerate with `npm run roadmap`.',
-  '', '**Reading the chart:** green = working; purple = recommended next; blue-gray = planned; amber = needs validation; dashed gray = deferred. Solid arrows are prerequisites. Dashed arrows are optional follow-ups, not release blockers. No dates or effort estimates are implied.',
+  '', '**Reading the chart:** green = completed with evidence; sky blue = partly implemented; purple = recommended next; blue-gray = planned; amber = research; dashed gray = deferred. Solid arrows are prerequisites. Dashed arrows are optional follow-ups, not release blockers. No dates or effort estimates are implied.',
   '', '```mermaid',mermaid.trimEnd(),'```','',
   '## Update or reuse','',
   '1. Edit milestones in `roadmap.json`: keep each `id` stable, set its `status`, and describe its deliverable and acceptance criteria.',

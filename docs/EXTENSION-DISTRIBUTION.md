@@ -10,6 +10,8 @@ The intended consumer flow is:
 
 This removes manual extension-folder selection and Developer mode from the published product. Browser selection is a launcher convenience; the browser still owns extension permission approval and profile selection. The current preview still loads an unpacked extension because no store listing has been published.
 
+Run `npm run package:extension` to build the verified browser-only upload ZIP. See the [submission draft and remaining requirements](../store/SUBMISSION.md), including listing text, permission explanations, privacy-policy draft and reviewer instructions. A valid ZIP is not a completed store submission.
+
 ## Chrome
 
 Chrome's [external installation documentation](https://developer.chrome.com/docs/extensions/how-to/distribute/install-extensions) supports registry-based installation requests on Windows and preferences files on macOS/Linux. On Windows/macOS, those methods point to a Chrome Web Store extension, and the user is prompted to enable it. Local CRX external installation is not supported on those platforms. Enterprise administrators have policy-based deployment options, but that is a separate managed-device route.

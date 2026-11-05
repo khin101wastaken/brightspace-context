@@ -36,7 +36,9 @@ export function validateSemester(value) {
       return {key:entry.key,id:entry.id,kind:entry.kind,title:entry.title,parentKey,order:Number.isFinite(entry.order)?entry.order:0,
         contentType:['module','file','link','assignment'].includes(entry.contentType)?entry.contentType:'link',
         url:`https://brightspace.nyu.edu/d2l/le/lessons/${course.courseId}/${entry.kind==='module'?'units':'topics'}/${entry.id}`,
-        sourceUrl,description:entry.description||'',lastModifiedAt:text(entry.lastModifiedAt,100)?entry.lastModifiedAt:null,locked:entry.locked===true};
+        sourceUrl,description:entry.description||'',descriptionTruncated:entry.descriptionTruncated===true,
+        descriptionStatus:['synced','unavailable','not_synced'].includes(entry.descriptionStatus)?entry.descriptionStatus:(entry.description?'synced':'not_synced'),
+        lastModifiedAt:text(entry.lastModifiedAt,100)?entry.lastModifiedAt:null,locked:entry.locked===true};
     });
     return {...base,entries,coverage:'full-toc',lastScannedAt:course.lastScannedAt};
   });

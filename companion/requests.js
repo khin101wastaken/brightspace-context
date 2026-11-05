@@ -3,11 +3,11 @@ import path from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {atomicWrite} from './files.js';
 import {cacheId,validateMetadata} from './cache.js';
-import {pdfMetadata} from '../extension/companion-client.js';
+import {documentMetadata} from '../extension/companion-client.js';
 import {safeLogger} from './logging.js';
 
 const UUID=/^[a-f0-9-]{36}$/;
-const errors={NEEDS_LOGIN:'Sign into NYU Brightspace in Chrome, then retry this request.',ACCESS_DENIED:'Brightspace denied access to this PDF. Check course access or rescan the catalog.',TOO_LARGE:'The PDF exceeds the cache file-size or storage budget.',INVALID_PDF:'Brightspace returned data that is not a supported PDF.',NETWORK_ERROR:'Chrome could not fetch the PDF. Check the connection and Brightspace sign-in, then retry.',FAILED:'The PDF could not be cached. Check the companion and retry.'};
+const errors={NEEDS_LOGIN:'Sign into NYU Brightspace in Chrome, then retry this request.',ACCESS_DENIED:'Brightspace denied access to this document. Check course access or rescan the catalog.',TOO_LARGE:'The document exceeds the cache file-size or storage budget.',INVALID_PDF:'Brightspace returned data that is not a supported PDF.',INVALID_FILE:'Brightspace returned an invalid or mismatched PPTX/DOCX package.',NETWORK_ERROR:'Chrome could not fetch the document. Check the connection and Brightspace sign-in, then retry.',FAILED:'The document could not be cached. Check the companion and retry.'};
 const active=job=>['queued','fetching'].includes(job.state);
 export async function openRequests(directory,{catalog,cache,notify=()=>{},workerConnected=()=>false,now=Date.now,log=()=>{}}={}) {
   const emit=safeLogger(log),fields=job=>({requestId:job.requestId,courseId:job.metadata.courseId,topicId:job.metadata.topicId});
@@ -37,7 +37,7 @@ export async function openRequests(directory,{catalog,cache,notify=()=>{},worker
     }
   };
   const present=job=>({requestId:job.requestId,state:job.state,documentId:job.state==='ready'?job.documentId:null,courseId:job.metadata.courseId,title:job.metadata.title,createdAt:job.createdAt,updatedAt:job.updatedAt,source:job.source || null,error:job.error || null,code:job.code || null,workerConnected:workerConnected(),
-    nextAction:job.state==='ready'?'Read the verified document before answering.':job.state==='needs_login'?errors.NEEDS_LOGIN:job.state==='failed'?'Retry request_document with retry: true after resolving the error.':jobs.some(j=>j.state==='needs_login')?'Sign into Brightspace in Chrome and use Retry requests in the extension.':workerConnected()?'The extension is fetching requested PDFs. Check this request again shortly.':'Open Chrome with the paired extension enabled and automatic retrieval allowed. The request is saved.'});
+    nextAction:job.state==='ready'?'Read the verified document before answering.':job.state==='needs_login'?errors.NEEDS_LOGIN:job.state==='failed'?'Retry request_document with retry: true after resolving the error.':jobs.some(j=>j.state==='needs_login')?'Sign into Brightspace in Chrome and use Retry requests in the extension.':workerConnected()?'The extension is fetching requested documents. Check this request again shortly.':'Open Chrome with the paired extension enabled and automatic retrieval allowed. The request is saved.'});
   async function resolveMetadata(courseId,key) {
     if(typeof courseId!=='string' || !/^\d+$/.test(courseId) || typeof key!=='string' || !/^document:\d+$/.test(key)) throw new Error('Use courseId and a document key returned by search_catalog.');
     const {semesters}=await catalog.read();
@@ -45,7 +45,7 @@ export async function openRequests(directory,{catalog,cache,notify=()=>{},worker
     const course=courses[0];
     if(!course || !course.entries?.some(e=>e.key===key)) throw new Error('This document is not in the synced catalog. Rescan the semester.');
     if(course.stale || course.status!=='complete') throw new Error('This course outline is stale after a failed sync. Rescan the course before requesting its files.');
-    return validateMetadata(pdfMetadata(course,key));
+    return validateMetadata(documentMetadata(course,key));
   }
   return {
     request:({courseId,key,retry=false})=>serial(async()=>{
@@ -63,7 +63,7 @@ export async function openRequests(directory,{catalog,cache,notify=()=>{},worker
     get:requestId=>serial(async()=>{
       if(typeof requestId!=='string' || !UUID.test(requestId)) throw new Error('Invalid request ID.');
       prune();const job=jobs.find(j=>j.requestId===requestId);if(!job) throw new Error('Request not found.');
-      if(job.state==='ready' && !(await cache.lookup(job.metadata)).hit) {Object.assign(job,{state:'failed',code:'EVICTED',error:'This PDF was evicted, changed, or failed its integrity check. Request it again.',updatedAt:now()});emit('retrieval.failed',{...fields(job),code:'EVICTED'});}
+      if(job.state==='ready' && !(await cache.lookup(job.metadata)).hit) {Object.assign(job,{state:'failed',code:'EVICTED',error:'This document was evicted, changed, or failed its integrity check. Request it again.',updatedAt:now()});emit('retrieval.failed',{...fields(job),code:'EVICTED'});}
       await save();return present(job);
     }),
     claim:()=>serial(async()=>{
@@ -87,7 +87,7 @@ export async function openRequests(directory,{catalog,cache,notify=()=>{},worker
         if(!Object.hasOwn(errors,code)) throw new Error('Unsupported failure code.');
         Object.assign(job,{state:code==='NEEDS_LOGIN'?'needs_login':'failed',code,error:errors[code]});
       } else {
-        const hit=await cache.lookup(job.metadata);if(!hit.hit) throw new Error('The requested PDF has not been verified in the cache.');
+        const hit=await cache.lookup(job.metadata);if(!hit.hit) throw new Error('The requested document has not been verified in the cache.');
         Object.assign(job,{state:'ready',source:'brightspace',error:null,code:null});
       }
       job.updatedAt=now();job.leaseId=null;job.leaseUntil=null;await save();emit(job.state==='ready'?'retrieval.ready':'retrieval.failed',{...fields(job),code:job.code});return present(job);

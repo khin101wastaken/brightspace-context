@@ -4,7 +4,7 @@ import {mkdtemp,rm,readFile,mkdir,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {openCache} from '../companion/cache.js';
 import {createCompanion} from '../companion/server.js';
-import {pairCompanion,cachePdf,companionStatus,COMPANION_URL} from '../extension/companion-client.js';
+import {pairCompanion,cacheDocument,companionStatus,COMPANION_URL} from '../extension/companion-client.js';
 
 const origin=`chrome-extension://${'a'.repeat(32)}`;
 const metadata=id=>({courseId:'100',topicId:String(id),title:`Reading ${id}`,courseTitle:'Networks',modulePath:['Week 1','Readings'],sourceUrl:`https://brightspace.nyu.edu/content/enforced/100/${id}.pdf`,lastModifiedAt:'2026-01-01T00:00:00Z'});
@@ -86,17 +86,17 @@ test('paired HTTP flow: first PDF request fetches, second is a cache hit, and st
   const meta=metadata(1),catalog={courseId:'100',title:meta.courseTitle,entries:[{key:'module:1',kind:'module',title:'Week 1'},
     {key:'module:2',kind:'module',title:'Readings',parentKey:'module:1'},
     {key:'document:1',id:'1',kind:'document',contentType:'file',title:meta.title,parentKey:'module:2',sourceUrl:meta.sourceUrl,lastModifiedAt:meta.lastModifiedAt}]};
-  const [fetched,concurrent]=await Promise.all([cachePdf(catalog,'document:1',pairing.token,fetcher),cachePdf(catalog,'document:1',pairing.token,fetcher)]);
+  const [fetched,concurrent]=await Promise.all([cacheDocument(catalog,'document:1',pairing.token,fetcher),cacheDocument(catalog,'document:1',pairing.token,fetcher)]);
   assert.equal(concurrent.id,fetched.id);
   assert.equal(fetched.source,'brightspace');assert.equal(upstreamRequests,1);
   assert.deepEqual(fetched.entry.modulePath,['Week 1','Readings']);
-  const hit=await cachePdf(catalog,'document:1',pairing.token,fetcher);
+  const hit=await cacheDocument(catalog,'document:1',pairing.token,fetcher);
   assert.equal(hit.source,'cache');assert.equal(upstreamRequests,1);assert.equal(hit.id,fetched.id);
   const saved=await fetch(`${app.url}/v1/cache/files/${hit.id}`,{headers:{Origin:origin,Authorization:`Bearer ${pairing.token}`}});
   assert.deepEqual(Buffer.from(await saved.arrayBuffer()),pdf);
   assert.deepEqual(await readFile(path.join(directory,`${hit.id}.pdf`)),pdf);
   catalog.entries[2].lastModifiedAt='2026-02-01T00:00:00Z';
-  assert.equal((await cachePdf(catalog,'document:1',pairing.token,fetcher)).source,'brightspace');
+  assert.equal((await cacheDocument(catalog,'document:1',pairing.token,fetcher)).source,'brightspace');
   assert.equal(upstreamRequests,2);assert.equal((await companionStatus(pairing.token,fetcher)).files,1);
   await app.close();
   const restarted=await createCompanion({directory,port:0});
@@ -113,7 +113,7 @@ test('HTML and oversized upstream responses never enter the cache',async t=>{
     fetch(url.replace(COMPANION_URL,app.url),{...options,headers:{...options.headers,Origin:origin}});
   const {token}=await pairCompanion('123456789a',fetcher),meta=metadata(1);
   const catalog={courseId:'100',title:'Networks',entries:[{key:'document:1',id:'1',contentType:'file',title:'PDF',sourceUrl:meta.sourceUrl}]};
-  await assert.rejects(cachePdf(catalog,'document:1',token,fetcher),/did not return PDF/);
-  invalid='large';await assert.rejects(cachePdf(catalog,'document:1',token,fetcher),/50 MB/);
+  await assert.rejects(cacheDocument(catalog,'document:1',token,fetcher),/did not return PDF/);
+  invalid='large';await assert.rejects(cacheDocument(catalog,'document:1',token,fetcher),/50 MB/);
   assert.equal((await app.cache.stats()).files,0);
 });

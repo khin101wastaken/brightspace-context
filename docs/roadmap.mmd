@@ -4,39 +4,45 @@ flowchart TB
   subgraph p_core["01 / Working foundation"]
     direction LR
     m_catalog["DONE<br/>Semester catalog + hierarchy"]:::done
-    m_cache["DONE<br/>Bounded local PDF cache"]:::done
-    m_retrieval["DONE<br/>ChatGPT requests + reads PDFs"]:::done
+    m_cache["DONE<br/>Bounded local document cache"]:::done
+    m_retrieval["DONE<br/>On-demand desktop MCP retrieval"]:::done
+    m_formats["DONE<br/>PDF / PPTX / DOCX transport"]:::done
+    m_module_notes["DONE<br/>Module landing-page context"]:::done
   end
   subgraph p_readiness["02 / Ready for classmates"]
     direction LR
-    m_lifecycle["NEXT<br/>Companion lifecycle"]:::next
-    m_onboarding["PLANNED<br/>Installer + guided connection"]:::planned
-    m_controls["PLANNED<br/>User controls + account boundaries"]:::planned
-    m_hardening["PLANNED<br/>Release reliability checks"]:::planned
+    m_lifecycle["IN PROGRESS<br/>Companion lifecycle"]:::in_progress
+    m_onboarding["IN PROGRESS<br/>Installer + guided connection"]:::in_progress
+    m_controls["IN PROGRESS<br/>User controls + account boundaries"]:::in_progress
+    m_hardening["IN PROGRESS<br/>Release reliability checks"]:::in_progress
+    m_installer["DONE<br/>Windows installer preview"]:::done
+    m_mcp_install["PLANNED<br/>Simpler ChatGPT MCP installation"]:::planned
+    m_file_readers["PLANNED<br/>Real client file-reading checks"]:::planned
   end
   subgraph p_release["03 / Desktop beta and distribution"]
     direction LR
     m_pilot["PLANNED<br/>Small NYU student pilot"]:::planned
-    m_desktop_release["PLANNED<br/>Accessible desktop release"]:::planned
+    m_desktop_release["IN PROGRESS<br/>Accessible desktop release"]:::in_progress
+    m_store_assets["DONE<br/>Store ZIP + public privacy policy"]:::done
+    m_store_listing["NEXT<br/>Chrome Web Store submission — pinned priority"]:::next
   end
-  subgraph p_web["04 / Hosted access - validate separately"]
+  subgraph p_web["Deferred / Hosted course-data access"]
     direction LR
-    m_web_handoff["RESEARCH<br/>Prove hosted PDF handoff"]:::research
-    m_remote_bridge["RESEARCH<br/>Authenticated extension relay"]:::research
-    m_hosted_release["RESEARCH<br/>Hosted plugin pilot + release"]:::research
+    m_web_handoff["DEFERRED<br/>Prove hosted PDF handoff"]:::deferred
+    m_remote_bridge["DEFERRED<br/>Authenticated extension relay"]:::deferred
+    m_hosted_release["DEFERRED<br/>Hosted plugin pilot + release"]:::deferred
   end
   subgraph p_later["Later / Optional expansion"]
     direction LR
     m_firefox["DEFERRED<br/>Firefox port"]:::deferred
     m_platforms["DEFERRED<br/>More platforms + Brightspace tenants"]:::deferred
-    m_formats["DEFERRED<br/>More document formats"]:::deferred
     m_indexing["DEFERRED<br/>Optional text search / RAG"]:::deferred
     m_ocr["DEFERRED<br/>OCR only if justified"]:::deferred
+    m_claude["PLANNED<br/>Claude Desktop package"]:::planned
   end
   m_catalog --> m_cache
   m_cache --> m_retrieval
   m_retrieval --> m_lifecycle
-  m_lifecycle --> m_onboarding
   m_retrieval --> m_controls
   m_retrieval --> m_hardening
   m_onboarding --> m_pilot
@@ -48,10 +54,24 @@ flowchart TB
   m_remote_bridge --> m_hosted_release
   m_desktop_release -.-> m_firefox
   m_desktop_release -.-> m_platforms
-  m_desktop_release -.-> m_formats
   m_desktop_release -.-> m_indexing
   m_desktop_release -.-> m_ocr
+  m_catalog --> m_module_notes
+  m_cache --> m_formats
+  m_retrieval --> m_installer
+  m_installer --> m_mcp_install
+  m_installer --> m_onboarding
+  m_mcp_install --> m_onboarding
+  m_lifecycle -.-> m_onboarding
+  m_formats --> m_file_readers
+  m_mcp_install --> m_file_readers
+  m_file_readers --> m_pilot
+  m_installer --> m_store_assets
+  m_store_assets --> m_store_listing
+  m_store_listing --> m_pilot
+  m_installer -.-> m_claude
   classDef done fill:#e8f5ee,stroke:#319465,color:#164b33,stroke-width:1.5px;
+  classDef in_progress fill:#e0f2fe,stroke:#0284c7,color:#075985,stroke-width:2px;
   classDef next fill:#ede9fe,stroke:#7c3aed,color:#4c1d95,stroke-width:3px;
   classDef planned fill:#eef3f9,stroke:#94a3b8,color:#334155,stroke-width:1px;
   classDef research fill:#fff4df,stroke:#d99a24,color:#783c0b,stroke-width:1.5px;

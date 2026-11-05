@@ -17,8 +17,8 @@ Example shape (IDs abbreviated here):
 
 ```text
 2026-11-03T12:00:00.000Z INFO app.ready Companion ready url="http://127.0.0.1:47653" files=5 bytes=10842281
-2026-11-03T12:00:02.000Z INFO retrieval.queued PDF request queued requestId="..." courseId="607472" topicId="14117220" workerConnected=true
-2026-11-03T12:00:03.000Z WARN retrieval.failed PDF request failed requestId="..." courseId="607472" topicId="14117220" code="NETWORK_ERROR"
+2026-11-03T12:00:02.000Z INFO retrieval.queued Document request queued requestId="..." courseId="100" topicId="200" workerConnected=true
+2026-11-03T12:00:03.000Z WARN retrieval.failed Document request failed requestId="..." courseId="100" topicId="200" code="NETWORK_ERROR"
 ```
 
 Normal idle status/claim polling is silent. Identical authentication/pairing warnings are limited to one line per reason every 30 seconds. Log-output failures cannot fail pairing or document operations.

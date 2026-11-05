@@ -1,5 +1,5 @@
 import {downloadPlan,preflightFile,downloadState} from './file-downloads.js';
-import {pairCompanion,companionStatus,cachePdf,syncCatalog,retryLoginRequests} from './companion-client.js';
+import {pairCompanion,companionStatus,cacheDocument,syncCatalog,retryLoginRequests} from './companion-client.js';
 import {scanSemester} from './semester.js';
 import {listBrightspaceSemesters,listSemesterCourses,readCourseOutline} from './brightspace-client.js';
 import {createRetrievalWorker} from './retrieval-worker.js';
@@ -114,7 +114,7 @@ async function companionMessage(message) {
     return {connected:true,...result};
   }
   const {courseId,key}=message;
-  if(!/^\d+$/.test(String(courseId)) || typeof key!=='string') throw new Error('Invalid PDF selection.');
+  if(!/^\d+$/.test(String(courseId)) || typeof key!=='string') throw new Error('Invalid document selection.');
   const requestKey=`cache:${courseId}:${key}`;
   if(cacheRequests.has(requestKey)) return cacheRequests.get(requestKey);
   const task=(async()=>{
@@ -123,7 +123,7 @@ async function companionMessage(message) {
     await update({state:'pending',message:'Checking local cache…'});
     let phaseWrites=Promise.resolve();
     try {
-      const result=await cachePdf(catalog,key,pairing?.token,fetch,(message)=>{phaseWrites=phaseWrites.then(()=>update({state:'pending',message}));});
+      const result=await cacheDocument(catalog,key,pairing?.token,fetch,(message)=>{phaseWrites=phaseWrites.then(()=>update({state:'pending',message}));});
       await phaseWrites;
       await update({state:'complete',source:result.source,bytes:result.entry.bytes,message:result.source==='cache'?'Cache hit — no download':'Fetched and cached',id:result.id});
       return result;

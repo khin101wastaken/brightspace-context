@@ -1,8 +1,13 @@
 import { mergeCatalog } from './catalog.js';
 import {captureTarget,validateTarget} from './tab-context.js';
-import {requestCourseOutline,flattenOutline,filterOutline} from './course-api.js';
+import {flattenOutline,searchOutline} from './course-api.js';
+import {appendHighlightedText} from './search-highlight.js';
+import {wireProductLinks} from './product-links.js';
+import {readCourseOutline} from './brightspace-client.js';
 import {downloadableFile,resourceTypeLabel} from './file-downloads.js';
+import {documentFormat} from './document-formats.js';
 const $ = id => document.getElementById(id);
+wireProductLinks(document);
 const status = message => {$('status').textContent=message;$('status').hidden=!message;};
 const semesterStatus=message=>{$('semester-status').textContent=message;$('semester-status').hidden=!message;};
 let busy = false;
@@ -25,7 +30,7 @@ async function refreshCompanion() {
   try {
     const result=await chrome.runtime.sendMessage({type:'companion-status'});
     if(!result?.ok || !result.connected) throw new Error(result?.error || 'Companion is not paired.');
-    $('companion-status').textContent=`Connected · ${result.files} PDFs · ${sizeLabel(result.usedBytes)} / ${sizeLabel(result.budgetBytes)} · automatic retrieval ${result.workerConnected?'connected':'not connected'}`;
+    $('companion-status').textContent=`Connected · ${result.files} files · ${sizeLabel(result.usedBytes)} / ${sizeLabel(result.budgetBytes)} · automatic retrieval ${result.workerConnected?'connected':'not connected'}`;
   } catch(error) {$('companion-status').textContent=`Not connected. ${error.message || 'Start the companion and try again.'}`;}
 }
 function downloadStatus(key) {
@@ -127,11 +132,10 @@ function render(catalog) {
   currentCatalog=catalog;
   $('resources-empty').hidden=!!catalog;$('resource-tools').hidden=!catalog;
   if(!catalog) {$('course').textContent='Your semester, organized.';$('summary').textContent='Choose a saved course, or sync a semester to get started.';return;}
-  const query=$('search').value;
-  const filtered=filterOutline(catalog.entries,query);
+  const query=$('search').value.trim(),search=searchOutline(catalog.entries,query),filtered=search.entries;
   $('course').textContent = catalog.title || `Course ${catalog.courseId}`;
-  const matches=filtered.filter(e=>e.kind==='document').length;
-  $('summary').textContent = `${catalog.entries.filter(e=>e.kind==='document').length} resources · ${catalog.entries.filter(e=>e.kind==='module').length} modules · Updated ${new Date(catalog.lastScannedAt).toLocaleDateString()}${query?` · ${matches} matching resource${matches===1?'':'s'}`:''}`;
+  const matches=[search.resourceMatches?`${search.resourceMatches} resource match${search.resourceMatches===1?'':'es'}`:'',search.moduleMatches?`${search.moduleMatches} module match${search.moduleMatches===1?'':'es'}`:''].filter(Boolean).join(' · ') || 'No matches';
+  $('summary').textContent = `${catalog.entries.filter(e=>e.kind==='document').length} resources · ${catalog.entries.filter(e=>e.kind==='module').length} modules · Updated ${new Date(catalog.lastScannedAt).toLocaleDateString()}${query?` · ${matches}`:''}`;
   const byKey = new Map(filtered.map(e => [e.key,e]));
   const children = new Map();
   for (const e of filtered) {
@@ -151,13 +155,14 @@ function render(catalog) {
       const li=document.createElement('li'), kind=document.createElement('span'), a=document.createElement('a');
       kind.className='kind'; kind.textContent=resourceTypeLabel(e);
       if(e.contentType==='file') kind.title=kind.textContent==='Unknown'?'File type not supplied in the resource URL':`${kind.textContent} file${e.locked?' · locked':''}`;
-      a.textContent=e.title; a.href=e.url; a.target='_blank'; a.rel='noopener';
+      appendHighlightedText(a,e.title,search.matches.has(e.key)?search.terms:[]);a.href=e.url; a.target='_blank'; a.rel='noopener';
       let content=li;
       if(e.kind==='module') {
         const details=document.createElement('details'), summary=document.createElement('summary');
         details.open=!!query || openFolders.has(e.key);
-        summary.append(document.createTextNode(e.title));
-        const count=document.createElement('span'); count.className='count'; count.textContent=` ${children.get(e.key)?.length || 0}`; summary.append(count);
+        appendHighlightedText(summary,e.title,search.matches.has(e.key)?search.terms:[]);
+        if(search.deepestMatches.has(e.key)) summary.classList.add('search-match');
+        const count=document.createElement('span'),childCount=children.get(e.key)?.length || 0;count.className='count';count.textContent=` ${childCount}`;count.hidden=!!query && !childCount;summary.append(count);
         details.append(summary); li.append(details); content=details;
         details.addEventListener('toggle',()=>{
           if(!mounted || query) return;
@@ -166,9 +171,18 @@ function render(catalog) {
           chrome.storage.local.set({[foldersKey]:[...openFolders]}).catch(error=>status(error.message));
         });
         a.className='module-link'; a.textContent='Open module in Brightspace'; content.append(a);
+        if(e.description) {
+          const notes=document.createElement('details'),heading=document.createElement('summary'),text=document.createElement('p');
+          notes.className='module-notes';notes.open=search.noteMatches.has(e.key);heading.textContent=notes.open?'Module notes · matching text':'Module notes';
+          appendHighlightedText(text,e.description+(e.descriptionTruncated?'\n[Notes truncated; open module for the full text.]':''),search.noteMatches.has(e.key)?search.terms:[]);
+          notes.append(heading,text);content.append(notes);
+        }
+        if(e.descriptionStatus==='unavailable') {
+          const note=document.createElement('p');note.className='module-notes-unavailable';note.textContent='Module notes unavailable. Open in Brightspace to check access.';content.append(note);
+        }
       } else {
         const row=document.createElement('div');row.className='file-row';
-        const label=document.createElement('div'); label.className='file-label';label.append(kind,a);row.append(label);content.append(row);
+        const label=document.createElement('div'); label.className='file-label';if(search.deepestMatches.has(e.key)) label.classList.add('search-match');label.append(kind,a);row.append(label);content.append(row);
         const file=downloadableFile(e);
         if(file) {
           const controls=document.createElement('div');controls.className='file-controls';
@@ -203,8 +217,8 @@ function render(catalog) {
           saveAs.setAttribute('aria-label',`Choose save location for ${e.title}`);
           saveAs.addEventListener('click',()=>startDownload(true));
           controls.append(button,saveAs,note,details);row.append(controls);
-          if(showCacheControls && file.type==='PDF') {
-            const cache=document.createElement('button');cache.className='cache-pdf';cache.dataset.cacheKey=e.key;
+          if(showCacheControls && documentFormat(file.url)) {
+            const cache=document.createElement('button');cache.className='cache-document';cache.dataset.cacheKey=e.key;
             cache.title=`Cache ${e.title} locally`;cache.setAttribute('aria-label',cache.title);
             const cacheNote=document.createElement('span');cacheNote.className='cache-status';cacheNote.setAttribute('role','status');
             cache.addEventListener('click',async()=>{
@@ -212,8 +226,8 @@ function render(catalog) {
               pendingCache.add(e.key);updateCacheButtons();
               try {
                 const result=await chrome.runtime.sendMessage({type:'cache-file',courseId:catalog.courseId,key:e.key});
-                if(!result?.ok) throw new Error(result?.error || 'Could not cache this PDF.');
-                status(result.source==='cache'?'Cache hit: served locally without downloading the PDF again.':'PDF fetched and cached locally. Click Cache again to verify a hit.');
+                if(!result?.ok) throw new Error(result?.error || 'Could not cache this file.');
+                status(result.source==='cache'?'Cache hit: served locally without downloading the file again.':'File fetched and cached locally. Click Cache again to verify a hit.');
                 await refreshCompanion();
               } catch(error) {status(error.message);} finally {
                 downloadRecords=await chrome.storage.session.get(null);pendingCache.delete(e.key);updateCacheButtons();
@@ -230,7 +244,7 @@ function render(catalog) {
   }
   $('catalog').append(list(children.get(null)));
   $('catalog').append(list(filtered.filter(e=>!seen.has(e.key))));
-  if(query && matches===0) {const empty=document.createElement('p');empty.className='hint';empty.textContent='No matching resources in this course.';$('catalog').append(empty);}
+  if(query && !filtered.length) {const empty=document.createElement('p');empty.className='hint';empty.textContent='No matching resources or module notes in this course.';$('catalog').append(empty);}
   mounted = true;
   updateDownloadButtons();
   updateCacheButtons();
@@ -260,10 +274,8 @@ async function action(fn) {
   try {await startup; await fn();} catch(error) {status(error.message);} finally {busy=false; $('scan').disabled=$('download').disabled=false;}
 }
 $('scan').addEventListener('click',()=>action(async()=>{
-  const {tab,identity}=await activeCourse(); status('Loading the full course outline…');
-  const results=await chrome.scripting.executeScript({target:{tabId:tab.id,frameIds:[0]},func:requestCourseOutline,args:[identity.courseId]});
-  if(results[0]?.error) throw new Error(results[0].error.message || 'Unable to read the course outline.');
-  const entries=flattenOutline(results[0]?.result,identity.courseId);
+  const {identity}=await activeCourse(); status('Loading the full course outline and module notes…');
+  const entries=flattenOutline(await readCourseOutline(identity.courseId),identity.courseId);
   const latest=await activeCourse();
   const storageKey=`course:${identity.courseId}`;
   const saved=(await chrome.storage.local.get(storageKey))[storageKey];

@@ -7,6 +7,8 @@ import {fileURLToPath} from 'node:url';
 import assert from 'node:assert/strict';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
+import {officeFixture} from '../tests/office-fixture.js';
+import {documentFormat} from '../extension/document-formats.js';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 export async function verifyPayload(payload) {
@@ -81,26 +83,51 @@ export async function smokeWindows(payload) {
     const bytes=Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF');
     const lookup=await request('/v1/cache/lookup',{courseId:'100',topicId:'1',title:'Installer smoke fixture',courseTitle:'Synthetic test course',modulePath:['Week 1'],sourceUrl:'https://brightspace.nyu.edu/content/enforced/100/smoke.pdf',lastModifiedAt:null},'POST',token);
     await request(`/v1/cache/uploads/${lookup.uploadId}`,bytes,'PUT',token);
+    const office=[];
+    for(const [index,extension] of ['pptx','docx'].entries()) {
+      const original=officeFixture(extension),sourceUrl=`https://brightspace.nyu.edu/content/enforced/100/smoke.${extension}`;
+      const lookup=await request('/v1/cache/lookup',{courseId:'100',topicId:String(index+3),title:`Installer ${extension} fixture`,courseTitle:'Synthetic test course',modulePath:['Week 1'],sourceUrl,lastModifiedAt:null},'POST',token);
+      const saved=await request(`/v1/cache/uploads/${lookup.uploadId}`,original,'PUT',token);
+      office.push({id:saved.id,original,format:documentFormat(sourceUrl)});
+    }
+    const moduleNotes='Reading: Synthetic reference.\nFilm: Installer fixture film';
+    await request('/v1/catalog/semesters',{semesterId:'200',title:'Synthetic semester',updatedAt:new Date().toISOString(),courses:[{courseId:'100',title:'Synthetic test course',status:'complete',coverage:'full-toc',lastScannedAt:new Date().toISOString(),entries:[{key:'module:2',id:'2',kind:'module',title:'Week 1',parentKey:null,description:moduleNotes,descriptionStatus:'synced',descriptionTruncated:true}]}]},'PUT',token);
     const connect=async()=>{
       const transport=new StdioClientTransport({command:node,args:[path.join(payload,'app/mcp/start.js')],env:{BRIGHTSPACE_CACHE_DIR:directory,BRIGHTSPACE_COMPANION_PORT:new URL(companion.url).port},stderr:'pipe'});
       client=new Client({name:'installer-smoke',version:'1.0.0'});await client.connect(transport);
     };
     await connect();
+    const checkNotes=async()=>{
+      const result=JSON.parse((await client.callTool({name:'search_catalog',arguments:{query:'fixture film'}})).content[0].text);
+      assert.equal(result.total,1);assert.equal(result.entries[0].description,moduleNotes);assert.equal(result.entries[0].descriptionStatus,'synced');assert.equal(result.entries[0].descriptionTruncated,true);
+    };
+    await checkNotes();
+    const checkOffice=async()=>{
+      for(const entry of office) {
+        const result=await client.callTool({name:'get_cached_document',arguments:{id:entry.id}}),metadata=JSON.parse(result.content[0].text);
+        assert.equal(path.extname(metadata.localPath),'.'+entry.format.extension);assert.equal(result.content[1].mimeType,entry.format.mimeType);
+        const resource=await client.readResource({uri:metadata.uri});assert.equal(resource.contents[0].mimeType,entry.format.mimeType);assert.deepEqual(Buffer.from(resource.contents[0].blob,'base64'),entry.original);
+      }
+    };
+    await checkOffice();
     const listed=JSON.parse((await client.callTool({name:'list_cached_documents',arguments:{}})).content[0].text);
-    assert.equal(listed.total,1);
-    const prepared=await client.callTool({name:'get_cached_document',arguments:{id:listed.documents[0].id}});
+    assert.equal(listed.total,3);
+    const pdf=listed.documents.find(d=>d.extension==='pdf');
+    const prepared=await client.callTool({name:'get_cached_document',arguments:{id:pdf.id}});
     const resource=await client.readResource({uri:prepared.content[1].uri});
     assert.deepEqual(Buffer.from(resource.contents[0].blob,'base64'),bytes);
     await client.close();client=null;
     await companion.stop();companion=null;
     companion=await startCompanion(node,payload,directory,0,true,true);
     const status=await request('/v1/status',undefined,'GET',token);
-    assert.equal(status.files,1,'pairing and verified cache survive companion restart');
+    assert.equal(status.files,3,'pairing and all verified formats survive companion restart');
     await connect();
+    await checkNotes();
+    await checkOffice();
     const repeated=JSON.parse((await client.callTool({name:'list_cached_documents',arguments:{}})).content[0].text);
     assert.equal(repeated.documents[0].id,listed.documents[0].id);
     await companion.waitForOutput(/DEBUG http\.request/);
-    console.log(`PASS: payload inventory, bundled Node ${manifest.nodeVersion}, normal/verbose launchers with spaces, fresh-cache startup, pairing, PDF bytes through packaged MCP, restart persistence.`);
+    console.log(`PASS: payload inventory, bundled Node ${manifest.nodeVersion}, normal/verbose launchers with spaces, fresh-cache startup, pairing, PDF/PPTX/DOCX bytes and module notes through packaged MCP, restart persistence.`);
   } finally {
     await client?.close();await companion?.stop();
     const resolved=path.resolve(directory);

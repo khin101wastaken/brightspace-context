@@ -10,6 +10,8 @@ import {openRequests} from '../companion/requests.js';
 import {openCache} from '../companion/cache.js';
 import {createRetrievalWorker} from '../extension/retrieval-worker.js';
 import {COMPANION_URL} from '../extension/companion-client.js';
+import {documentFormat} from '../extension/document-formats.js';
+import {officeFixture} from './office-fixture.js';
 
 const origin=`chrome-extension://${'a'.repeat(32)}`;
 const bytes=Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF');
@@ -22,14 +24,16 @@ async function temporary(t) {
   const root=path.resolve('.cache/tests');await mkdir(root,{recursive:true});const directory=await mkdtemp(path.join(root,'brightspace-retrieval-test-'));
   t.after(async()=>{if(!directory.startsWith(root+path.sep) || !path.basename(directory).startsWith('brightspace-retrieval-test-')) throw new Error('Unsafe cleanup path.');await rm(directory,{recursive:true,force:true});});return directory;
 }
-async function fixture(t) {
+async function fixture(t,extension='pdf') {
   const directory=await temporary(t),app=await createCompanion({directory,port:0,pairingCode:'123456789a'});
   const pairing=await fetch(app.url+'/v1/pair',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({code:'123456789a'})}).then(r=>r.json());
   const headers={Origin:origin,Authorization:`Bearer ${pairing.token}`,'Content-Type':'application/json'};
-  const sync=await fetch(app.url+'/v1/catalog/semesters',{method:'PUT',headers,body:JSON.stringify(snapshot())});assert.equal(sync.status,200);
+  const catalog=snapshot();catalog.courses[0].entries[1].sourceUrl=catalog.courses[0].entries[1].sourceUrl.replace(/\.pdf$/,'.'+extension);
+  const fileBytes=extension==='pdf'?bytes:officeFixture(extension),format=documentFormat(catalog.courses[0].entries[1].sourceUrl);
+  const sync=await fetch(app.url+'/v1/catalog/semesters',{method:'PUT',headers,body:JSON.stringify(catalog)});assert.equal(sync.status,200);
   let upstream=0,login=false,enabled=true;
   const fetcher=async(url,options={})=>{
-    if(url.startsWith('https://brightspace.nyu.edu/')) {upstream++;assert.equal(options.credentials,'include');assert.equal(options.redirect,'error');return login?new Response('<html>Login</html>',{headers:{'content-type':'text/html'}}):new Response(bytes,{headers:{'content-type':'application/pdf'}});}
+    if(url.startsWith('https://brightspace.nyu.edu/')) {upstream++;assert.equal(options.credentials,'include');assert.equal(options.redirect,'error');return login?new Response('<html>Login</html>',{headers:{'content-type':'text/html'}}):new Response(fileBytes,{headers:{'content-type':extension==='pdf'?format.mimeType:'application/octet-stream'}});}
     return fetch(url.replace(COMPANION_URL,app.url),{...options,headers:{...options.headers,Origin:origin}});
   };
   class ChromeSocket extends WebSocket {constructor(url){super(url,{origin});}}
@@ -38,8 +42,26 @@ async function fixture(t) {
   t.after(async()=>{worker.stop();await client.close();await app.close();});
   await client.connect(new StdioClientTransport({command:process.execPath,args:[path.resolve('mcp/start.js')],env:{BRIGHTSPACE_CACHE_DIR:directory,BRIGHTSPACE_COMPANION_PORT:String(app.server.address().port)},stderr:'pipe'}));
   const call=async(name,args)=>{const result=await client.callTool({name,arguments:args});if(result.isError) throw new Error(result.content[0].text);return JSON.parse(result.content[0].text);};
-  return {app,worker,client,call,directory,headers,pairing,upstream:()=>upstream,setLogin:value=>login=value,setEnabled:value=>enabled=value};
+  return {app,worker,client,call,directory,headers,pairing,fileBytes,format,upstream:()=>upstream,setLogin:value=>login=value,setEnabled:value=>enabled=value};
 }
+
+test('PPTX and DOCX traverse the real worker, cache and MCP with correct extensions, MIME types and repeat hits',async t=>{
+  for(const extension of ['pptx','docx']) await t.test(extension,async t=>{
+    const f=await fixture(t,extension);
+    const catalog=await f.call('search_catalog',{courseId:'200',query:'Gratitude'});assert.equal(catalog.entries[0].cacheSupported,true);assert.equal(catalog.entries[0].extension,extension);
+    const pending=await f.call('request_document',{courseId:'200',key:'document:20',waitSeconds:0});await f.worker.connect();
+    let ready;
+    for(let i=0;i<10;i++) {ready=await f.call('get_document_request',{requestId:pending.requestId,waitSeconds:1});if(ready.state==='ready') break;await new Promise(resolve=>setTimeout(resolve,30));}
+    assert.equal(ready.state,'ready');assert.equal(path.extname(ready.document.localPath),'.'+extension);assert.equal(ready.document.mimeType,f.format.mimeType);assert.deepEqual(await readFile(ready.document.localPath),f.fileBytes);
+    const repeated=await f.call('request_document',{courseId:'200',key:'document:20',waitSeconds:0});assert.equal(repeated.source,'cache');assert.equal(f.upstream(),1);
+    const handoff=await f.client.callTool({name:'get_cached_document',arguments:{id:ready.document.id}});assert.equal(handoff.content[1].mimeType,f.format.mimeType);
+    const resource=await f.client.readResource({uri:ready.document.uri});assert.equal(resource.contents[0].mimeType,f.format.mimeType);assert.deepEqual(Buffer.from(resource.contents[0].blob,'base64'),f.fileBytes);
+    const resources=await f.client.listResources();assert.equal(resources.resources[0].mimeType,f.format.mimeType);
+    const response=await fetch(f.app.url+`/v1/cache/files/${ready.document.id}`,{headers:f.headers});assert.equal(response.headers.get('content-type'),f.format.mimeType);
+    f.worker.stop();const reopened=await openCache(f.directory);assert.deepEqual((await reopened.read(ready.document.id)).bytes,f.fileBytes);
+    assert.equal(JSON.stringify([ready,repeated,handoff]).includes(f.pairing.token),false);
+  });
+});
 
 test('MCP uncached request survives an offline extension, deduplicates, wakes the real worker via WebSocket, and returns identical PDF bytes',async t=>{
   const f=await fixture(t);

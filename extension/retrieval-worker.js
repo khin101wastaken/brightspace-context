@@ -1,7 +1,7 @@
-import {cachePdfMetadata,claimRequest,finishRequest,companionStatus,COMPANION_URL} from './companion-client.js';
+import {cacheDocumentMetadata,claimRequest,finishRequest,companionStatus,COMPANION_URL} from './companion-client.js';
 
 export function failureCode(error) {
-  if(['NEEDS_LOGIN','ACCESS_DENIED','NETWORK_ERROR','INVALID_PDF'].includes(error?.code)) return error.code;
+  if(['NEEDS_LOGIN','ACCESS_DENIED','NETWORK_ERROR','INVALID_PDF','INVALID_FILE'].includes(error?.code)) return error.code;
   if(/exceed|50 MB|budget/i.test(error?.message)) return 'TOO_LARGE';
   if(/not a PDF|not PDF|signature/i.test(error?.message)) return 'INVALID_PDF';
   return 'FAILED';
@@ -39,7 +39,7 @@ export function createRetrievalWorker({getSettings,report=async()=>{},fetcher=fe
           const {requestId,leaseId,metadata}=claimed.job;
           await update({state:'fetching',message:`Fetching: ${metadata.title}`,requestId});
           try {
-            const result=await cachePdfMetadata(metadata,settings.token,fetcher);
+            const result=await cacheDocumentMetadata(metadata,settings.token,fetcher);
             await finishRequest({requestId,leaseId},settings.token,fetcher);
             await update({state:'ready',message:`Ready: ${metadata.title}`,requestId,documentId:result.id});
           } catch(error) {

@@ -1,3 +1,5 @@
+import {wireProductLinks} from './product-links.js';
+wireProductLinks(document);
 const $=id=>document.getElementById(id);
 let connected=false,paired=false,enabled=true,forcePair=false,requestStatus=null,refreshAttempt=0;
 const size=bytes=>`${(bytes/1024/1024).toFixed(1)} MB`;
@@ -24,8 +26,8 @@ function renderConnection(result,error,code) {
   $('connection-dot').dataset.state=ready?'ready':!paired?'waiting':error?'error':'waiting';
   $('connection-label').textContent=ready?'Browser connected':needsPair?'Pairing needs refreshing':rejected?'Connection rejected':!paired?'Not paired':!connected?'Companion unavailable':!enabled?'Retrieval paused':'Connecting retrieval';
   $('connection-title').textContent=ready?'Ready for ChatGPT requests.':needsPair?'Reconnect this browser.':rejected?'Check your connection.':!paired?'Connect your browser.':!connected?'Start your companion.':!enabled?'Ready when you are.':'Almost connected.';
-  $('connection-description').textContent=ready?'Course PDFs can be fetched in the background when you ask.':needsPair?'The companion is running, but the saved pairing no longer matches. Enter its current pairing code.':rejected?'The companion rejected this browser request. The diagnostic below explains why.':!paired?'Enter the companion’s one-time code to connect this browser.':!connected?'Your pairing is saved. Start Brightspace Context on this computer, then check again.':!enabled?'Resume to let ChatGPT request course PDFs.':'The companion is reachable. The browser’s retrieval connection is starting.';
-  $('companion-status').textContent=connected?`${result.files} cached PDFs · ${size(result.usedBytes)} of ${size(result.budgetBytes)} used. ${result.workerConnected?'Retrieval connected.':'Retrieval not connected.'}`:error || 'Pair the companion to connect this browser.';
+  $('connection-description').textContent=ready?'Course files can be fetched in the background when you ask.':needsPair?'The companion is running, but the saved pairing no longer matches. Enter its current pairing code.':rejected?'The companion rejected this browser request. The diagnostic below explains why.':!paired?'Enter the companion’s one-time code to connect this browser.':!connected?'Your pairing is saved. Start Brightspace Context on this computer, then check again.':!enabled?'Resume to let ChatGPT request course files.':'The companion is reachable. The browser’s retrieval connection is starting.';
+  $('companion-status').textContent=connected?`${result.files} cached files · ${size(result.usedBytes)} of ${size(result.budgetBytes)} used. ${result.workerConnected?'Retrieval connected.':'Retrieval not connected.'}`:error || 'Pair the companion to connect this browser.';
   if(error && paired) feedback(error);
 }
 async function refresh() {
