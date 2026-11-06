@@ -10,8 +10,8 @@ The existing draft `iadmhandkbomngnaplppiopojmfkcodi` still contains v0.9.1. Rep
 - [x] The 34-entry extension ZIP validates without new permissions or remote executable extension code.
 - [x] Local fictional LMS, original PDF/PPTX/DOCX files, nested modules, module notes, resync mutation and simulated access expiry are implemented.
 - [x] Demo browser data, encrypted companion vault/cache/queue and MCP resource URIs are isolated from NYU, including identical numeric document IDs.
-- [ ] Matching Windows build, final packaged-runtime smoke, isolated 0.9.2-to-0.9.3 upgrade and source/ZIP/payload hash record.
-- [ ] Matching public installer/setup and working-demo review guide published.
+- [x] Matching Windows build, final packaged-runtime smoke, isolated 0.9.2-to-0.9.3 upgrade and source/ZIP/payload hash record; see `store/RELEASE-0.9.3.md`.
+- [x] Matching public installer/setup and working-demo review guide published as Site version 7; public EXE hash matches the tested artifact.
 - [ ] Standalone Chrome acceptance with the final package: demo pairing/sync/download/uncached retrieval/cache hit/restart; switch to NYU and confirm the real library remains available.
 - [ ] Actual desktop-host reading of the original sample files through MCP resource bytes or explicit opt-in export; do not claim host ingestion from transport tests alone.
 - [ ] Replace ZIP in the existing draft; use `store/reviewer-instructions-500.txt` for the Test instructions field and leave NYU credentials blank. Save draft, review remaining dashboard warnings and submit manually.
