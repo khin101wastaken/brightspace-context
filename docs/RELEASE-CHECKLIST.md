@@ -61,4 +61,4 @@ Simpler MCP registration, Claude MCPB packaging, tray/autostart, automatic compa
 
 ## Companion logging follow-up
 
-The source now has compact normal logs, separate NYU/Demo labels, useful sync/cache outcomes and actionable errors; verbose mode retains structured events, IDs and request timings. This companion-only change is for the next installer build. The frozen/public 0.9.3 artifacts and Chrome upload ZIP remain unchanged. See `COMPANION-LOGGING.md`.
+The source now has compact normal logs, separate NYU/Demo labels, useful sync/cache outcomes and actionable errors; verbose mode retains structured events, IDs and request timings. This companion-only change is published in installer 0.9.4; the 0.9.3-to-0.9.4 upgrade check passes. The frozen 0.9.3 installer and Chrome upload ZIP remain unchanged. See `store/RELEASE-COMPANION-0.9.4.md`. See `COMPANION-LOGGING.md`.

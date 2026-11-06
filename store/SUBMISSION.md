@@ -90,3 +90,5 @@ Official references:
 - [Image requirements](https://developer.chrome.com/docs/webstore/images)
 - [User-data policy FAQ](https://developer.chrome.com/docs/webstore/program-policies/user-data-faq)
 - [Visibility and review](https://developer.chrome.com/docs/webstore/cws-dashboard-distribution)
+
+Companion-only patch: the latest installer is 0.9.4 with concise terminal logs; the unchanged 0.9.3 extension ZIP remains the upload candidate. Use the latest public setup/reviewer instructions. No new Chrome ZIP is required for this companion update.

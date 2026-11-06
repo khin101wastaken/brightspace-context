@@ -4,7 +4,7 @@
 
 The companion includes an interactive fictional LMS that uses the same extension sync, parsing, download, worker/cache and MCP paths. This feature is available to all users. It is clearly labeled Demo and kept separate from the real NYU library. It does not grant or validate NYU access.
 
-1. On Windows 10/11 x64, install the matching 0.9.3 companion from https://brightspace-context.khin101.chatgpt.site/setup/ and keep it running. The separate unsigned preview installer includes Node; no development checkout or npm is needed.
+1. On Windows 10/11 x64, install companion 0.9.4 (compatible with extension 0.9.3) from https://brightspace-context.khin101.chatgpt.site/setup/ and keep it running. The separate unsigned preview installer includes Node; no development checkout or npm is needed.
 2. Install the extension package under review. Open its popup and enter the code printed by the companion. School credentials are never requested by the extension.
 3. Open extension Settings and select **Local demo**. Open **Browse resources**, select **Demo 2026 Fall** and **Sync semester**. Expect two courses, nested modules, module landing-page notes, file types and inline Download/Save as controls. Search `east gate` to find a note. The scan downloads metadata, not every file.
 4. Download the PDF, DOCX or PPTX sample. Locked items and external links do not get direct-download controls. Advanced → Show manual cache buttons allows a manual cache test; cache the same file twice to see a fetch followed by a hit.
