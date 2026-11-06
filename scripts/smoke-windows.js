@@ -51,7 +51,7 @@ export async function startCompanion(node,payload,directory,port=0,launcher=fals
       child.once('error',error=>{clearTimeout(timeout);reject(error);});child.once('exit',fail);
       child.stdout.on('data',chunk=>{
         stdout+=chunk;
-        const url=stdout.match(/running at (http:\/\/127\.0\.0\.1:\d+)/)?.[1],code=stdout.match(/Pairing code: ([a-f0-9]{10})/)?.[1];
+        const url=stdout.match(/(?:running at |Address: )(http:\/\/127\.0\.0\.1:\d+)/)?.[1],code=stdout.match(/Pairing code: ([a-f0-9]{10})/)?.[1];
         if(url && code) {clearTimeout(timeout);child.off('exit',fail);resolve({url,code});}
       });
     });

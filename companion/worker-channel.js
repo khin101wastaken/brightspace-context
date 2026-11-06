@@ -13,14 +13,14 @@ export function createWorkerChannel(server,{getClient,isReady,log=()=>{}}) {
       const entry={provider:req.url==='/demo-api/v1/worker'?'demo':'nyu',origin:req.headers.origin,authenticated:false,lastSeen:Date.now()};sessions.set(ws,entry);
       const authTimer=setTimeout(()=>{if(!entry.authenticated) ws.close(1008,'Authentication required');},5000);authTimer.unref();
       ws.on('error',()=>{});
-      ws.on('close',closeCode=>{clearTimeout(authTimer);sessions.delete(ws);if(entry.authenticated) emit('worker.disconnected',{closeCode});});
+      ws.on('close',closeCode=>{clearTimeout(authTimer);sessions.delete(ws);if(entry.authenticated) emit('worker.disconnected',{provider:entry.provider,closeCode});});
       ws.on('message',raw=>{
         try {
           const message=JSON.parse(raw.toString());
           if(!entry.authenticated) {
             if(message.type!=='authenticate' || !matches(message.token,getClient()?.token)) {ws.close(1008,'Unauthorized');return;}
             Object.assign(entry,{authenticated:true,token:message.token,lastSeen:Date.now(),catalogSync:Array.isArray(message.capabilities) && message.capabilities.includes('catalog-sync')});clearTimeout(authTimer);
-            emit('worker.connected',{origin:entry.origin});
+            emit('worker.connected',{provider:entry.provider,origin:entry.origin});
             ws.send(JSON.stringify({type:'ready'}));return;
           }
           if(!valid(entry)) {ws.close(1008,'Reconnect the extension');return;}

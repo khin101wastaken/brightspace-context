@@ -57,4 +57,8 @@ Record the real Chrome Web Store item ID/install URL and wire it into companion 
 
 ## Deferred improvements
 
-Terminal readability, simpler MCP registration, Claude MCPB packaging, tray/autostart, automatic companion updates, Firefox, other platforms and RAG/OCR remain follow-ups. They should not delay this submission. Current manual MCP setup and supported environment must remain clear.
+Simpler MCP registration, Claude MCPB packaging, tray/autostart, automatic companion updates, Firefox, other platforms and RAG/OCR remain follow-ups. They should not delay this submission. Current manual MCP setup and supported environment must remain clear.
+
+## Companion logging follow-up
+
+The source now has compact normal logs, separate NYU/Demo labels, useful sync/cache outcomes and actionable errors; verbose mode retains structured events, IDs and request timings. This companion-only change is for the next installer build. The frozen/public 0.9.3 artifacts and Chrome upload ZIP remain unchanged. See `COMPANION-LOGGING.md`.

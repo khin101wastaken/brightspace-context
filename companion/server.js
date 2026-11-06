@@ -42,8 +42,9 @@ export async function createCompanion({directory,port=47653,budgetBytes,pairingC
       const scope=provider==='demo'?demo:{cache,catalog,requests,exports,tickets};
       return await handleApi(scope,provider,url);
       async function handleApi({cache,catalog,requests,exports,tickets},provider,url) {
+      const scopedLog=safeLogger((event,fields)=>emit(event,{...fields,provider}));
       const origin=req.headers.origin;
-      if(!/^chrome-extension:\/\/[a-p]{32}$/.test(origin || '')) {emit('auth.rejected',{code:'EXTENSION_ORIGIN_REQUIRED'});return send(res,403,{error:'Only the paired browser extension can connect.',code:'EXTENSION_ORIGIN_REQUIRED'});}
+      if(!/^chrome-extension:\/\/[a-p]{32}$/.test(origin || '')) {scopedLog('auth.rejected',{code:'EXTENSION_ORIGIN_REQUIRED'});return send(res,403,{error:'Only the paired browser extension can connect.',code:'EXTENSION_ORIGIN_REQUIRED'});}
       res.setHeader('Vary','Origin');res.setHeader('Access-Control-Allow-Origin',origin);
       if(req.method==='OPTIONS') {
         res.writeHead(204,{'Access-Control-Allow-Methods':'GET, POST, PUT, OPTIONS','Access-Control-Allow-Headers':'Authorization, Content-Type'});res.end();return;
@@ -51,12 +52,12 @@ export async function createCompanion({directory,port=47653,budgetBytes,pairingC
       route=url.pathname==='/v1/pair'?'pair':url.pathname==='/v1/status'?'status':url.pathname.startsWith('/v1/catalog')?'catalog':url.pathname.startsWith('/v1/requests')?'requests':url.pathname.startsWith('/v1/cache')?'cache':'unknown';
       if(req.method==='POST' && url.pathname==='/v1/pair') {
         if(Date.now()-windowStart>60000) {failedPairings=0;windowStart=Date.now();}
-        if(failedPairings>=10) {emit('pair.rejected',{code:'RATE_LIMITED'});return send(res,429,{error:'Too many pairing attempts. Wait a minute.'});}
+        if(failedPairings>=10) {scopedLog('pair.rejected',{code:'RATE_LIMITED'});return send(res,429,{error:'Too many pairing attempts. Wait a minute.'});}
         const value=JSON.parse((await body(req,4096)).toString());
-        if(!same(value.code?.trim().toLowerCase(),pairingCode)) {failedPairings++;emit('pair.rejected',{code:'CODE_MISMATCH'});return send(res,403,{error:'Pairing code did not match.'});}
+        if(!same(value.code?.trim().toLowerCase(),pairingCode)) {failedPairings++;scopedLog('pair.rejected',{code:'CODE_MISMATCH'});return send(res,403,{error:'Pairing code did not match.'});}
         const token=randomBytes(32).toString('hex');client={origin,token};
         await vault.writeJson('pairing.json',client);
-        emit('pair.accepted',{origin});
+        scopedLog('pair.accepted',{origin});
         return send(res,200,{...session(),...await cache.stats()});
       }
       if(req.method==='POST' && url.pathname==='/v1/session') {
@@ -65,7 +66,7 @@ export async function createCompanion({directory,port=47653,budgetBytes,pairingC
         if(!client || client.origin!==origin || !(same(req.headers.authorization,`Bearer ${client.token}`) || (resumed?.origin===origin && same(resumed.token,client.token))))return send(res,401,{error:'Pair this extension with the companion first.',code:'PAIRING_REQUIRED'});
         return send(res,200,{...session(),...(value.credential?{credential:value.credential}:{})});
       }
-      if(!client || client.origin!==origin || !same(req.headers.authorization,`Bearer ${client.token}`)) {emit('auth.rejected',{code:!client?'NOT_PAIRED':client.origin!==origin?'BROWSER_MISMATCH':'TOKEN_MISMATCH',origin});return send(res,401,{error:'Pair this extension with the companion first.',code:'PAIRING_REQUIRED'});}
+      if(!client || client.origin!==origin || !same(req.headers.authorization,`Bearer ${client.token}`)) {scopedLog('auth.rejected',{code:!client?'NOT_PAIRED':client.origin!==origin?'BROWSER_MISMATCH':'TOKEN_MISMATCH',origin});return send(res,401,{error:'Pair this extension with the companion first.',code:'PAIRING_REQUIRED'});}
       if(req.method==='POST' && url.pathname==='/v1/settings') {
         const value=JSON.parse((await body(req,1024)).toString());
         if(Object.keys(value).length!==1 || typeof value.allowTemporaryExports!=='boolean')throw new Error('Invalid export setting.');
@@ -88,7 +89,7 @@ export async function createCompanion({directory,port=47653,budgetBytes,pairingC
       const request=url.pathname.match(/^\/v1\/requests\/([a-f0-9-]{36})$/);
       if(req.method==='GET' && request) return send(res,200,await requests.get(request[1]));
       if(req.method==='GET' && url.pathname==='/v1/catalog') return send(res,200,await catalog.read());
-      if(req.method==='PUT' && url.pathname==='/v1/catalog/semesters') {const result=await catalog.put(JSON.parse((await body(req,MAX_CATALOG_BYTES)).toString()));emit('catalog.synced',result);return send(res,200,result);}
+      if(req.method==='PUT' && url.pathname==='/v1/catalog/semesters') {const result=await catalog.put(JSON.parse((await body(req,MAX_CATALOG_BYTES)).toString()));scopedLog('catalog.synced',result);return send(res,200,result);}
       if(['GET','POST'].includes(req.method) && url.pathname==='/v1/status') return send(res,200,{...await cache.stats(),workerConnected:workerChannel.connected(provider),provider,storageEncrypted:true,...settings});
       if(req.method==='GET' && url.pathname==='/v1/cache/documents') return send(res,200,{documents:await cache.list()});
       const document=url.pathname.match(/^\/v1\/cache\/documents\/([a-f0-9]{64})$/);
@@ -100,7 +101,7 @@ export async function createCompanion({directory,port=47653,budgetBytes,pairingC
       if(req.method==='POST' && url.pathname==='/v1/cache/lookup') {
         const metadata=validateMetadata(JSON.parse((await body(req,128*1024)).toString()),{provider});
         const result=await cache.lookup(metadata);
-        emit(result.hit?'cache.hit':'cache.miss',{courseId:metadata.courseId,topicId:metadata.topicId});
+        scopedLog(result.hit?'cache.hit':'cache.miss',{courseId:metadata.courseId,topicId:metadata.topicId});
         if(result.hit) return send(res,200,result);
         for(const [key,ticket] of tickets) if(ticket.expires<Date.now()) tickets.delete(key);
         if(tickets.size>=100) return send(res,429,{error:'Too many pending file requests.'});
@@ -114,7 +115,7 @@ export async function createCompanion({directory,port=47653,budgetBytes,pairingC
         tickets.delete(upload[1]);
         const bytes=await body(req,MAX_FILE_BYTES);
         const result=await cache.put(ticket.metadata,bytes);
-        emit('cache.stored',{courseId:ticket.metadata.courseId,topicId:ticket.metadata.topicId,bytes:result.entry.bytes,evicted:result.evicted});
+        scopedLog('cache.stored',{courseId:ticket.metadata.courseId,topicId:ticket.metadata.topicId,bytes:result.entry.bytes,evicted:result.evicted});
         return send(res,200,result);
       }
       const file=url.pathname.match(/^\/v1\/cache\/files\/([a-f0-9]{64})$/);

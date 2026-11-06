@@ -17,7 +17,7 @@ const syncResult=value=>Object.fromEntries(Object.entries(value || {}).filter(([
 export async function openRequests(directory,{catalog,cache,notify=()=>{},workerConnected=()=>false,syncWorkerConnected=workerConnected,now=Date.now,log=()=>{},vault,provider='nyu'}={}) {
   const loginMessage=provider==='demo'?'Restore demo access on the local demo LMS page, then retry with provider:demo and retry:true.':errors.NEEDS_LOGIN;
   const failureMessages={...errors,NEEDS_LOGIN:loginMessage};
-  const emit=safeLogger(log),fields=job=>({requestId:job.requestId,...(isSync(job)?{semesterId:job.sync.semesterId}:{courseId:job.metadata.courseId,topicId:job.metadata.topicId})});
+  const emit=safeLogger((event,fields)=>log(event,{...fields,provider})),fields=job=>({requestId:job.requestId,...(isSync(job)?{semesterId:job.sync.semesterId}:{courseId:job.metadata.courseId,topicId:job.metadata.topicId})});
   let recovered=0;
   vault??=await openVault(directory);let jobs=[],queue=Promise.resolve();
   try {
@@ -68,7 +68,7 @@ export async function openRequests(directory,{catalog,cache,notify=()=>{},worker
       if(jobs.filter(active).length>=25 || jobs.filter(job=>isSync(job) && active(job)).length>=5) throw new Error('The request queue is busy. Wait for existing requests to finish.');
       if(jobs.length>=100) {const index=jobs.findIndex(job=>!active(job) && job.state!=='needs_login');if(index<0) throw new Error('Request history is full. Retry pending requests first.');jobs.splice(index,1);}
       const job={kind:'catalog-sync',requestId:randomUUID(),sync,state:'queued',createdAt:now(),updatedAt:now()};
-      jobs.push(job);await save();emit('sync.queued',fields(job));notify();return present(job);
+      jobs.push(job);await save();emit('sync.queued',{...fields(job),workerConnected:syncWorkerConnected()});notify();return present(job);
     }),
     request:({courseId,key,retry=false})=>serial(async()=>{
       if(typeof retry!=='boolean') throw new Error('Invalid retry option.');
@@ -130,7 +130,7 @@ export async function openRequests(directory,{catalog,cache,notify=()=>{},worker
         const hit=await cache.lookup(job.metadata);if(!hit.hit) throw new Error('The requested document has not been verified in the cache.');
         Object.assign(job,{state:'ready',source:'brightspace',error:null,code:null});
       }
-      job.updatedAt=now();job.leaseId=null;job.leaseUntil=null;await save();emit(isSync(job)?(job.state==='ready'?'sync.ready':'sync.failed'):(job.state==='ready'?'retrieval.ready':'retrieval.failed'),{...fields(job),code:job.code});return present(job);
+      job.updatedAt=now();job.leaseId=null;job.leaseUntil=null;await save();emit(isSync(job)?(job.state==='ready'?'sync.ready':'sync.failed'):(job.state==='ready'?'retrieval.ready':'retrieval.failed'),{...fields(job),...(isSync(job)?job.result:{}),code:job.code});return present(job);
     }),
     progress:({requestId,leaseId,progress})=>serial(async()=>{
       prune();const job=jobs.find(job=>job.requestId===requestId);

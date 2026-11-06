@@ -1,6 +1,6 @@
 import {createCompanion} from './server.js';
 import {cacheDirectory} from './paths.js';
-import {createLogger} from './logging.js';
+import {createLogger,formatBytes} from './logging.js';
 const log=createLogger({level:process.env.BRIGHTSPACE_LOG_LEVEL || 'info'});
 const directory=cacheDirectory();
 const port=Number(process.env.BRIGHTSPACE_COMPANION_PORT || 47653);
@@ -11,7 +11,7 @@ try {
   const stats=await app.cache.stats();log('app.ready',{url:app.url,files:stats.files,bytes:stats.usedBytes});
   // The pairing code is an intentional one-time console prompt, never a field
   // in the diagnostic logger. Event logs never include credentials or headers.
-  console.log(`Brightspace companion running at ${app.url}\nCache: ${directory}\nPairing code: ${app.pairingCode}\nEnter this code on the extension's Connect screen. Keep this process running.\nLocal fictional demo: ${app.url}/demo/ (select Local demo in extension Settings).`);
+  console.log(`Brightspace Context companion\nAddress: ${app.url}\nCache: ${directory} (${stats.files} files, ${formatBytes(stats.usedBytes)})\nPairing code: ${app.pairingCode}\nKeep this window open. Pair in the extension's Connect screen.\nLocal demo: ${app.url}/demo/\nDetailed diagnostics: use the Companion (verbose logs) Start menu shortcut.`);
   let stopping=false;
   for(const signal of ['SIGINT','SIGTERM']) process.on(signal,()=>{
     if(stopping) return;stopping=true;log('app.stopping',{signal});
