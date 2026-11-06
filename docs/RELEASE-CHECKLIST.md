@@ -62,3 +62,9 @@ Simpler MCP registration, Claude MCPB packaging, tray/autostart, automatic compa
 ## Companion logging follow-up
 
 The source now has compact normal logs, separate NYU/Demo labels, useful sync/cache outcomes and actionable errors; verbose mode retains structured events, IDs and request timings. This companion-only change is published in installer 0.9.4; the 0.9.3-to-0.9.4 upgrade check passes. The frozen 0.9.3 installer and Chrome upload ZIP remain unchanged. See `store/RELEASE-COMPANION-0.9.4.md`. See `COMPANION-LOGGING.md`.
+
+## UI review patch before 0.10.0 beta
+
+Demo/library selection now lives only in Resources → Advanced → Demo and testing. The popup has no demo controls; a small active-demo notice remains so fictional content stays identifiable. Syntax, package/import checks and browser preview checks passed, including switching both ways and popup settings.
+
+The source and the user's installed unpacked extension were updated for review, with the six original UI/instruction files backed up under `.cache/installed-ui-backups/`. Cache, pairing, permissions and MCP processes were not changed. The installed PAYLOAD inventory still describes the immutable release; this explicit local review patch is not a new published package. The 0.9.4 installer and frozen 0.9.3 ZIP remain unchanged. Rebuild the beta after acceptance; update reviewer/setup instructions to the Advanced location at that time.

@@ -1,10 +1,10 @@
 import {privateStorage as rootStorage} from './private-storage.js';
 import {sourceStorage} from './sources.js';
-import {wireSourcePicker} from './source-picker.js';
+import {wireSourceStatus} from './source-picker.js';
 const provider=(await chrome.storage.local.get('activeSource')).activeSource??'nyu';
 const privateStorage=sourceStorage(rootStorage,provider);
 const send=message=>chrome.runtime.sendMessage({...message,provider});
-wireSourcePicker({provider});
+wireSourceStatus({provider});
 import {wireProductLinks} from './product-links.js';
 wireProductLinks(document);
 const $=id=>document.getElementById(id);

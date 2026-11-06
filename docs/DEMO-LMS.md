@@ -5,7 +5,7 @@ The matching Windows companion serves a working fictional LMS at `http://127.0.0
 ## Try it
 
 1. Start the 0.9.3 companion and pair the extension using its printed code. Reload the extension after updating its files.
-2. In extension Settings choose **Local demo**. Open Resources and sync **Demo 2026 Fall**. The Resources source control can switch back to NYU at any time.
+2. Open Resources → **Advanced → Demo and testing** and choose **Local demo**, then sync **Demo 2026 Fall**. Switch back to NYU from the same Advanced section. The popup has no demo controls.
 3. Browse the two courses and nested modules, search `east gate`, inspect module notes, and download PDF/PPTX/DOCX samples. Advanced → Show manual cache buttons exposes the optional Cache action.
 4. In a connected MCP client ask it to use the demo library. Every tool call for this library takes `provider: "demo"`; omitted provider means real NYU. Discover semesters with `request_catalog_sync`, scan the returned semester, find a file with `search_catalog`, retrieve it with `request_document`, poll if pending and read its MCP resource bytes. Cache hits avoid another file fetch. The host must actually read the bytes to answer a content question.
 5. Open the demo LMS page and choose **Add a sample reading**. Sync again in Resources to see the added item and updated module notes. MCP sync retains its normal 30-second completed-request deduplication window; wait that window before requesting another successful scan of the same semester.
