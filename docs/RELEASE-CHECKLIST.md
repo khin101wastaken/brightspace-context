@@ -9,6 +9,7 @@ The existing Chrome draft is iadmhandkbomngnaplppiopojmfkcodi and still contains
 - [x] 128 source tests pass for authenticated storage, preserved migration, session-only browser keys and explicit temporary exports.
 - [x] The 32-entry v0.9.2 ZIP and matching Windows candidate are built with byte-identical browser/server payloads.
 - [x] Final packaged-runtime checks pass; isolated 0.9.1-to-v0.9.2 upgrade/migration checks pass (see the release record).
+- [x] Matching v0.9.2 installer, setup and privacy documentation published; public installer hash matches the tested artifact.
 - [ ] Live browser restart/unlock and actual desktop-client resource/export reading acceptance.
 - [ ] Local mock-LMS reviewer demo.
 

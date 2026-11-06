@@ -1,6 +1,6 @@
 # Brightspace Context - Development Roadmap
 
-Current encrypted-storage source candidate: v0.9.2; previous public Windows preview: v0.9.1, NYU Brightspace and Chrome/Chromium. Semester catalogs, module landing text, bounded PDF/PPTX/DOCX caching and desktop MCP transport are implemented. PDF answers and module text have live evidence; Office transport has automated and packaged-runtime evidence, with real client reading still to verify. Pinned priority: finish the essential Chrome Web Store submission requirements and submit an unlisted pilot as soon as they are ready. Simpler MCP installation and a small student pilot follow; optional client/platform features must not delay submission. Operator-hosted course-data deployment is deferred.
+Current encrypted-storage Windows preview: v0.9.2; live client acceptance pending, NYU Brightspace and Chrome/Chromium. Semester catalogs, module landing text, bounded PDF/PPTX/DOCX caching and desktop MCP transport are implemented. PDF answers and module text have live evidence; Office transport has automated and packaged-runtime evidence, with real client reading still to verify. Pinned priority: finish the essential Chrome Web Store submission requirements and submit an unlisted pilot as soon as they are ready. Simpler MCP installation and a small student pilot follow; optional client/platform features must not delay submission. Operator-hosted course-data deployment is deferred.
 
 **8 done | 6 in_progress | 2 next | 5 planned | 0 research | 7 deferred**
 
@@ -349,6 +349,7 @@ Evidence:
 
 - 128 source tests pass, including native key protection, corruption/key-loss/access-error preservation, origin-bound browser unlocking, port-before-migration startup and export revocation.
 - The encrypted Windows runtime and isolated 0.9.1-to-0.9.2 migration/upgrade pass; exact final artifact verification is recorded in store/RELEASE-0.9.2.md. The user’s actual cache and installed app are untouched; live acceptance remains separate.
+- Matching v0.9.2 public installer, setup guide and versioned privacy policy published as site version 6; the public installer SHA-256 matches the frozen tested artifact.
 
 ## 03 / Desktop beta and distribution
 
