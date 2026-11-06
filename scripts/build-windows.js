@@ -59,7 +59,9 @@ export async function buildWindows() {
   for(const name of ['node.exe','LICENSE']) await cp(path.join(nodeDirectory,name),path.join(payload,'runtime',name));
   const launcher=await readFile(path.join(root,'packaging/windows/Start Companion.cmd'),'utf8');
   await writeFile(path.join(payload,'Start Companion.cmd'),launcher.replace(/\r?\n/g,'\r\n'));
-  let guide=await readFile(path.join(root,'packaging/windows/SETUP.html'),'utf8');
+  // Windows checkouts may use CRLF. HTML parsing normalizes newlines before
+  // executing inline scripts, so hash and emit the same normalized source.
+  let guide=(await readFile(path.join(root,'packaging/windows/SETUP.html'),'utf8')).replace(/\r\n/g,'\n');
   const script=guide.match(/<script>\n([\s\S]*?)<\/script>/)?.[1];
   if(!script) throw new Error('Setup guide script is missing.');
   guide=guide.replace('sha256-PLACEHOLDER',`sha256-${createHash('sha256').update('\n'+script).digest('base64')}`);
