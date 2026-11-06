@@ -1,3 +1,4 @@
+import {openVault} from '../companion/vault.js';
 import {readFile,writeFile,mkdir,mkdtemp,readdir,rm,stat} from 'node:fs/promises';
 import {spawnSync} from 'node:child_process';
 import {randomUUID,createHash} from 'node:crypto';
@@ -118,7 +119,7 @@ async function main() {
       await delay(30);
     }
     const ready=JSON.parse((await call('get_document_request',{requestId:queued.requestId,waitSeconds:10})).content[0].text);
-    assert.equal(ready.state,'ready');assert.equal(upstream,1);assert.deepEqual(await readFile(ready.document.localPath),secondBytes);
+    assert.equal(ready.state,'ready');assert.equal(upstream,1);assert.equal(ready.document.localPath,undefined);assert.deepEqual(Buffer.from((await client.readResource({uri:ready.document.uri})).contents[0].blob,'base64'),secondBytes);
     const repeated=JSON.parse((await call('request_document',{courseId:'100',key:'document:21'})).content[0].text);assert.equal(repeated.source,'cache');assert.equal(upstream,1);
     await companion.waitForOutput(/DEBUG http\.request/);
     report.checks.push('upgraded packaged Chrome worker completed the retained request exactly once; repeated request hit cache; verbose logs worked');
@@ -137,9 +138,11 @@ async function main() {
       if(Date.now()>uninstallDeadline) throw new Error('Upgraded test installation was not removed within ten seconds.');
       await delay(50);
     }
-    assert.equal(digest(await readFile(path.join(cache,'pairing.json'))),pairingHash);
-    assert.deepEqual(await readFile(path.join(cache,original.documentId+'.pdf')),bytes);
-    report.checks.push('uninstall after upgrade removed application files while retaining cache and pairing');
+    const vault=await openVault(cache);assert.equal((await vault.readJson('pairing.json')).token,token);
+    assert.deepEqual(await vault.read(original.documentId+'.pdf'),bytes);
+    await assert.rejects(stat(path.join(cache,'pairing.json')),error=>error.code==='ENOENT');
+    await assert.rejects(stat(path.join(cache,original.documentId+'.pdf')),error=>error.code==='ENOENT');
+    report.checks.push('first updated start migrated legacy files into the Windows-protected vault; original bytes and pairing survive uninstall without plaintext cache copies');
     await writeFile(path.join(testRoot,'latest-report.json'),JSON.stringify({...report,passed:true},null,2)+'\n');
     passed=true;
     console.log(JSON.stringify({...report,passed:true},null,2));

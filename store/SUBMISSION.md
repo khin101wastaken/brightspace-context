@@ -1,6 +1,6 @@
 # Chrome Web Store submission draft
 
-Package version: 0.9.1 (submission candidate). Submission status: not uploaded or submitted. Earlier artifacts are retained separately.
+Package version: 0.9.2 (submission candidate). Submission status: existing draft iadmhandkbomngnaplppiopojmfkcodi contains the earlier 0.9.1 package; this replacement has not been uploaded or submitted. Earlier artifacts are retained separately.
 
 Pinned priority: finish the [submission essentials](../docs/RELEASE-CHECKLIST.md) and submit the unlisted pilot. Automatic MCP registration and other optional features can follow.
 
@@ -15,13 +15,13 @@ npm ci
 npm run package:extension
 ```
 
-Upload only `dist/BrightspaceContext-0.9.1-chrome-web-store.zip`. The SHA-256 and file inventory beside it are build records, not additional ZIP contents. The manifest is at the ZIP root. The ZIP includes 25 browser files, the MIT and third-party licenses, and four PNG icons (31 entries); it excludes the companion, Node, MCP server, dependencies, course files, tokens, profiles, tests and developer-only inspection/expansion scripts. All executable JavaScript is bundled locally. The checked-in HTML parser bundle is generated from `assets/rich-text.js` with `npm run build:rich-text`; `npm run build:rich-text -- --check` verifies it. The parser, entity decoder and document validator ship as local browser assets with their licenses; bundling tools remain development dependencies.
+Upload only `dist/BrightspaceContext-0.9.2-chrome-web-store.zip`. The SHA-256 and file inventory beside it are build records, not additional ZIP contents. The manifest is at the ZIP root. The ZIP includes 26 browser files, the MIT and third-party licenses, and four PNG icons (32 entries); it excludes the companion, Node, MCP server, dependencies, course files, tokens, profiles, tests and developer-only inspection/expansion scripts. All executable JavaScript is bundled locally. The checked-in HTML parser bundle is generated from `assets/rich-text.js` with `npm run build:rich-text`; `npm run build:rich-text -- --check` verifies it. The parser, entity decoder and document validator ship as local browser assets with their licenses; bundling tools remain development dependencies.
 
 Module landing-page context requires the v0.8.8 companion/MCP update as well as reloading the extension and syncing the semester again. Older catalogs remain readable and mark missing descriptions as not synced. Reload the desktop MCP connection after updating. The development extension stays loaded from its existing folder unless explicitly changed.
 
 The initial document-stack icon has an editable [SVG source](../assets/extension-icon.svg). Checked-in PNGs are 16, 32, 48 and 128 pixels. The store's 128px version centers a 96px mark with 16px transparent margins. Maintainers can regenerate them with `python scripts/generate-extension-icons.py` (Pillow is a development tool only).
 
-Source repository: https://github.com/khin101wastaken/brightspace-context . The public source is licensed under MIT; course materials retain their owners' rights. The v0.9.1 candidate includes the UI/search updates, extension-only motion/appearance preferences, completed-course sync ring, and MCP-initiated semester discovery/catalog sync. Release checks and remaining live acceptance are recorded in [RELEASE-CHECKLIST.md](../docs/RELEASE-CHECKLIST.md). The matching preview installer is linked from the public setup page; automated tests do not replace live NYU/client acceptance.
+Source repository: https://github.com/khin101wastaken/brightspace-context . The public source is licensed under MIT; course materials retain their owners' rights. The v0.9.2 candidate includes the UI/search updates, extension-only motion/appearance preferences, completed-course sync ring, and MCP-initiated semester discovery/catalog sync. Release checks and remaining live acceptance are recorded in [RELEASE-CHECKLIST.md](../docs/RELEASE-CHECKLIST.md). The matching preview installer is linked from the public setup page; automated tests do not replace live NYU/client acceptance.
 
 ## Draft listing text
 
@@ -39,7 +39,9 @@ Description draft:
 
 Browse your NYU Brightspace resources by semester, course and module. Search filenames and module notes, view matching text, and download individual accessible Brightspace-hosted files with their module folders.
 
-Optionally pair the local Windows companion with a supported desktop MCP client to refresh semester catalogs and retrieve original PDF, PPTX and DOCX files on demand. Keep Chrome signed in and the companion running for automatic requests. Files are cached individually rather than downloaded in bulk.
+Optionally pair the local Windows companion with a supported desktop MCP client to refresh semester catalogs and retrieve original PDF, PPTX and DOCX files on demand. Keep Chrome signed in and the companion running for automatic requests. Files are cached individually rather than downloaded in bulk. Persistent companion data is encrypted using a Windows-account-protected key; browser catalogs are encrypted too.
+
+Normal MCP retrieval returns original document bytes through resources without creating a plaintext local file path. For clients requiring a file path, a separately enabled temporary-export feature creates explicitly requested unencrypted copies with a 15-minute expiration. A crash can leave these copies until the companion next starts. Ordinary downloads remain where you save them.
 
 The browser uses your existing NYU Brightspace session. Course catalogs are saved in Chrome and the paired companion. There is no publisher-operated course-content server or analytics service. Your chosen AI client may send requested context to its provider under its own settings and policies.
 
@@ -49,7 +51,7 @@ Browsing/downloading requires access to your own NYU Brightspace courses. Deskto
 
 | Permission | Purpose |
 | --- | --- |
-| `storage` | Save course/resource metadata, preferences, the local companion pairing token and transient download status in extension storage. |
+| `storage` | Save encrypted course/resource metadata and an encrypted companion credential, ordinary interface preferences, and session-memory working data/download status. Raw browser keys and live bearer credentials are not persisted. |
 | `downloads` | Start user-requested course-file downloads and track those downloads' completion/errors. |
 | `alarms` | Recover the local retrieval connection after extension-worker suspension or companion restart. The alarm does not bulk-download course files. |
 | `scripting` | Activate the user-requested native download-button fallback inside permitted NYU pages. Semester and advanced per-course scans use fixed web endpoints. |

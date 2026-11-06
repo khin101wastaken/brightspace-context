@@ -1,6 +1,4 @@
-import {readFile} from 'node:fs/promises';
-import path from 'node:path';
-import {atomicWrite} from './files.js';
+import {openVault} from './vault.js';
 
 export const MAX_CATALOG_BYTES=10*1024*1024;
 const text=(value,max=1000)=>typeof value==='string' && value.length<=max;
@@ -53,10 +51,11 @@ export function validateSemester(value) {
   return {semesterId:value.semesterId,title:value.title,updatedAt:value.updatedAt,courses};
 }
 
-export async function openCatalog(directory) {
-  const filename=path.join(directory,'catalog.json');let state={version:1,semesters:[]},queue=Promise.resolve();
+export async function openCatalog(directory,{vault}={}) {
+  vault??=await openVault(directory);
+  let state={version:1,semesters:[]},queue=Promise.resolve();
   try {
-    const raw=await readFile(filename,'utf8');
+    const raw=(await vault.read('catalog.json')).toString('utf8');
     if(Buffer.byteLength(raw)>MAX_CATALOG_BYTES) throw new Error('Stored catalog exceeds its size limit.');
     const parsed=JSON.parse(raw);
     if(parsed.version!==1 || !Array.isArray(parsed.semesters)) throw new Error('Unsupported catalog format.');
@@ -73,7 +72,7 @@ export async function openCatalog(directory) {
         const availableSemesters=validateDiscovery(value),discoveredAt=new Date().toISOString();
         const next={...state,availableSemesters,discoveredAt},raw=JSON.stringify(next);
         if(Buffer.byteLength(raw)>MAX_CATALOG_BYTES) throw new Error('Catalog exceeds its 10 MB metadata budget.');
-        await atomicWrite(filename,raw);state=next;return {semesterCount:availableSemesters.length,discoveredAt};
+        await vault.write('catalog.json',raw);state=next;return {semesterCount:availableSemesters.length,discoveredAt};
       });queue=task.catch(()=>{});return task;
     },
     put(value) {
@@ -86,7 +85,7 @@ export async function openCatalog(directory) {
         const next={...state,version:1,semesters:[...state.semesters.filter(s=>s.semesterId!==snapshot.semesterId),snapshot]};
         const serialized=JSON.stringify(next);
         if(Buffer.byteLength(serialized)>MAX_CATALOG_BYTES) throw new Error('Catalog exceeds its 10 MB metadata budget.');
-        await atomicWrite(filename,serialized);state=next;
+        await vault.write('catalog.json',serialized);state=next;
         return {semesterId:snapshot.semesterId,courses:snapshot.courses.length,complete:snapshot.courses.filter(c=>c.status==='complete').length,bytes:Buffer.byteLength(serialized)};
       });queue=task.catch(()=>{});return task;
     },

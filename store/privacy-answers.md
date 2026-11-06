@@ -20,6 +20,8 @@ Review and certify the dashboard statements truthfully: user data is not sold; t
 
 If a dashboard field does not match this description, resolve it before clicking Submit for Review rather than selecting an inaccurate checkbox.
 
+Version 0.9.2 implements encrypted companion storage with a Windows-account-protected key and encrypted browser catalogs with session-only working keys/credentials. Legacy data migrates when the updated companion starts/unlocks; failed/offline migration retains originals and reports a pending state. Normal MCP reads return resource bytes without creating a plaintext path. Optional temporary compatibility exports are separately enabled, explicitly requested and unencrypted until cleanup. Ordinary user downloads are separate readable files. Keep these distinctions in the policy; do not claim every exported or host-managed copy is encrypted. Automated protection tests and live acceptance do not guarantee store approval. See `docs/ENCRYPTED-STORAGE.md`.
+
 ## Official references
 
 - https://developer.chrome.com/docs/webstore/cws-dashboard-privacy

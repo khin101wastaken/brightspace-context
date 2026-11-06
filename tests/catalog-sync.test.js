@@ -1,3 +1,5 @@
+import {storageHarness} from './storage-fixture.js';
+import {openVault} from '../companion/vault.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdir,mkdtemp,rm,readFile,writeFile} from 'node:fs/promises';
@@ -29,6 +31,7 @@ test('real MCP and background worker discover and sync without opening extension
   const storage=values=>({get:async keys=>keys==null?structuredClone(values):Object.fromEntries((Array.isArray(keys)?keys:[keys]).map(key=>[key,structuredClone(values[key])])),set:async updates=>Object.assign(values,structuredClone(updates)),remove:async key=>delete values[key]});
   const noop={addListener(){}};
   globalThis.chrome={runtime:{id:'a'.repeat(32),getURL:name=>origin+'/'+name,onStartup:noop,onInstalled:noop,onMessage:{addListener:fn=>listener=fn}},alarms:{onAlarm:noop,create:async()=>{}},storage:{local:storage(local),session:storage(session)},downloads:{onChanged:noop,search:async()=>[]}};
+  const browserStore=storageHarness(local,{session});chrome.storage=browserStore.storage;
   t.mock.method(globalThis,'fetch',async(url,options={})=>{
     if(url.startsWith('https://brightspace.nyu.edu/')) {
       assert.equal(options.credentials,'include');assert.equal(options.redirect,'error');schoolCalls.push(url);
@@ -58,8 +61,9 @@ test('real MCP and background worker discover and sync without opening extension
   let result=await wait(discovery);assert.equal(result.state,'ready');assert.equal(result.semesters.length,3);
   assert.equal((await call('list_courses')).semesters[0].hasSavedCatalog,false);
   const sync=await call('request_catalog_sync',{semesterId:'5',waitSeconds:0});result=await wait(sync);assert.equal(result.state,'ready');assert.equal(result.result.complete,2);
-  assert.ok(local['course:200']);assert.equal(local['semester:5'].courses.length,2);
-  assert.equal(local.semesterSync.courses.length,2);assert.ok(local.semesterSync.courses.every(course=>course.state==='complete'));
+  const browser=await browserStore.view.get(null);assert.equal(local['course:200'].encryptedStorage,1);assert.equal(browser['semester:5'].courses.length,2);
+  assert.equal(browser.semesterSync.courses.length,2);assert.ok(browser.semesterSync.courses.every(course=>course.state==='complete'));
+  assert.equal(JSON.stringify(local).includes('Dying Girl'),false);assert.equal(JSON.stringify(local).includes(pairing.token),false);assert.equal(JSON.stringify(local).includes(pairing.storageKey),false);
   const found=await call('search_catalog',{courseId:'200',query:'Earl'});assert.equal(found.total,1);assert.match(found.entries[0].description,/Dying Girl/);
   assert.equal((await app.cache.stats()).files,0);assert.equal(schoolCalls.some(url=>url.endsWith('.pdf')),false);
   await app.requests.get(sync.requestId);assert.equal((await call('request_catalog_sync',{semesterId:'5',waitSeconds:0})).requestId,sync.requestId);
@@ -111,6 +115,6 @@ test('discovery persists separately from outlines; unsupported workers cannot cl
 test('version-one document queues migrate without losing pending retrievals',async t=>{
   const directory=await temporary(t),catalog=await openCatalog(directory),cache=await openCache(directory);await catalog.put(snapshot());
   let requests=await openRequests(directory,{catalog,cache});const document=await requests.request({courseId:'200',key:'document:20'});
-  const filename=path.join(directory,'requests.json'),stored=JSON.parse(await readFile(filename,'utf8'));stored.version=1;await writeFile(filename,JSON.stringify(stored));
+  const vault=await openVault(directory),stored=await vault.readJson('requests.json');stored.version=1;await vault.writeJson('requests.json',stored);
   requests=await openRequests(directory,{catalog,cache});assert.equal((await requests.get(document.requestId)).state,'queued');assert.equal((await requests.claim()).job.metadata.topicId,'20');
 });

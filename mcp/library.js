@@ -1,5 +1,5 @@
-import {readFile} from 'node:fs/promises';
 import path from 'node:path';
+import {openVault} from '../companion/vault.js';
 import {createHash} from 'node:crypto';
 import {downloadableFile} from '../extension/file-downloads.js';
 import {documentFormat} from '../extension/document-formats.js';
@@ -12,7 +12,7 @@ export class LocalLibrary {
   }
   async request(endpoint,binary=false,{method='GET',body}={}) {
     let pairing;
-    try {pairing=JSON.parse(await readFile(path.join(this.directory,'pairing.json'),'utf8'));}
+    try {this.vault??=openVault(this.directory);pairing=await (await this.vault).readJson('pairing.json');}
     catch {throw new Error('Pair the Chrome extension with the local companion before using Brightspace tools.');}
     if(!/^chrome-extension:\/\/[a-p]{32}$/.test(pairing.origin) || !/^[a-f0-9]{64}$/.test(pairing.token)) throw new Error('Invalid local pairing configuration. Reconnect the extension.');
     let response;
@@ -108,7 +108,7 @@ export class LocalLibrary {
     while(['queued','fetching'].includes(result.state) && result.workerConnected && Date.now()<deadline) {
       await delay(Math.min(1000,deadline-Date.now()));result=await this.request(`/v1/requests/${result.requestId}`);
     }
-    if(result.state==='ready') return {...result,document:await this.get(result.documentId),readingRequired:'Read document.localPath with host tools appropriate to document.mimeType (PDF, PowerPoint or Word) before answering. Retrieval does not automatically parse or attach the file. If the host cannot read this format, say so. Metadata and resource links are not document contents.'};
+    if(result.state==='ready') return {...result,document:await this.get(result.documentId),readingRequired:'Read the MCP resource bytes before answering. The cache is encrypted and no localPath is created by default. If the client requires a local file, the user must enable temporary exports in extension Settings, then explicitly request export_document. Metadata is not document content.'};
     return result;
   }
   validId(id) {if(typeof id!=='string' || !/^[a-f0-9]{64}$/.test(id)) throw new Error('Use a document ID returned by list_cached_documents.');return id;}
@@ -117,13 +117,17 @@ export class LocalLibrary {
     const {document}=await this.request(`/v1/cache/documents/${id}`);
     const format=documentFormat(document.sourceUrl);
     if(!format) throw new Error('Unsupported cached document format.');
-    return {...document,uri:`brightspace-cache://documents/${id}`,localPath:path.join(this.directory,`${id}.${format.extension}`),mimeType:format.mimeType,extension:format.extension,sourceUrl:`https://brightspace.nyu.edu/d2l/le/lessons/${document.courseId}/topics/${document.topicId}`};
+    return {...document,uri:`brightspace-cache://documents/${id}`,encryptedAtRest:true,handoff:'MCP resource bytes; no plaintext file created',mimeType:format.mimeType,extension:format.extension,sourceUrl:`https://brightspace.nyu.edu/d2l/le/lessons/${document.courseId}/topics/${document.topicId}`};
+  }
+  async exportDocument({id,acknowledgePlaintext}={}) {
+    this.validId(id);if(acknowledgePlaintext!==true)throw new Error('Explicitly acknowledge the temporary unencrypted file export.');
+    return this.request('/v1/cache/exports',false,{method:'POST',body:{id,acknowledgePlaintext:true}});
   }
   async readResource(uri) {
     const id=uri?.match(/^brightspace-cache:\/\/documents\/([a-f0-9]{64})$/)?.[1];
     this.validId(id);
     const document=await this.get(id);
-    if(document.bytes>10*1024*1024) throw new Error('This document is too large for an embedded MCP resource. Read its localPath using the desktop host tools.');
+    if(document.bytes>10*1024*1024) throw new Error('This document exceeds the 10 MB embedded resource limit. If the user needs a local copy, enable temporary exports in extension Settings and explicitly use export_document. No plaintext path was created.');
     const bytes=await this.request(`/v1/cache/files/${id}`,true);
     return {contents:[{uri,mimeType:document.mimeType,blob:bytes.toString('base64')}]};
   }

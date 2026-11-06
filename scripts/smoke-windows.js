@@ -116,7 +116,7 @@ export async function smokeWindows(payload) {
     const checkOffice=async()=>{
       for(const entry of office) {
         const result=await client.callTool({name:'get_cached_document',arguments:{id:entry.id}}),metadata=JSON.parse(result.content[0].text);
-        assert.equal(path.extname(metadata.localPath),'.'+entry.format.extension);assert.equal(result.content[1].mimeType,entry.format.mimeType);
+        assert.equal(metadata.localPath,undefined);assert.equal(metadata.encryptedAtRest,true);assert.equal(result.content[1].mimeType,entry.format.mimeType);
         const resource=await client.readResource({uri:metadata.uri});assert.equal(resource.contents[0].mimeType,entry.format.mimeType);assert.deepEqual(Buffer.from(resource.contents[0].blob,'base64'),entry.original);
       }
     };

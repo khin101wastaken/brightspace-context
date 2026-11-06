@@ -1,11 +1,11 @@
-# Reviewer instructions: Brightspace Catalog v0.9.1
+# Reviewer instructions: Brightspace Catalog v0.9.2
 
 Access limitation: live course functionality requires an authorized NYU Brightspace account with enrolled courses. No institutional test/guest account is currently supplied. We do not assume reviewers have NYU access. No school password or publisher credentials are included in this repository/package. Please contact khinaungwrk@gmail.com if additional access or evidence is needed; an institutional access arrangement would need authorization.
 
 ## Requirements
 
 - Chrome 116+ and access to authorized NYU Brightspace courses for live course features.
-- For companion/file retrieval features: Windows 10/11 x64, the local companion from https://brightspace-context.khin101.chatgpt.site/downloads/BrightspaceContext-0.9.1-windows-x64-setup.exe, and an MCP client with local document-reading support.
+- For companion/file retrieval features: Windows 10/11 x64, the local companion from https://brightspace-context.khin101.chatgpt.site/downloads/BrightspaceContext-0.9.2-windows-x64-setup.exe, and an MCP client with document-resource reading support. Clients requiring a local path need the separately enabled temporary-export feature described below.
 - Companion installation/setup guide: https://brightspace-context.khin101.chatgpt.site/setup/.
 
 The extension is limited to NYU Brightspace; it does not claim to work with an arbitrary LMS tenant. A reviewer who lacks authorized NYU access cannot verify live course content merely by following the steps below. The public walkthrough at https://brightspace-context.khin101.chatgpt.site/review/ shows actual UI with labelled synthetic data; it is supplementary evidence, not a live demo or a substitute for any access Google requests. The extension contains no synthetic/demo course mode.
@@ -18,9 +18,10 @@ The extension is limited to NYU Brightspace; it does not claim to work with an a
 4. Open Resources, choose a semester and Sync semester. Course/module hierarchy is obtained without expanding every webpage module. Metadata scanning does not bulk-download files.
 5. Expand a module and use the inline Download/Save as controls on an accessible hosted file. External links and locked items are not treated as direct downloads.
 6. Start the installed companion, enter its displayed pairing code in Connect and check the connected status. The companion listens on loopback port 47653; the code authorizes this extension origin locally.
-7. Configure a local MCP client using the matching updated setup guide. With Resources closed, call request_catalog_sync without semesterId to discover semesters, then with a returned semesterId to refresh one semester. Poll get_catalog_sync; verify the refreshed course/module hierarchy and notes through search_catalog. Find one supported, uncached catalog PDF, request it, wait for ready, and read the returned local PDF. The model must read the actual file; catalog metadata alone is not document content.
+7. Configure a local MCP client using the matching updated setup guide. With Resources closed, call request_catalog_sync without semesterId to discover semesters, then with a returned semesterId to refresh one semester. Poll get_catalog_sync; verify the refreshed course/module hierarchy and notes through search_catalog. Find one supported, uncached catalog PDF, request it, wait for ready, and read the original bytes through its MCP resource link. Normal retrieval creates no plaintext localPath. If the client requires a path, explicitly enable Settings → Temporary file exports and request export_document with the returned id and acknowledgePlaintext:true. These copies are unencrypted, expire after 15 minutes and are removed on normal shutdown; a crash can leave them until the next companion start. The model must read actual bytes; metadata alone is not document content.
 8. Repeat the request. The result should be a cache hit. Restart the companion; pairing/catalog/cache should persist.
 9. If the Brightspace session expires, sign in again and retry catalog sync through MCP with retry:true after sign-in; this also resumes login-blocked pending requests. If Chrome is closed, requests stay queued until the paired worker returns.
+10. Close/reopen Chrome with the companion running. Saved browser catalogs should unlock using the sealed credential without another pairing code. Persistent companion and browser catalogs are encrypted; ordinary downloads and explicitly requested compatibility exports are separate readable files.
 
 ## Implementation notes
 

@@ -1,7 +1,5 @@
-import {readFile} from 'node:fs/promises';
-import path from 'node:path';
 import {randomUUID} from 'node:crypto';
-import {atomicWrite} from './files.js';
+import {openVault} from './vault.js';
 import {cacheId,validateMetadata} from './cache.js';
 import {documentMetadata} from '../extension/companion-client.js';
 import {safeLogger} from './logging.js';
@@ -16,12 +14,12 @@ const syncResult=value=>Object.fromEntries(Object.entries(value || {}).filter(([
   ['courses','complete','bytes','semesterCount'].includes(key)?Number.isSafeInteger(item) && item>=0:
   key==='semesterId'?typeof item==='string' && /^\d+$/.test(item):
   key==='discoveredAt'?typeof item==='string' && Number.isFinite(Date.parse(item)):false));
-export async function openRequests(directory,{catalog,cache,notify=()=>{},workerConnected=()=>false,syncWorkerConnected=workerConnected,now=Date.now,log=()=>{}}={}) {
+export async function openRequests(directory,{catalog,cache,notify=()=>{},workerConnected=()=>false,syncWorkerConnected=workerConnected,now=Date.now,log=()=>{},vault}={}) {
   const emit=safeLogger(log),fields=job=>({requestId:job.requestId,...(isSync(job)?{semesterId:job.sync.semesterId}:{courseId:job.metadata.courseId,topicId:job.metadata.topicId})});
   let recovered=0;
-  const filename=path.join(directory,'requests.json');let jobs=[],queue=Promise.resolve();
+  vault??=await openVault(directory);let jobs=[],queue=Promise.resolve();
   try {
-    const raw=await readFile(filename,'utf8');if(Buffer.byteLength(raw)>2*1024*1024) throw new Error('Request history is too large.');
+    const raw=(await vault.read('requests.json')).toString('utf8');if(Buffer.byteLength(raw)>2*1024*1024) throw new Error('Request history is too large.');
     const stored=JSON.parse(raw);
     if(![1,2].includes(stored.version) || !Array.isArray(stored.jobs) || stored.jobs.length>100) throw new Error('Invalid request history.');
     jobs=stored.jobs.map(job=>{
@@ -36,7 +34,7 @@ export async function openRequests(directory,{catalog,cache,notify=()=>{},worker
   const serial=fn=>{const task=queue.then(fn);queue=task.catch(()=>{});return task;};
   const save=async()=>{
     const raw=JSON.stringify({version:2,jobs});if(Buffer.byteLength(raw)>2*1024*1024) throw new Error('Request history exceeds its metadata budget.');
-    await atomicWrite(filename,raw);
+    await vault.write('requests.json',raw);
   };
   const prune=()=>{
     for(const job of jobs) {

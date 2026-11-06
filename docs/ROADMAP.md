@@ -1,8 +1,8 @@
 # Brightspace Context - Development Roadmap
 
-Current submission candidate and public Windows preview: v0.9.1, NYU Brightspace and Chrome/Chromium. Semester catalogs, module landing text, bounded PDF/PPTX/DOCX caching and desktop MCP transport are implemented. PDF answers and module text have live evidence; Office transport has automated and packaged-runtime evidence, with real client reading still to verify. Pinned priority: finish the essential Chrome Web Store submission requirements and submit an unlisted pilot as soon as they are ready. Simpler MCP installation and a small student pilot follow; optional client/platform features must not delay submission. Operator-hosted course-data deployment is deferred.
+Current encrypted-storage source candidate: v0.9.2; previous public Windows preview: v0.9.1, NYU Brightspace and Chrome/Chromium. Semester catalogs, module landing text, bounded PDF/PPTX/DOCX caching and desktop MCP transport are implemented. PDF answers and module text have live evidence; Office transport has automated and packaged-runtime evidence, with real client reading still to verify. Pinned priority: finish the essential Chrome Web Store submission requirements and submit an unlisted pilot as soon as they are ready. Simpler MCP installation and a small student pilot follow; optional client/platform features must not delay submission. Operator-hosted course-data deployment is deferred.
 
-**7 done | 6 in_progress | 1 next | 5 planned | 0 research | 7 deferred**
+**8 done | 6 in_progress | 2 next | 5 planned | 0 research | 7 deferred**
 
 > Editable source: [roadmap.json](roadmap.json). Reusable structure: [roadmap.schema.json](roadmap.schema.json). Regenerate with `npm run roadmap`.
 
@@ -31,6 +31,7 @@ flowchart TB
     m_mcp_install["PLANNED<br/>Simpler ChatGPT MCP installation"]:::planned
     m_file_readers["PLANNED<br/>Real client file-reading checks"]:::planned
     m_terminal_readability["PLANNED<br/>Readable companion terminal output"]:::planned
+    m_encrypted_storage["DONE<br/>Encrypted storage + explicit document handoff"]:::done
   end
   subgraph p_release["03 / Desktop beta and distribution"]
     direction LR
@@ -38,6 +39,7 @@ flowchart TB
     m_desktop_release["IN PROGRESS<br/>Accessible desktop release"]:::in_progress
     m_store_assets["DONE<br/>Store ZIP + public privacy policy"]:::done
     m_store_listing["NEXT<br/>Chrome Web Store submission — pinned priority"]:::next
+    m_review_demo["NEXT<br/>Local mock LMS for reviewer testing"]:::next
   end
   subgraph p_web["Deferred / Hosted course-data access"]
     direction LR
@@ -85,6 +87,8 @@ flowchart TB
   m_installer -.-> m_claude
   m_catalog --> m_catalog_sync
   m_retrieval --> m_catalog_sync
+  m_encrypted_storage --> m_store_listing
+  m_review_demo --> m_store_listing
   classDef done fill:#e8f5ee,stroke:#319465,color:#164b33,stroke-width:1.5px;
   classDef in_progress fill:#e0f2fe,stroke:#0284c7,color:#075985,stroke-width:2px;
   classDef next fill:#ede9fe,stroke:#7c3aed,color:#4c1d95,stroke-width:3px;
@@ -331,6 +335,21 @@ Evidence:
 
 - Requested by the user and explicitly deferred; finish the sync-ring polish and return to Chrome Web Store publishing first.
 
+### Encrypted storage + explicit document handoff - DONE
+
+Protect persistent companion and browser data with Windows-protected keys; return MCP bytes by default and gate temporary plaintext exports separately.
+
+Acceptance:
+
+- Verified migration preserves catalogs, original document bytes, pairing and pending requests.
+- No plaintext path or persistent browser bearer/key is produced by normal retrieval.
+- Packaged-runtime and installed-upgrade checks pass; live client acceptance is recorded separately.
+
+Evidence:
+
+- 128 source tests pass, including native key protection, corruption/key-loss/access-error preservation, origin-bound browser unlocking, port-before-migration startup and export revocation.
+- The encrypted Windows runtime and isolated 0.9.1-to-0.9.2 migration/upgrade pass; exact final artifact verification is recorded in store/RELEASE-0.9.2.md. The user’s actual cache and installed app are untouched; live acceptance remains separate.
+
 ## 03 / Desktop beta and distribution
 
 ### Small NYU student pilot - PLANNED
@@ -392,8 +411,23 @@ Evidence:
 - The ZIP, icons, publisher/support details, privacy URL and listing drafts are ready.
 - Developer registration confirmed and screenshots prepared. Final live acceptance, dashboard draft and review remain pending; no institutional reviewer account has been arranged.
 - Pinned by the user on November 4, 2026. Finish release essentials before adding optional installation, Claude, tray or indexing features. See docs/RELEASE-CHECKLIST.md.
+- Draft created: iadmhandkbomngnaplppiopojmfkcodi. Store fields are being completed; encrypted-storage acceptance and a reproducible reviewer demo remain before submission.
 
-Prerequisites: Store ZIP + public privacy policy.
+Prerequisites: Store ZIP + public privacy policy; Encrypted storage + explicit document handoff; Local mock LMS for reviewer testing.
+
+### Local mock LMS for reviewer testing - NEXT
+
+Serve fictional semester/course/module metadata and sample PDF/PPTX/DOCX files from the companion; exercise the production parsing, sync and MCP pipeline through a clearly labelled demo source.
+
+Acceptance:
+
+- Reviewers can sync, search, download, resync and retrieve sample documents without NYU credentials.
+- Demo and NYU catalog/cache identities remain separate, with fixed source validation.
+- Instructions state that demo testing does not verify real NYU authentication.
+
+Evidence:
+
+- Design agreed November 5: a local mock website can reuse the existing localhost permission. Implementation is deferred until encrypted storage acceptance finishes.
 
 ## Deferred / Hosted course-data access
 

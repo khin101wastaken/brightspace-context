@@ -2,7 +2,17 @@
 
 Updated November 5, 2026. Objective: submit an unlisted local Windows/NYU pilot. The extension has not been uploaded, reviewed or approved.
 
-## Submission candidate: v0.9.1
+## Current replacement candidate: v0.9.2
+
+The existing Chrome draft is iadmhandkbomngnaplppiopojmfkcodi and still contains v0.9.1. Replace its package after encrypted-storage live acceptance and the planned mock-LMS demo are ready; do not create another store item.
+
+- [x] 128 source tests pass for authenticated storage, preserved migration, session-only browser keys and explicit temporary exports.
+- [x] The 32-entry v0.9.2 ZIP and matching Windows candidate are built with byte-identical browser/server payloads.
+- [x] Final packaged-runtime checks pass; isolated 0.9.1-to-v0.9.2 upgrade/migration checks pass (see the release record).
+- [ ] Live browser restart/unlock and actual desktop-client resource/export reading acceptance.
+- [ ] Local mock-LMS reviewer demo.
+
+## Previous frozen submission candidate: v0.9.1
 
 - [x] 115 source tests and syntax checks pass.
 - [x] Final 31-entry ZIP validates, with root manifest, local code, licenses and icons only.
@@ -14,6 +24,7 @@ Updated November 5, 2026. Objective: submit an unlisted local Windows/NYU pilot.
 - [x] Freeze source checkpoint and artifact hashes; see `store/RELEASE-0.9.1.md` and the local release record.
 - [x] Publish matching preview installer, updated privacy policy, setup guide and supplementary reviewer walkthrough.
 - [ ] Complete standalone Chrome/NYU acceptance, including [MCP catalog sync](MCP-CATALOG-SYNC.md) with Resources closed and an original uncached document read by the actual host.
+- [x] Implement protected persistent storage in v0.9.2. Normal MCP reads create no plaintext path; separately enabled exports are explicitly unencrypted. Legacy/offline migration and host-managed copies are disclosed. See ENCRYPTED-STORAGE.md; store acceptance remains Google’s decision.
 - [ ] Check the extracted final ZIP with a fresh Chrome profile: first pairing, semester hierarchy/notes, search, download, retrieval, cache hit and restart. Verify real host PPTX/DOCX reading before advertising tested client compatibility; original-byte transport is already covered automatically.
 - [ ] Upload ZIP as a draft; complete listing, privacy, test instructions and Unlisted distribution.
 - [ ] Submit for review, preferably with automatic publishing disabled for the initial pilot; record item ID and review outcome.

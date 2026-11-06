@@ -20,6 +20,7 @@ flowchart TB
     m_mcp_install["PLANNED<br/>Simpler ChatGPT MCP installation"]:::planned
     m_file_readers["PLANNED<br/>Real client file-reading checks"]:::planned
     m_terminal_readability["PLANNED<br/>Readable companion terminal output"]:::planned
+    m_encrypted_storage["DONE<br/>Encrypted storage + explicit document handoff"]:::done
   end
   subgraph p_release["03 / Desktop beta and distribution"]
     direction LR
@@ -27,6 +28,7 @@ flowchart TB
     m_desktop_release["IN PROGRESS<br/>Accessible desktop release"]:::in_progress
     m_store_assets["DONE<br/>Store ZIP + public privacy policy"]:::done
     m_store_listing["NEXT<br/>Chrome Web Store submission — pinned priority"]:::next
+    m_review_demo["NEXT<br/>Local mock LMS for reviewer testing"]:::next
   end
   subgraph p_web["Deferred / Hosted course-data access"]
     direction LR
@@ -74,6 +76,8 @@ flowchart TB
   m_installer -.-> m_claude
   m_catalog --> m_catalog_sync
   m_retrieval --> m_catalog_sync
+  m_encrypted_storage --> m_store_listing
+  m_review_demo --> m_store_listing
   classDef done fill:#e8f5ee,stroke:#319465,color:#164b33,stroke-width:1.5px;
   classDef in_progress fill:#e0f2fe,stroke:#0284c7,color:#075985,stroke-width:2px;
   classDef next fill:#ede9fe,stroke:#7c3aed,color:#4c1d95,stroke-width:3px;

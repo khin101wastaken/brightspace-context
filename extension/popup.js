@@ -1,3 +1,4 @@
+import {privateStorage} from './private-storage.js';
 import {wireProductLinks} from './product-links.js';
 wireProductLinks(document);
 const $=id=>document.getElementById(id);
@@ -34,8 +35,9 @@ async function refresh() {
   const attempt=++refreshAttempt;
   $('companion-refresh').disabled=true;
   try {
-    const saved=await chrome.storage.local.get(['companionPairing','automaticRetrieval','retrievalStatus']);
-    paired=!!saved.companionPairing?.token;enabled=saved.automaticRetrieval!==false;requestStatus=saved.retrievalStatus;
+    const saved=await privateStorage.get(['companionPairing','automaticRetrieval','retrievalStatus']);
+    $('storage-status').textContent=(await privateStorage.get('storageProtection')).storageProtection.message;
+    paired=!!saved.companionPairing;enabled=saved.automaticRetrieval!==false;requestStatus=saved.retrievalStatus;
     const result=await chrome.runtime.sendMessage({type:'companion-status'});
     if(attempt!==refreshAttempt) return;
     if(!result?.ok || !result.connected) throw Object.assign(new Error(result?.error || 'Companion is not paired.'),{code:result?.code});
@@ -74,6 +76,10 @@ $('pair-form').addEventListener('submit',async event=>{
   finally {$('pair-button').disabled=false;}
 });
 $('automatic-retrieval').addEventListener('change',async()=>{try {await setRetrieval($('automatic-retrieval').checked);} catch(error) {$('automatic-retrieval').checked=enabled;$('companion-status').textContent=error.message;}});
+$('temporary-exports').addEventListener('change',async()=>{
+  try {const result=await chrome.runtime.sendMessage({type:'export-settings',enabled:$('temporary-exports').checked});if(!result?.ok)throw new Error(result?.error || 'Unable to change exports.');}
+  catch(error){$('temporary-exports').checked=!$('temporary-exports').checked;$('companion-status').textContent=error.message;}
+});
 $('pause-retrieval').addEventListener('click',async()=>{try {await setRetrieval(!enabled);} catch(error) {feedback(error.message);}});
 $('retry-requests').addEventListener('click',async()=>{
   $('retry-requests').disabled=true;
@@ -87,12 +93,12 @@ $('browse-resources').addEventListener('click',async()=>{
   const url=chrome.runtime.getURL('resources.html')+(isBrightspace?`?sourceTabId=${source.id}`:'');
   await chrome.tabs.create({url});
 });
-chrome.storage.onChanged.addListener((changes,area)=>{
+privateStorage.onChanged.addListener((changes,area)=>{
   if(area!=='local') return;
   if(changes.retrievalStatus) {requestStatus=changes.retrievalStatus.newValue;renderRequest();}
   if(changes.companionPairing || changes.automaticRetrieval || changes.retrievalStatus?.newValue?.state==='connected') void refresh();
 });
-const saved=await chrome.storage.local.get(null);
+const saved=await privateStorage.get(null).catch(error=>{feedback(error.message);return {};});
 const semesters=Object.entries(saved).filter(([key])=>key.startsWith('semester:')).map(([,value])=>value).sort((a,b)=>Date.parse(b.updatedAt)-Date.parse(a.updatedAt));
 if(semesters.length) $('resource-summary').textContent=`${semesters[0].title} · ${semesters[0].courses.length} courses`;
 await refresh();

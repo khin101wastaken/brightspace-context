@@ -1,12 +1,16 @@
+import {createPrivateStorage} from './private-storage.js';
 import {downloadPlan,preflightFile,downloadState} from './file-downloads.js';
-import {pairCompanion,companionStatus,cacheDocument,syncCatalog,retryLoginRequests} from './companion-client.js';
+import {pairCompanion,companionStatus,cacheDocument,syncCatalog,retryLoginRequests,setCompanionSettings} from './companion-client.js';
 import {scanSemester} from './semester.js';
 import {listBrightspaceSemesters,listSemesterCourses,readCourseOutline} from './brightspace-client.js';
 import {createRetrievalWorker} from './retrieval-worker.js';
 
+const privateStorage=createPrivateStorage({local:chrome.storage.local,session:chrome.storage.session,changed:chrome.storage.onChanged});
+// Injected download fallbacks need no access to persistent extension data.
+void chrome.storage.local.setAccessLevel?.({accessLevel:'TRUSTED_CONTEXTS'});
 let retrievalWorker=null;
 async function retrievalSettings() {
-  const settings=await chrome.storage.local.get(['companionPairing','automaticRetrieval']);
+  const settings=await privateStorage.get(['companionPairing','automaticRetrieval']);
   return {token:settings.companionPairing?.token,enabled:settings.automaticRetrieval!==false};
 }
 async function refreshRetrieval() {
@@ -14,12 +18,12 @@ async function refreshRetrieval() {
   retrievalWorker.stop();
   const settings=await retrievalSettings();
   if(settings.enabled && settings.token) await retrievalWorker.connect();
-  else await chrome.storage.local.set({retrievalStatus:{state:'paused',message:settings.enabled?'Pair the companion to enable retrieval.':'Automatic retrieval paused.'}});
+  else await privateStorage.set({retrievalStatus:{state:'paused',message:settings.enabled?'Pair the companion to enable retrieval.':'Automatic retrieval paused.'}});
 }
 // The socket delivers requests immediately; an alarm reconnects a suspended
 // worker or a companion that was restarted while Chrome remained open.
 if(chrome.alarms?.onAlarm && chrome.runtime.onStartup) {
-  retrievalWorker=createRetrievalWorker({getSettings:retrievalSettings,report:value=>chrome.storage.local.set({retrievalStatus:value}),syncCatalogRequest:async(sync,{onProgress,assertActive})=>{
+  retrievalWorker=createRetrievalWorker({getSettings:retrievalSettings,report:value=>privateStorage.set({retrievalStatus:value}),syncCatalogRequest:async(sync,{onProgress,assertActive})=>{
     if(!sync.semesterId) {await onProgress({phase:'discovering'});return availableSemesters(async(url,options)=>{await assertActive();return fetch(url,options);});}
     return syncSemester(sync,{remote:true,onProgress,assertActive});
   }});
@@ -32,7 +36,7 @@ if(chrome.alarms?.onAlarm && chrome.runtime.onStartup) {
 
 async function availableSemesters(fetcher=fetch) {
   const semesters=await listBrightspaceSemesters(fetcher);
-  await chrome.storage.local.set({availableSemesters:semesters});return {semesters};
+  await privateStorage.set({availableSemesters:semesters});return {semesters};
 }
 let semesterTask=null,semesterTaskId=null,semesterTaskRemote=false;
 async function syncSemester(message,{remote=false,onProgress=async()=>{},assertActive=async()=>{}}={}) {
@@ -42,7 +46,7 @@ async function syncSemester(message,{remote=false,onProgress=async()=>{},assertA
   const task=(async()=>{
     const fetcher=async(url,options)=>{await assertActive();return fetch(url,options);};
     let progress={state:'running',semesterId:message.semesterId,phase:'loading',startedAt:Date.now()};
-    const writeSync=async value=>{progress={...progress,...value};await chrome.storage.local.set({semesterSync:progress});};
+    const writeSync=async value=>{progress={...progress,...value};await privateStorage.set({semesterSync:progress});};
     await writeSync({message:'Loading the selected semester from Brightspace…'});
     try {
       await onProgress({phase:'discovering'});
@@ -55,7 +59,7 @@ async function syncSemester(message,{remote=false,onProgress=async()=>{},assertA
       const semester={...selected,courses};
       const snapshot=await scanSemester(semester,{
         readOutline:courseId=>readCourseOutline(courseId,fetcher),
-        saveCourse:catalog=>chrome.storage.local.set({[`course:${catalog.courseId}`]:catalog}),
+        saveCourse:catalog=>privateStorage.set({[`course:${catalog.courseId}`]:catalog}),
         onProgress:async update=>{
           const synced=update.courses.filter(course=>course.state==='complete').length;
           await writeSync({...update,phase:'scanning',message:update.title?`${semester.title}: syncing ${update.title}`:`${semester.title}: ${synced}/${update.total} course outlines synced`});
@@ -63,7 +67,7 @@ async function syncSemester(message,{remote=false,onProgress=async()=>{},assertA
         },
       });
       const summary={...snapshot,courses:snapshot.courses.map(({entries,...course})=>({...course,entryCount:entries?.length??null}))};
-      await chrome.storage.local.set({[`semester:${semester.semesterId}`]:summary});
+      await privateStorage.set({[`semester:${semester.semesterId}`]:summary});
       await writeSync({phase:'saving',message:`${semester.title}: saving catalog to companion…`});
       await onProgress({phase:'saving',completed:snapshot.courses.length,total:snapshot.courses.length});
       if(remote) {
@@ -72,7 +76,7 @@ async function syncSemester(message,{remote=false,onProgress=async()=>{},assertA
         await writeSync({state:code?'failed':'complete',phase:'finished',message:`${snapshot.title}: ${snapshot.courses.length-failed.length}/${snapshot.courses.length} course outlines scanned. No files downloaded.`,finishedAt:Date.now()});
         return {snapshot,...(code?{code}:{})};
       }
-      const pairing=(await chrome.storage.local.get('companionPairing')).companionPairing;
+      const pairing=(await privateStorage.get('companionPairing')).companionPairing;
       const complete=snapshot.courses.filter(c=>c.status==='complete').length;
       let transfer;
       try {
@@ -93,7 +97,7 @@ async function syncSemester(message,{remote=false,onProgress=async()=>{},assertA
 }
 async function sendSavedCatalog() {
   if(semesterTask) throw new Error('Wait for the semester scan to finish.');
-  const values=await chrome.storage.local.get(null),token=values.companionPairing?.token;
+  const values=await privateStorage.get(null),token=values.companionPairing?.token;
   if(!token) throw new Error('Pair the local companion first.');
   let count=0;
   for(const [key,semester] of Object.entries(values)) if(key.startsWith('semester:')) {
@@ -106,28 +110,34 @@ async function sendSavedCatalog() {
 
 const cacheRequests=new Map();
 async function companionMessage(message) {
-  const pairing=(await chrome.storage.local.get('companionPairing')).companionPairing;
   if(message.type==='disconnect-companion') {
     retrievalWorker?.stop();
-    await chrome.storage.local.remove('companionPairing');
-    await chrome.storage.local.set({retrievalStatus:{state:'unpaired',message:'Pair this browser to enable retrieval.'}});
+    await privateStorage.remove('companionPairing');
+    await privateStorage.set({retrievalStatus:{state:'unpaired',message:'Pair this browser to enable retrieval.'}});
     return {connected:false};
   }
   if(message.type==='pair-companion') {
     const result=await pairCompanion(message.code);
-    await chrome.storage.local.set({companionPairing:{token:result.token}});
+    await privateStorage.pair(result);
     await refreshRetrieval();
-    const {token,...stats}=result;return stats;
+    const {token,credential,storageKey,...stats}=result;return stats;
   }
+  const pairing=(await privateStorage.get('companionPairing')).companionPairing;
   if(message.type==='retrieval-settings') {
     if(typeof message.enabled!=='boolean') throw new Error('Invalid retrieval setting.');
-    await chrome.storage.local.set({automaticRetrieval:message.enabled});await refreshRetrieval();return {enabled:message.enabled};
+    await privateStorage.set({automaticRetrieval:message.enabled});await refreshRetrieval();return {enabled:message.enabled};
   }
   if(message.type==='retry-requests') {
     if(!pairing?.token) throw new Error('Pair the companion first.');
     const result=await retryLoginRequests(pairing.token);await refreshRetrieval();return result;
   }
+  if(message.type==='export-settings') {
+    if(!pairing?.token)throw new Error('Start and pair the updated companion first.');
+    if(typeof message.enabled!=='boolean')throw new Error('Invalid export setting.');
+    return setCompanionSettings({allowTemporaryExports:message.enabled},pairing.token);
+  }
   if(message.type==='companion-status') {
+    await privateStorage.ensureSession();
     if(!pairing?.token) return {connected:false,error:'Start the companion, then enter its pairing code.'};
     const result=await companionStatus(pairing.token);
     if(retrievalWorker && !result.workerConnected) retrievalWorker.connect().catch(()=>{});
@@ -138,7 +148,7 @@ async function companionMessage(message) {
   const requestKey=`cache:${courseId}:${key}`;
   if(cacheRequests.has(requestKey)) return cacheRequests.get(requestKey);
   const task=(async()=>{
-    const catalog=(await chrome.storage.local.get(`course:${courseId}`))[`course:${courseId}`];
+    const catalog=(await privateStorage.get(`course:${courseId}`))[`course:${courseId}`];
     const update=record=>chrome.storage.session.set({[requestKey]:record});
     await update({state:'pending',message:'Checking local cache…'});
     let phaseWrites=Promise.resolve();
@@ -166,7 +176,7 @@ async function reconcile(id) {
 async function downloadFile(message) {
   const {courseId,key}=message;
   if(!/^\d+$/.test(String(courseId)) || typeof key!=='string') throw new Error('Invalid download selection.');
-  const catalog=(await chrome.storage.local.get(`course:${courseId}`))[`course:${courseId}`];
+  const catalog=(await privateStorage.get(`course:${courseId}`))[`course:${courseId}`];
   const plan=downloadPlan(catalog,key);
   const saveAs=message.saveAs===true;
   // Explicit alternative: let the user choose a location without nested-folder
@@ -198,7 +208,7 @@ async function downloadFile(message) {
 
 chrome.runtime.onMessage.addListener((message,sender,respond)=>{
   const page=sender.url?.split(/[?#]/)[0];
-  if(sender.id!==chrome.runtime.id || !['popup.html','resources.html'].some(name=>page===chrome.runtime.getURL(name)) || !['download-file','pair-companion','disconnect-companion','companion-status','cache-file','sync-semester','list-semesters','send-catalog','retrieval-settings','retry-requests'].includes(message?.type)) return;
+  if(sender.id!==chrome.runtime.id || !['popup.html','resources.html'].some(name=>page===chrome.runtime.getURL(name)) || !['export-settings','download-file','pair-companion','disconnect-companion','companion-status','cache-file','sync-semester','list-semesters','send-catalog','retrieval-settings','retry-requests'].includes(message?.type)) return;
   (message.type==='list-semesters'?availableSemesters():message.type==='sync-semester'?syncSemester(message):message.type==='send-catalog'?sendSavedCatalog():message.type==='download-file'?downloadFile(message):companionMessage(message)).then(result=>respond({ok:true,...result})).catch(error=>respond({ok:false,error:error.message,code:error.code || (error.status===401?'PAIRING_REQUIRED':null)}));
   return true;
 });

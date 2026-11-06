@@ -1,4 +1,4 @@
-import {writeFile,rename,unlink} from 'node:fs/promises';
+import {open,rename,unlink} from 'node:fs/promises';
 import {randomUUID} from 'node:crypto';
 import {setTimeout as delay} from 'node:timers/promises';
 
@@ -14,6 +14,10 @@ export async function replaceFile(source,destination) {
 }
 export async function atomicWrite(filename,contents,options) {
   const temporary=`${filename}.${randomUUID()}.tmp`;
-  try {await writeFile(temporary,contents,options);await replaceFile(temporary,filename);}
+  try {
+    const handle=await open(temporary,'wx',options?.mode??0o600);
+    try {await handle.writeFile(contents,options);await handle.sync();}finally{await handle.close();}
+    await replaceFile(temporary,filename);
+  }
   finally {await unlink(temporary).catch(()=>{});}
 }

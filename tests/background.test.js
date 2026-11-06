@@ -1,3 +1,4 @@
+import {storageHarness} from './storage-fixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -22,6 +23,7 @@ test('background download validates the selected catalog file and tracks native 
       get:async key=>key?{[key]:session[key]}:{...session},set:async values=>Object.assign(session,values),remove:async keys=>(Array.isArray(keys)?keys:[keys]).forEach(key=>delete session[key]),
     }},
   };
+  chrome.storage=storageHarness({'course:100':catalog},{session}).storage;
   t.mock.method(globalThis,'fetch',async(url,options)=>{
     assert.equal(options.method,'HEAD');assert.equal(options.credentials,'include');assert.equal(url,source);
     return new Response('',{headers:{'content-type':'application/pdf'}});
@@ -81,6 +83,7 @@ test('Resources downloads preserve hashes and arbitrary file types, and HTML com
       items.set(id,{id,url:options.url,finalUrl:options.url,state:'in_progress',mime:entry.mime});return id;
     },search:async({id})=>[items.get(id)]},
   };
+  chrome.storage=storageHarness({'course:100':catalog},{session}).storage;
   t.mock.method(globalThis,'fetch',async(url,options)=>{
     const entry=entries.find(e=>e.title===decodeURIComponent(new URL(url).pathname.split('/').at(-1)));
     assert.ok(entry);assert.equal(options.credentials,'include');assert.equal(options.redirect,'error');
@@ -108,6 +111,7 @@ test('semester background sync uses the Resources selection without website tabs
     storage:{local:{get:async key=>key?{[key]:local[key]}:{...local},set:async values=>Object.assign(local,values)}},
     scripting:{executeScript:async()=>{throw new Error('Semester sync must not inject UI scripts');}},
   };
+  const store=storageHarness(local,{paired:true});chrome.storage=store.storage;
   t.mock.method(globalThis,'fetch',async(url,options)=>{
     if(url.startsWith('https://brightspace.nyu.edu/')) {
       assert.equal(options.credentials,'include');assert.equal(options.redirect,'error');
@@ -128,7 +132,7 @@ test('semester background sync uses the Resources selection without website tabs
     const [a,b,different]=await Promise.all([send({type:'sync-semester',semesterId:'5'}),send({type:'sync-semester',semesterId:'5'}),send({type:'sync-semester',semesterId:'6'})]);
     assert.equal(different.ok,false);assert.match(different.error,/Another semester/);
     assert.equal(a.ok,true,a.error);assert.equal(b.ok,true,b.error);assert.equal(discoveries,1);assert.deepEqual(outlines,['100','200']);
-    assert.equal(local.semesterSync.state,'saved');assert.equal(local['semester:5'].courses[0].entries,undefined);assert.deepEqual(local['course:200'].entries,[]);
+    const saved=await store.view.get(null);assert.equal(saved.semesterSync.state,'saved');assert.equal(saved['semester:5'].courses[0].entries,undefined);assert.deepEqual(saved['course:200'].entries,[]);assert.equal(local['course:200'].encryptedStorage,1);
     offline=false;assert.equal((await send({type:'send-catalog'})).ok,true);assert.deepEqual(outlines,['100','200']);
   } finally {delete globalThis.chrome;}
 });
@@ -137,11 +141,12 @@ test('disconnect forgets only browser pairing and resets retrieval status while 
   let listener;const removed=[];
   const local={companionPairing:{token:'test-token'},automaticRetrieval:false,'course:100':{courseId:'100',title:'Networks'},'semester:5':{semesterId:'5'},uiShowManualCache:true};
   globalThis.chrome={runtime:{id:'test',getURL:name=>`chrome-extension://test/${name}`,onMessage:{addListener:fn=>listener=fn}},downloads:{onChanged:{addListener:()=>{}}},storage:{local:{get:async key=>({[key]:local[key]}),set:async values=>Object.assign(local,values),remove:async key=>{removed.push(key);delete local[key];}}}};
+  const store=storageHarness(local,{paired:true});chrome.storage=store.storage;
   t.mock.method(globalThis,'fetch',async()=>assert.fail('Disconnect must not fetch or change companion data'));
   try {
     await import(`../extension/background.js?disconnect-test=${Date.now()}`);
     const result=await new Promise(resolve=>listener({type:'disconnect-companion'},{id:'test',url:'chrome-extension://test/popup.html'},resolve));
-    assert.equal(result.ok,true);assert.equal(result.connected,false);assert.deepEqual(removed,['companionPairing']);
-    assert.equal(local.retrievalStatus.state,'unpaired');assert.equal(local.automaticRetrieval,false);assert.equal(local['course:100'].title,'Networks');assert.equal(local['semester:5'].semesterId,'5');assert.equal(local.uiShowManualCache,true);
+    assert.equal(result.ok,true);assert.equal(result.connected,false);assert.equal(local.companionPairing,undefined);
+    assert.equal((await store.view.get('retrievalStatus')).retrievalStatus.state,'unpaired');assert.equal(local.automaticRetrieval,false);assert.equal(local['course:100'].title,'Networks');assert.equal(local['semester:5'].semesterId,'5');assert.equal(local.uiShowManualCache,true);
   } finally {delete globalThis.chrome;}
 });

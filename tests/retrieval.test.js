@@ -52,7 +52,7 @@ test('PPTX and DOCX traverse the real worker, cache and MCP with correct extensi
     const pending=await f.call('request_document',{courseId:'200',key:'document:20',waitSeconds:0});await f.worker.connect();
     let ready;
     for(let i=0;i<10;i++) {ready=await f.call('get_document_request',{requestId:pending.requestId,waitSeconds:1});if(ready.state==='ready') break;await new Promise(resolve=>setTimeout(resolve,30));}
-    assert.equal(ready.state,'ready');assert.equal(path.extname(ready.document.localPath),'.'+extension);assert.equal(ready.document.mimeType,f.format.mimeType);assert.deepEqual(await readFile(ready.document.localPath),f.fileBytes);
+    assert.equal(ready.state,'ready');assert.equal(ready.document.localPath,undefined);assert.equal(ready.document.extension,extension);assert.equal(ready.document.mimeType,f.format.mimeType);assert.deepEqual(Buffer.from((await f.client.readResource({uri:ready.document.uri})).contents[0].blob,'base64'),f.fileBytes);
     const repeated=await f.call('request_document',{courseId:'200',key:'document:20',waitSeconds:0});assert.equal(repeated.source,'cache');assert.equal(f.upstream(),1);
     const handoff=await f.client.callTool({name:'get_cached_document',arguments:{id:ready.document.id}});assert.equal(handoff.content[1].mimeType,f.format.mimeType);
     const resource=await f.client.readResource({uri:ready.document.uri});assert.equal(resource.contents[0].mimeType,f.format.mimeType);assert.deepEqual(Buffer.from(resource.contents[0].blob,'base64'),f.fileBytes);
@@ -75,7 +75,7 @@ test('MCP uncached request survives an offline extension, deduplicates, wakes th
   let ready;
   for(let attempt=0;attempt<10;attempt++) {ready=await f.call('get_document_request',{requestId:a.requestId,waitSeconds:1});if(ready.state==='ready') break;await new Promise(resolve=>setTimeout(resolve,30));}
   assert.equal(ready.state,'ready');assert.equal(ready.source,'brightspace');
-  assert.deepEqual(await readFile(ready.document.localPath),bytes);assert.equal(f.upstream(),1);
+  assert.equal(ready.document.localPath,undefined);assert.deepEqual(Buffer.from((await f.client.readResource({uri:ready.document.uri})).contents[0].blob,'base64'),bytes);assert.equal(f.upstream(),1);
   const repeated=await f.call('request_document',{courseId:'200',key:'document:20',waitSeconds:0});
   assert.equal(repeated.state,'ready');assert.equal(repeated.source,'cache');assert.equal(f.upstream(),1);
   assert.equal(JSON.stringify([a,b,ready,repeated]).includes(f.pairing.token),false);

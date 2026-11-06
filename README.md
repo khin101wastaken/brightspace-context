@@ -66,7 +66,7 @@ flowchart LR
 - **Catalog:** fixed NYU endpoints discover semesters, courses and recursive outlines. Descriptions already present are reused; missing module descriptions use the module metadata endpoint. Scanning does not expand webpage modules or bulk-download files.
 - **Retrieval:** MCP resolves one stable catalog key and queues a request. The paired Chrome worker fetches it through its browser session. Passwords and cookie values are not read or exported to the companion.
 - **Cache:** original PDF/PPTX/DOCX bytes, a 50 MiB per-file limit, a shared 500 MiB LRU budget, freshness checks and SHA-256 verification. PDF headers and bounded Office manifests are checked before accepting files.
-- **Handoff:** MCP returns the matching extension, MIME type, verified local path and resource link. No OCR, conversion or document-text indexing is performed. Module notes are available directly as source text.
+- **Handoff:** MCP returns original bytes through a resource link without creating a plaintext file by default. Clients requiring a path can use the explicitly enabled temporary-export feature. No OCR, conversion or document-text indexing is performed. Module notes are available directly as source text.
 
 The companion binds to `127.0.0.1:47653` and checks the paired extension origin and token. Browser pairing and desktop MCP registration are separate connections.
 
@@ -74,7 +74,9 @@ The companion binds to `127.0.0.1:47653` and checks the paired extension origin 
 
 Catalogs are stored in Chrome and the paired companion. The Windows cache defaults to `%USERPROFILE%/BrightspaceContext/cache`; source runs on Unix use `XDG_CACHE_HOME` or `~/.cache/brightspace-context`. `BRIGHTSPACE_CACHE_DIR` overrides the directory. `BRIGHTSPACE_COMPANION_PORT` overrides the service/MCP port when consistently configured.
 
-Files have no application-level encryption. The chosen AI client may receive metadata and requested files; its provider policies and settings apply. The static setup/privacy website hosts installers and instructions, not course data.
+The v0.9.2 source encrypts persistent companion data with AES-256-GCM and a Windows-account-protected key. Browser catalogs are encrypted; live credentials and keys use session memory. Windows key protection is currently required for the companion; other platforms fail closed. Existing data migrates on the first updated start, with verified copies before retiring plaintext originals. Unpaired browser catalogs last for the browser session. After a full browser restart, start the companion to unlock saved catalogs.
+
+Normal MCP retrieval creates no plaintext local path. Optional temporary exports are disabled by default, expire after 15 minutes and are removed on normal shutdown; a crash can leave them until the next start. User-requested Downloads remain separate ordinary files. The chosen AI client may receive metadata and requested files under its provider policies/settings. See [encrypted storage and handoff](docs/ENCRYPTED-STORAGE.md). The static setup/privacy website hosts installers and instructions, not course data. Live acceptance of this updated handoff remains pending.
 
 Browser disconnect, companion uninstall and stopping the service preserve data. To remove companion data, stop it and explicitly remove its cache directory. Remove the extension or clear its storage separately. See the [privacy policy](https://brightspace-context.khin101.chatgpt.site/) for details. Use synthetic data in issues and screenshots.
 

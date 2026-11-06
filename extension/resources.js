@@ -1,3 +1,4 @@
+import {privateStorage} from './private-storage.js';
 import { mergeCatalog } from './catalog.js';
 import {captureTarget,validateTarget} from './tab-context.js';
 import {flattenOutline,searchOutline} from './course-api.js';
@@ -68,7 +69,8 @@ async function activeCourse() {
   return validateTarget(chrome.tabs,target);
 }
 async function refreshSavedCourses() {
-  libraryValues=await chrome.storage.local.get(null);
+  libraryValues=await privateStorage.get(null);
+  $('storage-status').textContent=libraryValues.storageProtection.message;
   const savedSemesters=Object.entries(libraryValues).filter(([key])=>key.startsWith('semester:')).map(([,value])=>value);
   const all=new Map(savedSemesters.map(s=>[s.semesterId,s]));
   for(const semester of libraryValues.availableSemesters || []) if(!all.has(semester.semesterId)) all.set(semester.semesterId,{...semester,courses:[]});
@@ -109,7 +111,7 @@ function selectCourse(id,persist=true) {
   if(currentCatalog?.courseId!==id) $('search').value='';
   render(saved?{...saved,openFolders:libraryValues[`folders:${id}`] || []}:null);
   document.querySelectorAll('.course-item').forEach(button=>button.setAttribute('aria-current',String(button.dataset.courseId===id)));
-  if(persist && id) {libraryValues.resourcesSelection={semesterId:selectedSemester,courseId:id};chrome.storage.local.set({resourcesSelection:libraryValues.resourcesSelection}).catch(error=>status(error.message));}
+  if(persist && id) {libraryValues.resourcesSelection={semesterId:selectedSemester,courseId:id};privateStorage.set({resourcesSelection:libraryValues.resourcesSelection}).catch(error=>status(error.message));}
 }
 $('semester-select').addEventListener('change',()=>{selectedSemester=$('semester-select').value;currentCatalog=null;void refreshSavedCourses();});
 async function loadSemesters() {
@@ -176,7 +178,7 @@ function render(catalog) {
           if(!mounted || query) return;
           if(details.open) openFolders.add(e.key); else openFolders.delete(e.key);
           catalog.openFolders=[...openFolders];
-          chrome.storage.local.set({[foldersKey]:[...openFolders]}).catch(error=>status(error.message));
+          privateStorage.set({[foldersKey]:[...openFolders]}).catch(error=>status(error.message));
         });
         a.className='module-link'; a.textContent='Open module in Brightspace'; content.append(a);
         if(e.description) {
@@ -260,8 +262,9 @@ function render(catalog) {
   updateDownloadButtons();
   updateCacheButtons();
 }
-chrome.storage.onChanged.addListener((changes,area)=>{
+privateStorage.onChanged.addListener((changes,area)=>{
   if(area==='local') {
+    if(changes.storageProtection)refreshSavedCourses().catch(error=>status(error.message));
     for(const [key,change] of Object.entries(changes)) if(key.startsWith('folders:')) libraryValues[key]=change.newValue;
     if(changes.semesterSync?.newValue) {libraryValues.semesterSync=changes.semesterSync.newValue;syncStatus.render(changes.semesterSync.newValue);}
     if(Object.keys(changes).some(key=>key==='availableSemesters' || key.startsWith('semester:') || key.startsWith('course:'))) refreshSavedCourses().catch(error=>status(error.message));
@@ -279,7 +282,7 @@ $('companion-refresh').addEventListener('click',refreshCompanion);
 $('open-advanced').addEventListener('click',()=>{
   const open=$('advanced-panel').hidden;$('advanced-panel').hidden=!open;$('open-advanced').setAttribute('aria-expanded',String(open));
 });
-$('show-cache-controls').addEventListener('change',async()=>{showCacheControls=$('show-cache-controls').checked;await chrome.storage.local.set({uiShowManualCache:showCacheControls});if(currentCatalog) render(currentCatalog);});
+$('show-cache-controls').addEventListener('change',async()=>{showCacheControls=$('show-cache-controls').checked;await privateStorage.set({uiShowManualCache:showCacheControls});if(currentCatalog) render(currentCatalog);});
 async function action(fn) {
   if(busy) return; busy=true; $('scan').disabled=$('download').disabled=true;
   try {await startup; await fn();} catch(error) {status(error.message);} finally {busy=false; $('scan').disabled=$('download').disabled=false;}
@@ -289,11 +292,11 @@ $('scan').addEventListener('click',()=>action(async()=>{
   const entries=flattenOutline(await readCourseOutline(identity.courseId),identity.courseId);
   const latest=await activeCourse();
   const storageKey=`course:${identity.courseId}`;
-  const saved=(await chrome.storage.local.get(storageKey))[storageKey];
+  const saved=(await privateStorage.get(storageKey))[storageKey];
   const title=latest.tab.title?.replace(/^.*? - /,'') || saved?.title || `Course ${identity.courseId}`;
   const catalog=mergeCatalog(saved,{courseId:identity.courseId,title,entries,coverage:'full-toc'});
-  catalog.openFolders=(await chrome.storage.local.get(`folders:${identity.courseId}`))[`folders:${identity.courseId}`] || [];
-  await chrome.storage.local.set({[storageKey]:catalog}); render(catalog);
+  catalog.openFolders=(await privateStorage.get(`folders:${identity.courseId}`))[`folders:${identity.courseId}`] || [];
+  await privateStorage.set({[storageKey]:catalog}); render(catalog);
   const modules=entries.filter(e=>e.kind==='module').length;
   status(`Loaded ${modules} modules and ${entries.length-modules} topics. No page expansion or document downloads needed.`);
 }));
@@ -309,7 +312,7 @@ const startup=(async()=>{
   try {
     const target=await targetPromise;
     $('source').textContent=target?`Advanced scan source: ${target.title} · tab ${target.tabId}`:'No source tab for advanced per-course scans. Semester sync runs from this page.';
-    const settings=await chrome.storage.local.get('uiShowManualCache');showCacheControls=settings.uiShowManualCache===true;$('show-cache-controls').checked=showCacheControls;
+    const settings=await privateStorage.get('uiShowManualCache');showCacheControls=settings.uiShowManualCache===true;$('show-cache-controls').checked=showCacheControls;
     downloadRecords=await chrome.storage.session.get(null);
   } catch(error) {status(error.message);}
   await refreshSavedCourses();

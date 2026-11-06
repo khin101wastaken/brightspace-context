@@ -2,7 +2,7 @@
   "$schema": "./roadmap.schema.json",
   "schemaVersion": 1,
   "title": "Brightspace Context - Development Roadmap",
-  "scope": "Current submission candidate and public Windows preview: v0.9.1, NYU Brightspace and Chrome/Chromium. Semester catalogs, module landing text, bounded PDF/PPTX/DOCX caching and desktop MCP transport are implemented. PDF answers and module text have live evidence; Office transport has automated and packaged-runtime evidence, with real client reading still to verify. Pinned priority: finish the essential Chrome Web Store submission requirements and submit an unlisted pilot as soon as they are ready. Simpler MCP installation and a small student pilot follow; optional client/platform features must not delay submission. Operator-hosted course-data deployment is deferred.",
+  "scope": "Current encrypted-storage source candidate: v0.9.2; previous public Windows preview: v0.9.1, NYU Brightspace and Chrome/Chromium. Semester catalogs, module landing text, bounded PDF/PPTX/DOCX caching and desktop MCP transport are implemented. PDF answers and module text have live evidence; Office transport has automated and packaged-runtime evidence, with real client reading still to verify. Pinned priority: finish the essential Chrome Web Store submission requirements and submit an unlisted pilot as soon as they are ready. Simpler MCP installation and a small student pilot follow; optional client/platform features must not delay submission. Operator-hosted course-data deployment is deferred.",
   "phases": [
     {
       "id": "core",
@@ -365,7 +365,8 @@
       "evidence": [
         "The ZIP, icons, publisher/support details, privacy URL and listing drafts are ready.",
         "Developer registration confirmed and screenshots prepared. Final live acceptance, dashboard draft and review remain pending; no institutional reviewer account has been arranged.",
-        "Pinned by the user on November 4, 2026. Finish release essentials before adding optional installation, Claude, tray or indexing features. See docs/RELEASE-CHECKLIST.md."
+        "Pinned by the user on November 4, 2026. Finish release essentials before adding optional installation, Claude, tray or indexing features. See docs/RELEASE-CHECKLIST.md.",
+        "Draft created: iadmhandkbomngnaplppiopojmfkcodi. Store fields are being completed; encrypted-storage acceptance and a reproducible reviewer demo remain before submission."
       ]
     },
     {
@@ -395,6 +396,37 @@
       ],
       "evidence": [
         "Requested by the user and explicitly deferred; finish the sync-ring polish and return to Chrome Web Store publishing first."
+      ]
+    },
+    {
+      "id": "encrypted_storage",
+      "phase": "readiness",
+      "title": "Encrypted storage + explicit document handoff",
+      "status": "done",
+      "deliverable": "Protect persistent companion and browser data with Windows-protected keys; return MCP bytes by default and gate temporary plaintext exports separately.",
+      "acceptance": [
+        "Verified migration preserves catalogs, original document bytes, pairing and pending requests.",
+        "No plaintext path or persistent browser bearer/key is produced by normal retrieval.",
+        "Packaged-runtime and installed-upgrade checks pass; live client acceptance is recorded separately."
+      ],
+      "evidence": [
+        "128 source tests pass, including native key protection, corruption/key-loss/access-error preservation, origin-bound browser unlocking, port-before-migration startup and export revocation.",
+        "The encrypted Windows runtime and isolated 0.9.1-to-0.9.2 migration/upgrade pass; exact final artifact verification is recorded in store/RELEASE-0.9.2.md. The user’s actual cache and installed app are untouched; live acceptance remains separate."
+      ]
+    },
+    {
+      "id": "review_demo",
+      "phase": "release",
+      "title": "Local mock LMS for reviewer testing",
+      "status": "next",
+      "deliverable": "Serve fictional semester/course/module metadata and sample PDF/PPTX/DOCX files from the companion; exercise the production parsing, sync and MCP pipeline through a clearly labelled demo source.",
+      "acceptance": [
+        "Reviewers can sync, search, download, resync and retrieve sample documents without NYU credentials.",
+        "Demo and NYU catalog/cache identities remain separate, with fixed source validation.",
+        "Instructions state that demo testing does not verify real NYU authentication."
+      ],
+      "evidence": [
+        "Design agreed November 5: a local mock website can reuse the existing localhost permission. Implementation is deferred until encrypted storage acceptance finishes."
       ]
     }
   ],
@@ -560,6 +592,16 @@
     {
       "from": "retrieval",
       "to": "catalog_sync",
+      "kind": "requires"
+    },
+    {
+      "from": "encrypted_storage",
+      "to": "store_listing",
+      "kind": "requires"
+    },
+    {
+      "from": "review_demo",
+      "to": "store_listing",
       "kind": "requires"
     }
   ]

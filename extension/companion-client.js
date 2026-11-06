@@ -13,6 +13,8 @@ export async function pairCompanion(code,fetcher=fetch) {
   if(typeof code!=='string' || !/^[a-f0-9]{10}$/i.test(code.trim())) throw new Error('Enter the 10-character pairing code printed by the companion.');
   return request('/v1/pair',{method:'POST',body:JSON.stringify({code:code.trim()}),headers:{'Content-Type':'application/json'}},fetcher);
 }
+export const resumeCompanion=(pairing,fetcher=fetch)=>request('/v1/session',{token:pairing?.token,method:'POST',body:JSON.stringify(pairing?.credential?{credential:pairing.credential}:{}),headers:{'Content-Type':'application/json'},timeoutMs:5000},fetcher);
+export const setCompanionSettings=(value,token,fetcher=fetch)=>request('/v1/settings',{token,method:'POST',body:JSON.stringify(value),headers:{'Content-Type':'application/json'}},fetcher);
 // A privileged extension GET may omit Origin. POST keeps the companion's
 // existing origin + token checks without treating a healthy process as offline.
 export const companionStatus=(token,fetcher=fetch,{timeoutMs=5000}={})=>request('/v1/status',{token,method:'POST',body:'{}',headers:{'Content-Type':'application/json'},timeoutMs},fetcher);
