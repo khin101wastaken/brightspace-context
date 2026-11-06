@@ -37,4 +37,4 @@ Logs go to the terminal only, without a persistent log file or upload. The STDIO
 
 ## Release status
 
-The concise-output change is implemented and tested in source for the next companion installer. Previously frozen/public v0.9.3 installers and the Chrome submission ZIP are unchanged. No extension reload or Chrome package replacement is needed for this companion-only change once it is shipped. Starting an already installed older companion will keep its older logging behavior until that app is updated.
+The concise-output change ships in companion 0.9.4. The Chrome extension remains 0.9.3, and the previously frozen v0.9.3 installer/checksum remain available. No extension reload or Chrome package replacement is needed for this companion-only change once it is shipped. Starting an already installed older companion will keep its older logging behavior until that app is updated.

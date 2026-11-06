@@ -23,6 +23,8 @@ export async function verifyPayload(payload) {
     assert.equal(createHash('sha256').update(bytes).digest('hex'),entry.sha256,`Payload changed: ${entry.path}`);
   }
   for(const required of ['runtime/node.exe','runtime/LICENSE','app/companion/start.js','app/mcp/start.js','app/extension/manifest.json','SETUP.html','Start Companion.cmd']) assert.ok(seen.has(required),`Missing ${required}`);
+  const extension=JSON.parse(await readFile(path.join(payload,'app/extension/manifest.json'),'utf8'));
+  assert.equal(manifest.extensionVersion??manifest.version,extension.version,'payload records the actual bundled extension version');
   const guide=await readFile(path.join(payload,'SETUP.html'),'utf8'),script=guide.match(/<script>([\s\S]*?)<\/script>/)?.[1];
   assert.ok(script,'setup guide script exists');
   assert.ok(guide.includes(`'sha256-${createHash('sha256').update(script).digest('base64')}'`),'setup guide CSP permits exactly its inline script');
@@ -74,6 +76,7 @@ export async function smokeWindows(payload) {
   let companion,client;
   try {
     companion=await startCompanion(node,payload,directory,0,true);
+    if(manifest.extensionVersion)await companion.waitForOutput(new RegExp('Brightspace Context companion '+manifest.version.replaceAll('.','\\.')));
     const origin=`chrome-extension://${'a'.repeat(32)}`;
     const request=async(endpoint,body,method='POST',token)=>{
       const response=await fetch(companion.url+endpoint,{method,headers:{Origin:origin,...(token?{Authorization:`Bearer ${token}`}:{})},...(body!==undefined?{body:Buffer.isBuffer(body)?body:JSON.stringify(body)}:{})});
