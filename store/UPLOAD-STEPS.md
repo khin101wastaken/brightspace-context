@@ -1,3 +1,5 @@
+Current replacement instructions: see [UPDATE-0.9.3.md](UPDATE-0.9.3.md). The existing draft already exists; use its package-update action after final live acceptance. The first-upload notes below are historical.
+
 # First Chrome Web Store upload: v0.9.1
 
 The upload ZIP and all listing assets are grouped locally in `dist/chrome-web-store-0.9.1/`. Uploading a ZIP creates an editable item; it does not publish it.

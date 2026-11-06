@@ -49,3 +49,6 @@ This website serves static privacy/setup information and companion installer dow
 ## Contact and changes
 
 For questions or data-handling concerns, contact khinaungwrk@gmail.com. This policy will be updated if storage, transmission or distribution behavior changes. This product is independent of NYU and D2L.
+
+
+The optional local demo serves only packaged fictional courses and original sample files on your computer. Demo catalogs and cache data are separate from the real NYU library and use the same encrypted storage treatment. The public review guide does not host your local demo server or real course data.

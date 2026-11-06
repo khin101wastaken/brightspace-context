@@ -26,3 +26,5 @@ Version 0.9.2 implements encrypted companion storage with a Windows-account-prot
 
 - https://developer.chrome.com/docs/webstore/cws-dashboard-privacy
 - https://developer.chrome.com/docs/webstore/program-policies/user-data-faq
+
+The local demo uses only packaged fictional courses and original sample files. It has separate encrypted catalog/cache/request storage and does not change the real NYU data flow or add permissions. Demo-page scripts execute in that separate local website, not as remote extension code.

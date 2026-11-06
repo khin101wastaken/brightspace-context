@@ -36,8 +36,9 @@ export async function createCompanion({directory,port=47653,budgetBytes,pairingC
       if(url.pathname==='/demo' || url.pathname.startsWith('/demo/')) {
         route='demo';return await demoLms.handle(req,res,url,expectedHost);
       }
-      const provider=url.searchParams.get('source')??'nyu';
-      if(!['nyu','demo'].includes(provider))return send(res,400,{error:'Unknown library source.'});
+      const provider=url.pathname.startsWith('/demo-api/v1/')?'demo':'nyu';
+      if(url.searchParams.has('source'))return send(res,400,{error:'Use the explicit demo API namespace.'});
+      if(provider==='demo')url.pathname=url.pathname.slice('/demo-api'.length);
       const scope=provider==='demo'?demo:{cache,catalog,requests,exports,tickets};
       return await handleApi(scope,provider,url);
       async function handleApi({cache,catalog,requests,exports,tickets},provider,url) {

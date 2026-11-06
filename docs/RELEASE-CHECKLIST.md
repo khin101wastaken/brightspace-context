@@ -1,17 +1,22 @@
 # Pinned priority: Chrome Web Store submission
 
-Updated November 5, 2026. Objective: submit an unlisted local Windows/NYU pilot. The extension has not been uploaded, reviewed or approved.
+Updated November 6, 2026. Objective: submit an unlisted local Windows/NYU pilot. The existing item is a draft; no review or approval is claimed.
 
-## Current replacement candidate: v0.9.2
+## Current replacement candidate: v0.9.3
 
-The existing Chrome draft is iadmhandkbomngnaplppiopojmfkcodi and still contains v0.9.1. Replace its package after encrypted-storage live acceptance and the planned mock-LMS demo are ready; do not create another store item.
+The existing draft `iadmhandkbomngnaplppiopojmfkcodi` still contains v0.9.1. Replace its package with v0.9.3 after the final live acceptance below; do not create another store item. See `store/UPDATE-0.9.3.md` and `docs/DEMO-LMS.md`.
 
-- [x] 128 source tests pass for authenticated storage, preserved migration, session-only browser keys and explicit temporary exports.
-- [x] The 32-entry v0.9.2 ZIP and matching Windows candidate are built with byte-identical browser/server payloads.
-- [x] Final packaged-runtime checks pass; isolated 0.9.1-to-v0.9.2 upgrade/migration checks pass (see the release record).
-- [x] Matching v0.9.2 installer, setup and privacy documentation published; public installer hash matches the tested artifact.
-- [ ] Live browser restart/unlock and actual desktop-client resource/export reading acceptance.
-- [ ] Local mock-LMS reviewer demo.
+- [x] 130 source tests pass, including the real demo HTTP/background/MCP workflow; focused final namespace-collision, cached-offline and MCP checks pass.
+- [x] The 34-entry extension ZIP validates without new permissions or remote executable extension code.
+- [x] Local fictional LMS, original PDF/PPTX/DOCX files, nested modules, module notes, resync mutation and simulated access expiry are implemented.
+- [x] Demo browser data, encrypted companion vault/cache/queue and MCP resource URIs are isolated from NYU, including identical numeric document IDs.
+- [ ] Matching Windows build, final packaged-runtime smoke, isolated 0.9.2-to-0.9.3 upgrade and source/ZIP/payload hash record.
+- [ ] Matching public installer/setup and working-demo review guide published.
+- [ ] Standalone Chrome acceptance with the final package: demo pairing/sync/download/uncached retrieval/cache hit/restart; switch to NYU and confirm the real library remains available.
+- [ ] Actual desktop-host reading of the original sample files through MCP resource bytes or explicit opt-in export; do not claim host ingestion from transport tests alone.
+- [ ] Replace ZIP in the existing draft; use `store/reviewer-instructions-500.txt` for the Test instructions field and leave NYU credentials blank. Save draft, review remaining dashboard warnings and submit manually.
+
+The earlier encrypted-storage v0.9.2 build remains preserved, with its release record and isolated upgrade checks. Local demo fixtures do not verify real NYU authentication or guarantee review approval.
 
 ## Previous frozen submission candidate: v0.9.1
 
@@ -34,7 +39,7 @@ Artifact hashes and verification evidence live in the local `dist/BrightspaceCon
 
 ## Reviewer access
 
-No authorized institutional test account has been arranged. Reviewers should not be assumed to have NYU access. `store/reviewer-instructions.md` states the restriction explicitly and links a synthetic screenshot walkthrough. Google documents the Test instructions tab as optional; supplementary evidence does not guarantee acceptance of restricted functionality. Address any request for access through an authorized institutional arrangement or the store review process. Do not share personal school credentials.
+No authorized institutional test account has been arranged. Reviewers should not be assumed to have NYU access. `store/reviewer-instructions.md` states the restriction explicitly and provides the working local fictional LMS alongside the supplementary screenshot walkthrough. Google documents the Test instructions tab as optional; supplementary evidence does not guarantee acceptance of restricted functionality. Address any request for access through an authorized institutional arrangement or the store review process. Do not share personal school credentials.
 
 ## Public materials
 

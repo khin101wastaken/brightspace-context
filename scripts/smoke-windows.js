@@ -106,9 +106,9 @@ export async function smokeWindows(payload) {
     }
     const demoDiscovery=JSON.parse((await client.callTool({name:'request_catalog_sync',arguments:{provider:'demo',waitSeconds:0}})).content[0].text);
     assert.equal(demoDiscovery.state,'queued');assert.equal(demoDiscovery.provider,'demo');
-    const demoClaim=await request('/v1/requests/claim?source=demo',{capabilities:['catalog-sync']},'POST',token);
+    const demoClaim=await request('/demo-api/v1/requests/claim',{capabilities:['catalog-sync']},'POST',token);
     assert.equal(demoClaim.job.requestId,demoDiscovery.requestId);
-    await request('/v1/requests/finish?source=demo',{requestId:demoDiscovery.requestId,leaseId:demoClaim.job.leaseId,result:{semesters:[{semesterId:'990001',title:'Demo 2026 Fall'}]}},'POST',token);
+    await request('/demo-api/v1/requests/finish',{requestId:demoDiscovery.requestId,leaseId:demoClaim.job.leaseId,result:{semesters:[{semesterId:'990001',title:'Demo 2026 Fall'}]}},'POST',token);
     const demoCatalog=JSON.parse((await client.callTool({name:'list_courses',arguments:{provider:'demo'}})).content[0].text);assert.equal(demoCatalog.semesters[0].semesterId,'990001');
     const discovery=JSON.parse((await client.callTool({name:'request_catalog_sync',arguments:{waitSeconds:0}})).content[0].text);
     assert.equal(discovery.state,'queued');

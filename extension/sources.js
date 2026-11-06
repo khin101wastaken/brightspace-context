@@ -6,7 +6,11 @@ export function sourceConfig(provider='nyu') {
 }
 export function sourceEndpoint(path,provider='nyu') {
   sourceConfig(provider);
-  return provider==='demo'?path+(path.includes('?')?'&':'?')+'source=demo':path;
+  if(provider!=='demo')return path;
+  const absolute=/^[a-z]+:\/\//i.test(path),url=new URL(path,'http://127.0.0.1:47653');
+  if(!url.pathname.startsWith('/v1/'))throw new Error('Invalid companion API path.');
+  url.pathname='/demo-api'+url.pathname;
+  return absolute?url.href:url.pathname+url.search;
 }
 const scoped=key=>/^(?:course:|semester:|folders:|cache:|attempt:)/.test(key) || ['availableSemesters','resourcesSelection','semesterSync','retrievalStatus'].includes(key);
 // A scoped view retains shared pairing and preferences but hides the other library.

@@ -86,14 +86,24 @@ async function main() {
     const original=JSON.parse((await call('request_document',{courseId:'100',key:'document:20'})).content[0].text);
     assert.equal(original.source,'cache');
     const queued=JSON.parse((await call('request_document',{courseId:'100',key:'document:21',waitSeconds:0})).content[0].text);assert.equal(queued.state,'queued');
-    const pairingHash=digest(await readFile(path.join(cache,'pairing.json')));
+    // Previous releases may already use protected storage. Compare the actual
+    // persisted record without assuming every upgrade starts with plaintext.
+    let pairingFile=path.join(cache,'pairing.json');
+    try {await stat(pairingFile);}catch(error){if(error.code!=='ENOENT')throw error;pairingFile+='.vault';}
+    const wasEncrypted=pairingFile.endsWith('.vault'),pairingHash=digest(await readFile(pairingFile));
+    if(['0.9.0','0.9.1','0.9.2'].includes(oldManifest.version)) {
+      const rejectedDemo=await fetch(companion.url+'/demo-api/v1/catalog/semesters',{method:'PUT',headers,body:JSON.stringify({provider:'demo',semesterId:'990001'})});
+      assert.equal(rejectedDemo.status,404,'an old companion must reject the distinct demo path before interpreting its body');
+      assert.equal(JSON.parse((await call('list_courses',{})).content[0].text).courses.length,1);
+      report.checks.push('previous companion rejects the demo API path without altering its real catalog');
+    }
     await client.close();client=null;await companion.stop();companion=null;
     // No /DIR on upgrade: the same isolated AppId must resolve its saved path.
     console.log('Upgrading without specifying the previous directory…');
     run(installer(nextManifest.version),[...flags,`/LOG=${path.join(work,'install-upgrade.log')}`]);
     assert.equal((await verifyPayload(install)).version,nextManifest.version);
     report.checks.push('upgrade reused the previous directory without /DIR and replaced every inventoried payload file');
-    assert.equal(digest(await readFile(path.join(cache,'pairing.json'))),pairingHash);
+    assert.equal(digest(await readFile(pairingFile)),pairingHash);
     companion=await startCompanion(path.join(install,'runtime/node.exe'),install,cache,0,true,true);
     const status=await request('/v1/status',undefined,'GET',headers);assert.equal(status.files,1);
     await connect();
@@ -142,7 +152,7 @@ async function main() {
     assert.deepEqual(await vault.read(original.documentId+'.pdf'),bytes);
     await assert.rejects(stat(path.join(cache,'pairing.json')),error=>error.code==='ENOENT');
     await assert.rejects(stat(path.join(cache,original.documentId+'.pdf')),error=>error.code==='ENOENT');
-    report.checks.push('first updated start migrated legacy files into the Windows-protected vault; original bytes and pairing survive uninstall without plaintext cache copies');
+    report.checks.push(wasEncrypted?'existing encrypted vault retained; original bytes and pairing survive uninstall without plaintext cache copies':'first updated start migrated legacy files into the Windows-protected vault; original bytes and pairing survive uninstall without plaintext cache copies');
     await writeFile(path.join(testRoot,'latest-report.json'),JSON.stringify({...report,passed:true},null,2)+'\n');
     passed=true;
     console.log(JSON.stringify({...report,passed:true},null,2));
