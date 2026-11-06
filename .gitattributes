@@ -1,0 +1,4 @@
+# Original demo documents must retain exact bytes and PDF cross-reference offsets.
+*.pdf binary
+*.pptx binary
+*.docx binary
