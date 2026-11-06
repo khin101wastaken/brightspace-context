@@ -1,3 +1,4 @@
+import {sourceStorage,sourceConfig} from './sources.js';
 import {createPrivateStorage} from './private-storage.js';
 import {downloadPlan,preflightFile,downloadState} from './file-downloads.js';
 import {pairCompanion,companionStatus,cacheDocument,syncCatalog,retryLoginRequests,setCompanionSettings} from './companion-client.js';
@@ -5,44 +6,51 @@ import {scanSemester} from './semester.js';
 import {listBrightspaceSemesters,listSemesterCourses,readCourseOutline} from './brightspace-client.js';
 import {createRetrievalWorker} from './retrieval-worker.js';
 
-const privateStorage=createPrivateStorage({local:chrome.storage.local,session:chrome.storage.session,changed:chrome.storage.onChanged});
+const rootStorage=createPrivateStorage({local:chrome.storage.local,session:chrome.storage.session,changed:chrome.storage.onChanged});
 // Injected download fallbacks need no access to persistent extension data.
 void chrome.storage.local.setAccessLevel?.({accessLevel:'TRUSTED_CONTEXTS'});
-let retrievalWorker=null;
+const privateStorage=sourceStorage(rootStorage);
+let retrievalWorker=null;const workers={};
 async function retrievalSettings() {
   const settings=await privateStorage.get(['companionPairing','automaticRetrieval']);
   return {token:settings.companionPairing?.token,enabled:settings.automaticRetrieval!==false};
 }
 async function refreshRetrieval() {
   if(!retrievalWorker) return;
-  retrievalWorker.stop();
+  for(const worker of Object.values(workers))worker.stop();
   const settings=await retrievalSettings();
-  if(settings.enabled && settings.token) await retrievalWorker.connect();
-  else await privateStorage.set({retrievalStatus:{state:'paused',message:settings.enabled?'Pair the companion to enable retrieval.':'Automatic retrieval paused.'}});
+  if(settings.enabled && settings.token) await Promise.all(Object.values(workers).map(worker=>worker.connect()));
+  else await Promise.all(['nyu','demo'].map(provider=>sourceStorage(rootStorage,provider).set({retrievalStatus:{state:'paused',message:settings.enabled?'Pair the companion to enable retrieval.':'Automatic retrieval paused.'}})));
 }
 // The socket delivers requests immediately; an alarm reconnects a suspended
 // worker or a companion that was restarted while Chrome remained open.
 if(chrome.alarms?.onAlarm && chrome.runtime.onStartup) {
-  retrievalWorker=createRetrievalWorker({getSettings:retrievalSettings,report:value=>privateStorage.set({retrievalStatus:value}),syncCatalogRequest:async(sync,{onProgress,assertActive})=>{
-    if(!sync.semesterId) {await onProgress({phase:'discovering'});return availableSemesters(async(url,options)=>{await assertActive();return fetch(url,options);});}
-    return syncSemester(sync,{remote:true,onProgress,assertActive});
-  }});
-  chrome.alarms.onAlarm.addListener(alarm=>{if(alarm.name==='retrieval-reconnect') retrievalWorker.connect().catch(()=>{});});
-  const start=async()=>{await chrome.alarms.create('retrieval-reconnect',{periodInMinutes:1});await retrievalWorker.connect();};
+  for(const provider of ['nyu','demo']) {
+    const storage=sourceStorage(rootStorage,provider);
+    workers[provider]=createRetrievalWorker({provider,getSettings:retrievalSettings,report:value=>storage.set({retrievalStatus:value}),syncCatalogRequest:async(sync,{onProgress,assertActive})=>{
+      if(!sync.semesterId) {await onProgress({phase:'discovering'});return availableSemesters(async(url,options)=>{await assertActive();return fetch(url,options);},{provider});}
+      return syncSemester(sync,{remote:true,onProgress,assertActive,provider});
+    }});
+  }
+  retrievalWorker=workers.nyu;
+  chrome.alarms.onAlarm.addListener(alarm=>{if(alarm.name==='retrieval-reconnect') Promise.all(Object.values(workers).map(worker=>worker.connect())).catch(()=>{});});
+  const start=async()=>{await chrome.alarms.create('retrieval-reconnect',{periodInMinutes:1});await Promise.all(Object.values(workers).map(worker=>worker.connect()));};
   chrome.runtime.onStartup.addListener(()=>{start().catch(()=>{});});
   chrome.runtime.onInstalled.addListener(()=>{start().catch(()=>{});});
   start().catch(()=>{});
 }
 
-async function availableSemesters(fetcher=fetch) {
-  const semesters=await listBrightspaceSemesters(fetcher);
+async function availableSemesters(fetcher=fetch,{provider='nyu'}={}) {
+  const privateStorage=sourceStorage(rootStorage,provider);
+  const semesters=await listBrightspaceSemesters(fetcher,{provider});
   await privateStorage.set({availableSemesters:semesters});return {semesters};
 }
 let semesterTask=null,semesterTaskId=null,semesterTaskRemote=false;
-async function syncSemester(message,{remote=false,onProgress=async()=>{},assertActive=async()=>{}}={}) {
+async function syncSemester(message,{remote=false,onProgress=async()=>{},assertActive=async()=>{},provider=message.provider??'nyu'}={}) {
+  const privateStorage=sourceStorage(rootStorage,provider);
   if(typeof message.semesterId!=='string' || !/^\d+$/.test(message.semesterId)) throw new Error('Choose a semester in Resources first.');
-  if(semesterTask) {if(semesterTaskId!==message.semesterId || semesterTaskRemote!==remote) throw new Error('Another semester is syncing. Wait for it to finish.');return semesterTask;}
-  semesterTaskId=message.semesterId;semesterTaskRemote=remote;
+  if(semesterTask) {if(semesterTaskId!==provider+':'+message.semesterId || semesterTaskRemote!==remote) throw new Error('Another semester is syncing. Wait for it to finish.');return semesterTask;}
+  semesterTaskId=provider+':'+message.semesterId;semesterTaskRemote=remote;
   const task=(async()=>{
     const fetcher=async(url,options)=>{await assertActive();return fetch(url,options);};
     let progress={state:'running',semesterId:message.semesterId,phase:'loading',startedAt:Date.now()};
@@ -50,15 +58,15 @@ async function syncSemester(message,{remote=false,onProgress=async()=>{},assertA
     await writeSync({message:'Loading the selected semester from Brightspace…'});
     try {
       await onProgress({phase:'discovering'});
-      const {semesters}=await availableSemesters(fetcher);
+      const {semesters}=await availableSemesters(fetcher,{provider});
       const selected=semesters.find(s=>s.semesterId===message.semesterId);
       if(!selected) throw new Error('This semester is no longer available. Refresh the semester list.');
       await onProgress({phase:'listing_courses'});
-      const courses=await listSemesterCourses(selected.semesterId,fetcher);
+      const courses=await listSemesterCourses(selected.semesterId,fetcher,{provider});
       if(!courses.length) throw new Error('Brightspace returned no courses for this semester. No saved outlines were removed.');
       const semester={...selected,courses};
-      const snapshot=await scanSemester(semester,{
-        readOutline:courseId=>readCourseOutline(courseId,fetcher),
+      const snapshot=await scanSemester(semester,{provider,
+        readOutline:courseId=>readCourseOutline(courseId,fetcher,{provider}),
         saveCourse:catalog=>privateStorage.set({[`course:${catalog.courseId}`]:catalog}),
         onProgress:async update=>{
           const synced=update.courses.filter(course=>course.state==='complete').length;
@@ -95,7 +103,8 @@ async function syncSemester(message,{remote=false,onProgress=async()=>{},assertA
   semesterTask=task;
   try {return await task;} finally {semesterTask=null;semesterTaskId=null;}
 }
-async function sendSavedCatalog() {
+async function sendSavedCatalog(provider='nyu') {
+  const privateStorage=sourceStorage(rootStorage,provider);
   if(semesterTask) throw new Error('Wait for the semester scan to finish.');
   const values=await privateStorage.get(null),token=values.companionPairing?.token;
   if(!token) throw new Error('Pair the local companion first.');
@@ -110,10 +119,13 @@ async function sendSavedCatalog() {
 
 const cacheRequests=new Map();
 async function companionMessage(message) {
+  const provider=message.provider??'nyu',privateStorage=sourceStorage(rootStorage,provider);
+  sourceConfig(provider);
+  if(message.type==='source-settings') {await rootStorage.set({activeSource:provider});return {provider};}
   if(message.type==='disconnect-companion') {
-    retrievalWorker?.stop();
+    for(const worker of Object.values(workers))worker.stop();
     await privateStorage.remove('companionPairing');
-    await privateStorage.set({retrievalStatus:{state:'unpaired',message:'Pair this browser to enable retrieval.'}});
+    await Promise.all(['nyu','demo'].map(provider=>sourceStorage(rootStorage,provider).set({retrievalStatus:{state:'unpaired',message:'Pair this browser to enable retrieval.'}})));
     return {connected:false};
   }
   if(message.type==='pair-companion') {
@@ -129,7 +141,7 @@ async function companionMessage(message) {
   }
   if(message.type==='retry-requests') {
     if(!pairing?.token) throw new Error('Pair the companion first.');
-    const result=await retryLoginRequests(pairing.token);await refreshRetrieval();return result;
+    const result=await retryLoginRequests(pairing.token,fetch,{provider});await refreshRetrieval();return result;
   }
   if(message.type==='export-settings') {
     if(!pairing?.token)throw new Error('Start and pair the updated companion first.');
@@ -139,13 +151,13 @@ async function companionMessage(message) {
   if(message.type==='companion-status') {
     await privateStorage.ensureSession();
     if(!pairing?.token) return {connected:false,error:'Start the companion, then enter its pairing code.'};
-    const result=await companionStatus(pairing.token);
-    if(retrievalWorker && !result.workerConnected) retrievalWorker.connect().catch(()=>{});
+    const result=await companionStatus(pairing.token,fetch,{provider});
+    if(retrievalWorker && !result.workerConnected) Promise.all(Object.values(workers).map(worker=>worker.connect())).catch(()=>{});
     return {connected:true,...result};
   }
   const {courseId,key}=message;
   if(!/^\d+$/.test(String(courseId)) || typeof key!=='string') throw new Error('Invalid document selection.');
-  const requestKey=`cache:${courseId}:${key}`;
+  const requestKey=`${provider==='demo'?'demo:':''}cache:${courseId}:${key}`;
   if(cacheRequests.has(requestKey)) return cacheRequests.get(requestKey);
   const task=(async()=>{
     const catalog=(await privateStorage.get(`course:${courseId}`))[`course:${courseId}`];
@@ -174,6 +186,8 @@ async function reconcile(id) {
 }
 
 async function downloadFile(message) {
+  const provider=message.provider??'nyu',privateStorage=sourceStorage(rootStorage,provider);
+  sourceConfig(provider);
   const {courseId,key}=message;
   if(!/^\d+$/.test(String(courseId)) || typeof key!=='string') throw new Error('Invalid download selection.');
   const catalog=(await privateStorage.get(`course:${courseId}`))[`course:${courseId}`];
@@ -182,15 +196,15 @@ async function downloadFile(message) {
   // Explicit alternative: let the user choose a location without nested-folder
   // creation. Never automatically retry a cancellation.
   if(saveAs) plan.filename=plan.filename.split('/').at(-1);
-  const attemptKey=`attempt:${courseId}:${key}`;
-  const attempt={courseId,key,startedAt:Date.now(),state:'starting',phase:'session-check',filename:plan.filename,sourceUrl:plan.url,saveMode:saveAs?'choose-location':'course-folders'};
+  const attemptKey=`${provider==='demo'?'demo:':''}attempt:${courseId}:${key}`;
+  const attempt={provider,courseId,key,startedAt:Date.now(),state:'starting',phase:'session-check',filename:plan.filename,sourceUrl:plan.url,saveMode:saveAs?'choose-location':'course-folders'};
   await chrome.storage.session.set({[attemptKey]:attempt});
   try {
   const metadata=await preflightFile(plan);
   attempt.phase='download-start';
   Object.assign(attempt,metadata);
   await chrome.storage.session.set({[attemptKey]:attempt});
-  const id=await chrome.downloads.download({...plan,conflictAction:'uniquify',saveAs});
+  const id=await chrome.downloads.download({url:plan.url,filename:plan.filename,conflictAction:'uniquify',saveAs});
   const records=await chrome.storage.session.get(null);
   const old=Object.keys(records).filter(k=>k.startsWith('download:')).sort((a,b)=>(records[b].startedAt || 0)-(records[a].startedAt || 0));
   await chrome.storage.session.remove(old.slice(199).filter(k=>records[k].state!=='in_progress'));
@@ -208,8 +222,8 @@ async function downloadFile(message) {
 
 chrome.runtime.onMessage.addListener((message,sender,respond)=>{
   const page=sender.url?.split(/[?#]/)[0];
-  if(sender.id!==chrome.runtime.id || !['popup.html','resources.html'].some(name=>page===chrome.runtime.getURL(name)) || !['export-settings','download-file','pair-companion','disconnect-companion','companion-status','cache-file','sync-semester','list-semesters','send-catalog','retrieval-settings','retry-requests'].includes(message?.type)) return;
-  (message.type==='list-semesters'?availableSemesters():message.type==='sync-semester'?syncSemester(message):message.type==='send-catalog'?sendSavedCatalog():message.type==='download-file'?downloadFile(message):companionMessage(message)).then(result=>respond({ok:true,...result})).catch(error=>respond({ok:false,error:error.message,code:error.code || (error.status===401?'PAIRING_REQUIRED':null)}));
+  if(sender.id!==chrome.runtime.id || !['popup.html','resources.html'].some(name=>page===chrome.runtime.getURL(name)) || !['source-settings','export-settings','download-file','pair-companion','disconnect-companion','companion-status','cache-file','sync-semester','list-semesters','send-catalog','retrieval-settings','retry-requests'].includes(message?.type)) return;
+  (message.type==='list-semesters'?availableSemesters(fetch,{provider:message.provider??'nyu'}):message.type==='sync-semester'?syncSemester(message):message.type==='send-catalog'?sendSavedCatalog(message.provider??'nyu'):message.type==='download-file'?downloadFile(message):companionMessage(message)).then(result=>respond({ok:true,...result})).catch(error=>respond({ok:false,error:error.message,code:error.code || (error.status===401?'PAIRING_REQUIRED':null)}));
   return true;
 });
 chrome.downloads.onChanged.addListener(delta=>{reconcile(delta.id).catch(()=>{});});

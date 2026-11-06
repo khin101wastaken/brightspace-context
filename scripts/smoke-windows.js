@@ -98,6 +98,18 @@ export async function smokeWindows(payload) {
     };
     await connect();
     const tools=await client.listTools();assert.ok(tools.tools.some(tool=>tool.name==='request_catalog_sync'));assert.ok(tools.tools.some(tool=>tool.name==='get_catalog_sync'));
+    assert.deepEqual(tools.tools.find(tool=>tool.name==='search_catalog').inputSchema.properties.provider.enum,['nyu','demo']);
+    const demoPage=await fetch(companion.url+'/demo/');assert.equal(demoPage.status,200);assert.match(await demoPage.text(),/LOCAL DEMO/);
+    for(const filename of ['field-guide.pdf','fair-experiment.pptx','observation-worksheet.docx']) {
+      const response=await fetch(companion.url+'/demo/content/'+filename);assert.equal(response.status,200);
+      assert.deepEqual(Buffer.from(await response.arrayBuffer()),await readFile(path.join(payload,'app/companion/demo-assets',filename)));
+    }
+    const demoDiscovery=JSON.parse((await client.callTool({name:'request_catalog_sync',arguments:{provider:'demo',waitSeconds:0}})).content[0].text);
+    assert.equal(demoDiscovery.state,'queued');assert.equal(demoDiscovery.provider,'demo');
+    const demoClaim=await request('/v1/requests/claim?source=demo',{capabilities:['catalog-sync']},'POST',token);
+    assert.equal(demoClaim.job.requestId,demoDiscovery.requestId);
+    await request('/v1/requests/finish?source=demo',{requestId:demoDiscovery.requestId,leaseId:demoClaim.job.leaseId,result:{semesters:[{semesterId:'990001',title:'Demo 2026 Fall'}]}},'POST',token);
+    const demoCatalog=JSON.parse((await client.callTool({name:'list_courses',arguments:{provider:'demo'}})).content[0].text);assert.equal(demoCatalog.semesters[0].semesterId,'990001');
     const discovery=JSON.parse((await client.callTool({name:'request_catalog_sync',arguments:{waitSeconds:0}})).content[0].text);
     assert.equal(discovery.state,'queued');
     const claimed=await request('/v1/requests/claim',{capabilities:['catalog-sync']},'POST',token);
@@ -139,7 +151,7 @@ export async function smokeWindows(payload) {
     const repeated=JSON.parse((await client.callTool({name:'list_cached_documents',arguments:{}})).content[0].text);
     assert.equal(repeated.documents[0].id,listed.documents[0].id);
     await companion.waitForOutput(/DEBUG http\.request/);
-    console.log(`PASS: payload inventory, bundled Node ${manifest.nodeVersion}, normal/verbose launchers with spaces, fresh-cache startup, pairing, PDF/PPTX/DOCX bytes and module notes through packaged MCP, catalog-sync tools and discovery queue, restart persistence.`);
+    console.log(`PASS: payload inventory, bundled Node ${manifest.nodeVersion}, normal/verbose launchers with spaces, fresh-cache startup, pairing, PDF/PPTX/DOCX bytes and module notes through packaged MCP, isolated demo website/documents/discovery queue, catalog-sync tools, restart persistence.`);
   } finally {
     await client?.close();await companion?.stop();
     const resolved=path.resolve(directory);

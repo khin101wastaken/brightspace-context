@@ -28,7 +28,7 @@ export function discoverSemester() {
   return {semesterId,title:tab.getAttribute('title') || tab.textContent.trim(),courses:[...courses.values()]};
 }
 
-export async function scanSemester(semester,{readOutline,saveCourse,onProgress=async()=>{}}) {
+export async function scanSemester(semester,{readOutline,saveCourse,onProgress=async()=>{},provider='nyu'}) {
   if(!/^\d+$/.test(semester?.semesterId) || !semester.title || !Array.isArray(semester.courses) || !semester.courses.length || semester.courses.length>200) throw new Error('Invalid semester selection.');
   if(new Set(semester.courses.map(c=>c.courseId)).size!==semester.courses.length || semester.courses.some(c=>!/^\d+$/.test(c.courseId) || !c.title)) throw new Error('Invalid semester course list.');
   const courses=[];
@@ -43,8 +43,8 @@ export async function scanSemester(semester,{readOutline,saveCourse,onProgress=a
     await publish(skipped?null:course);
     try {
       if(stopReason) throw Object.assign(new Error(stopReason),{code:stopCode});
-      const entries=flattenOutline(await readOutline(course.courseId),course.courseId);
-      const catalog={...course,entries,coverage:'full-toc',lastScannedAt:new Date().toISOString()};
+      const entries=flattenOutline(await readOutline(course.courseId),course.courseId,{provider});
+      const catalog={...course,...(provider==='demo'?{provider}:{}),entries,coverage:'full-toc',lastScannedAt:new Date().toISOString()};
       await saveCourse(catalog);
       courses.push({...catalog,status:'complete'});
       item.state='complete';
@@ -56,5 +56,5 @@ export async function scanSemester(semester,{readOutline,saveCourse,onProgress=a
     }
     await publish(null);
   }
-  return {semesterId:semester.semesterId,title:semester.title,updatedAt:new Date().toISOString(),courses};
+  return {...(provider==='demo'?{provider}:{}),semesterId:semester.semesterId,title:semester.title,updatedAt:new Date().toISOString(),courses};
 }

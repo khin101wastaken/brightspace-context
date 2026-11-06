@@ -1,30 +1,25 @@
-# Reviewer instructions: Brightspace Catalog v0.9.2
+# Reviewer instructions: Brightspace Catalog v0.9.3
 
-Access limitation: live course functionality requires an authorized NYU Brightspace account with enrolled courses. No institutional test/guest account is currently supplied. We do not assume reviewers have NYU access. No school password or publisher credentials are included in this repository/package. Please contact khinaungwrk@gmail.com if additional access or evidence is needed; an institutional access arrangement would need authorization.
+## Working local demo: no school account needed
 
-## Requirements
+The companion includes an interactive fictional LMS that uses the same extension sync, parsing, download, worker/cache and MCP paths. This feature is available to all users. It is clearly labeled Demo and kept separate from the real NYU library. It does not grant or validate NYU access.
 
-- Chrome 116+ and access to authorized NYU Brightspace courses for live course features.
-- For companion/file retrieval features: Windows 10/11 x64, the local companion from https://brightspace-context.khin101.chatgpt.site/downloads/BrightspaceContext-0.9.2-windows-x64-setup.exe, and an MCP client with document-resource reading support. Clients requiring a local path need the separately enabled temporary-export feature described below.
-- Companion installation/setup guide: https://brightspace-context.khin101.chatgpt.site/setup/.
+1. On Windows 10/11 x64, install the matching 0.9.3 companion from https://brightspace-context.khin101.chatgpt.site/setup/ and keep it running. The separate unsigned preview installer includes Node; no development checkout or npm is needed.
+2. Install the extension package under review. Open its popup and enter the code printed by the companion. School credentials are never requested by the extension.
+3. Open extension Settings and select **Local demo**. Open **Browse resources**, select **Demo 2026 Fall** and **Sync semester**. Expect two courses, nested modules, module landing-page notes, file types and inline Download/Save as controls. Search `east gate` to find a note. The scan downloads metadata, not every file.
+4. Download the PDF, DOCX or PPTX sample. Locked items and external links do not get direct-download controls. Advanced → Show manual cache buttons allows a manual cache test; cache the same file twice to see a fetch followed by a hit.
+5. Open http://127.0.0.1:47653/demo/ . Add a sample reading, then resync in Resources; an additional reading and updated notes appear. Simulate expired access, try an uncached retrieval or fresh scan, restore access on the demo page and retry. Reset affects only fictional fixtures and does not delete the real library.
+6. Optional MCP test: configure a local STDIO client using the installed Setup guide's Command/Argument. For each demo tool call pass `provider: "demo"`. Discover semesters with request_catalog_sync without semesterId, sync the returned semester, search_catalog, request_document for a supported uncached sample, and poll get_document_request as needed. Read the original MCP resource bytes. Expected file check values: PDF CEDAR-42; PPTX WILLOW-28; DOCX MAPLE-17. A second request should be a cache hit. Successful catalog sync requests are deduplicated for 30 seconds; wait before resyncing that same semester through MCP.
+7. Restart the companion and browser. Saved encrypted catalogs/cache and pairing should remain accessible; the demo's in-memory access/content controls return to defaults. Sync again to refresh changed sample content. Switch back to **NYU Brightspace** to return to the separate real library.
 
-The extension is limited to NYU Brightspace; it does not claim to work with an arbitrary LMS tenant. A reviewer who lacks authorized NYU access cannot verify live course content merely by following the steps below. The public walkthrough at https://brightspace-context.khin101.chatgpt.site/review/ shows actual UI with labelled synthetic data; it is supplementary evidence, not a live demo or a substitute for any access Google requests. The extension contains no synthetic/demo course mode.
+Normal MCP retrieval creates no plaintext localPath. If a client requires one, explicitly enable extension Settings → Temporary file exports and call export_document with provider:demo, the document id and acknowledgePlaintext:true. Requested copies are unencrypted, expire after 15 minutes and are removed on normal shutdown; a crash can leave them until the next start. Ordinary downloads are separate readable files.
 
-## Expected flow
+## Live NYU access limitation
 
-1. Install the extension from the review package/listing.
-2. Open the popup. Browsing resources is separate from connecting the optional companion. An unpaired/offline companion should produce an actionable status, not a request for school credentials. Without NYU access, the Connect/Settings interface, appearance/motion preferences and companion pairing can still be inspected; live semester/course content cannot.
-3. Sign into NYU Brightspace in the same Chrome profile. No school password/cookie values are copied into the companion.
-4. Open Resources, choose a semester and Sync semester. Course/module hierarchy is obtained without expanding every webpage module. Metadata scanning does not bulk-download files.
-5. Expand a module and use the inline Download/Save as controls on an accessible hosted file. External links and locked items are not treated as direct downloads.
-6. Start the installed companion, enter its displayed pairing code in Connect and check the connected status. The companion listens on loopback port 47653; the code authorizes this extension origin locally.
-7. Configure a local MCP client using the matching updated setup guide. With Resources closed, call request_catalog_sync without semesterId to discover semesters, then with a returned semesterId to refresh one semester. Poll get_catalog_sync; verify the refreshed course/module hierarchy and notes through search_catalog. Find one supported, uncached catalog PDF, request it, wait for ready, and read the original bytes through its MCP resource link. Normal retrieval creates no plaintext localPath. If the client requires a path, explicitly enable Settings → Temporary file exports and request export_document with the returned id and acknowledgePlaintext:true. These copies are unencrypted, expire after 15 minutes and are removed on normal shutdown; a crash can leave them until the next companion start. The model must read actual bytes; metadata alone is not document content.
-8. Repeat the request. The result should be a cache hit. Restart the companion; pairing/catalog/cache should persist.
-9. If the Brightspace session expires, sign in again and retry catalog sync through MCP with retry:true after sign-in; this also resumes login-blocked pending requests. If Chrome is closed, requests stay queued until the paired worker returns.
-10. Close/reopen Chrome with the companion running. Saved browser catalogs should unlock using the sealed credential without another pairing code. Persistent companion and browser catalogs are encrypted; ordinary downloads and explicitly requested compatibility exports are separate readable files.
+Real course functionality requires an authorized NYU Brightspace account with enrolled courses in the same Chrome profile. No institutional reviewer account is supplied; we do not assume reviewers have one. The demo provides a runnable way to evaluate the local pipeline but cannot prove real NYU authentication or endpoint behavior. If institutional access is required, contact khinaungwrk@gmail.com; an access arrangement would need authorization. No school password, cookie or publisher credentials are included.
 
 ## Implementation notes
 
-All extension JavaScript is included in the ZIP. The companion exchanges JSON notifications and file data; it does not deliver executable extension code. No `eval`, remote script loader, publisher-hosted course backend or analytics transport is used. The Windows installer and MCP runtime are separate from the extension ZIP.
+All executable extension code ships inside the ZIP. The local demo's scripts run in its own website, not as remotely loaded extension code. The companion sends JSON, notifications and requested document bytes to the extension. NYU and loopback are the only host permissions. No publisher-operated course backend or application analytics is included. The extension ZIP and Windows companion/MCP installer are separate matching packages.
 
-The `scripting` permission supports the user-requested native download-control fallback. Semester discovery and per-course scans use fixed NYU web endpoints. The NYU and loopback host permissions are the only requested hosts.
+Full setup: https://brightspace-context.khin101.chatgpt.site/setup/ . Public review guide: https://brightspace-context.khin101.chatgpt.site/review/ .

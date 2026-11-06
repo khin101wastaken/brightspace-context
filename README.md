@@ -80,6 +80,10 @@ Normal MCP retrieval creates no plaintext local path. Optional temporary exports
 
 Browser disconnect, companion uninstall and stopping the service preserve data. To remove companion data, stop it and explicitly remove its cache directory. Remove the extension or clear its storage separately. See the [privacy policy](https://brightspace-context.khin101.chatgpt.site/) for details. Use synthetic data in issues and screenshots.
 
+## Local reviewer demo
+
+The matching companion includes a fictional LMS at `http://127.0.0.1:47653/demo/`. Pair the extension, choose **Settings → Local demo**, then sync **Demo 2026 Fall** in Resources. No NYU account is needed. Catalogs, caches and requests stay separate from the real library. MCP calls use `provider: "demo"`; NYU remains the default. See [demo setup and boundaries](docs/DEMO-LMS.md).
+
 ## Development and validation
 
 ```text

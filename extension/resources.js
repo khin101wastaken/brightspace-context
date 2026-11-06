@@ -1,4 +1,10 @@
-import {privateStorage} from './private-storage.js';
+import {privateStorage as rootStorage} from './private-storage.js';
+import {sourceStorage} from './sources.js';
+import {wireSourcePicker} from './source-picker.js';
+const provider=(await chrome.storage.local.get('activeSource')).activeSource??'nyu';
+const privateStorage=sourceStorage(rootStorage,provider);
+const send=message=>chrome.runtime.sendMessage({...message,provider});
+wireSourcePicker({provider});
 import { mergeCatalog } from './catalog.js';
 import {captureTarget,validateTarget} from './tab-context.js';
 import {flattenOutline,searchOutline} from './course-api.js';
@@ -34,13 +40,13 @@ function updateCacheButtons() {
 }
 async function refreshCompanion() {
   try {
-    const result=await chrome.runtime.sendMessage({type:'companion-status'});
+    const result=await send({type:'companion-status'});
     if(!result?.ok || !result.connected) throw new Error(result?.error || 'Companion is not paired.');
     $('companion-status').textContent=`Connected · ${result.files} files · ${sizeLabel(result.usedBytes)} / ${sizeLabel(result.budgetBytes)} · automatic retrieval ${result.workerConnected?'connected':'not connected'}`;
   } catch(error) {$('companion-status').textContent=`Not connected. ${error.message || 'Start the companion and try again.'}`;}
 }
 function downloadStatus(key) {
-  return Object.values(downloadRecords).filter(r=>r.courseId===currentCatalog?.courseId && r.key===key).sort((a,b)=>b.startedAt-a.startedAt)[0];
+  return Object.values(downloadRecords).filter(r=>(r.provider??'nyu')===provider && r.courseId===currentCatalog?.courseId && r.key===key).sort((a,b)=>b.startedAt-a.startedAt)[0];
 }
 function updateDownloadButtons() {
   document.querySelectorAll('button[data-download-key]').forEach(button=>{
@@ -64,6 +70,7 @@ function updateDownloadButtons() {
 const sourceId=new URL(location.href).searchParams.get('sourceTabId');
 let targetPromise=sourceId && /^\d+$/.test(sourceId)?captureTarget(chrome.tabs,{allowHome:true,tabId:Number(sourceId)}).catch(()=>null):Promise.resolve(null);
 async function activeCourse() {
+  if(provider==='demo')throw new Error('Demo outlines use Sync semester; no NYU tab is read.');
   const target=await targetPromise;
   if(!target?.courseId) throw new Error('Open a course in Brightspace, then reopen Resources from the extension to scan that source course.');
   return validateTarget(chrome.tabs,target);
@@ -117,7 +124,7 @@ $('semester-select').addEventListener('change',()=>{selectedSemester=$('semester
 async function loadSemesters() {
   $('refresh-semesters').disabled=true;
   try {
-    const result=await chrome.runtime.sendMessage({type:'list-semesters'});
+    const result=await send({type:'list-semesters'});
     if(!result?.ok) throw new Error(result?.error || 'Unable to load semesters.');
     await refreshSavedCourses();
     if(!busy && !libraryValues.semesterSync) semesterStatus('');
@@ -129,7 +136,7 @@ for(const [id,type] of [['sync-semester','sync-semester'],['send-catalog','send-
   if(busy) return;busy=true;$(id).disabled=true;
   try {
     semesterStatus(type==='sync-semester'?'Loading this semester’s courses from Brightspace…':'Sending saved catalog…');
-    const result=await chrome.runtime.sendMessage({type,...(type==='sync-semester'?{semesterId:selectedSemester}:{})});
+    const result=await send({type,...(type==='sync-semester'?{semesterId:selectedSemester}:{})});
     if(!result?.ok) throw new Error(result?.error || 'Catalog sync failed.');
     await refreshSavedCourses();if(type==='sync-semester' && libraryValues.semesterSync) syncStatus.render(libraryValues.semesterSync);else semesterStatus(result.message);
   } catch(error) {if(type==='sync-semester' && libraryValues.semesterSync?.state==='failed') syncStatus.render(libraryValues.semesterSync);else semesterStatus(error.message);}
@@ -196,7 +203,7 @@ function render(catalog) {
       } else {
         const row=document.createElement('div');row.className='file-row';
         const label=document.createElement('div'); label.className='file-label';if(search.deepestMatches.has(e.key)) label.classList.add('search-match');label.append(kind,a);row.append(label);content.append(row);
-        const file=downloadableFile(e);
+        const file=downloadableFile(e,{provider});
         if(file) {
           const controls=document.createElement('div');controls.className='file-controls';
           const button=document.createElement('button');button.className='inline-download';button.dataset.downloadKey=e.key;button.dataset.fileTitle=e.title;
@@ -219,18 +226,18 @@ function render(catalog) {
             if(pendingDownloads.has(e.key)) return;
             pendingDownloads.add(e.key);updateDownloadButtons();
             try {
-              const response=await chrome.runtime.sendMessage({type:'download-file',courseId:catalog.courseId,key:e.key,saveAs});
+              const response=await send({type:'download-file',courseId:catalog.courseId,key:e.key,saveAs});
               if(!response?.ok) throw new Error(response?.error || 'Download could not start.');
-              downloadRecords=await chrome.storage.session.get(null);
+              const records=await chrome.storage.session.get(null);downloadRecords=Object.fromEntries(Object.entries(records).filter(([key])=>!key.startsWith('demo:') && !/^(?:cache:|attempt:)/.test(key) || (provider==='demo'?key.startsWith('demo:'): /^(?:cache:|attempt:)/.test(key))).map(([key,value])=>[provider==='demo' && key.startsWith('demo:')?key.slice(5):key,value]));
               status('Download started. Chrome continues downloading if you close this page.');
-            } catch(error) {downloadRecords=await chrome.storage.session.get(null);status(error.message);} finally {pendingDownloads.delete(e.key);updateDownloadButtons();}
+            } catch(error) {const records=await chrome.storage.session.get(null);downloadRecords=Object.fromEntries(Object.entries(records).filter(([key])=>!key.startsWith('demo:') && !/^(?:cache:|attempt:)/.test(key) || (provider==='demo'?key.startsWith('demo:'): /^(?:cache:|attempt:)/.test(key))).map(([key,value])=>[provider==='demo' && key.startsWith('demo:')?key.slice(5):key,value]));status(error.message);} finally {pendingDownloads.delete(e.key);updateDownloadButtons();}
           };
           button.addEventListener('click',()=>startDownload(false));
           const saveAs=document.createElement('button');saveAs.className='download-save-as';saveAs.textContent='Save as…';
           saveAs.setAttribute('aria-label',`Choose save location for ${e.title}`);
           saveAs.addEventListener('click',()=>startDownload(true));
           controls.append(button,saveAs,note,details);row.append(controls);
-          if(showCacheControls && documentFormat(file.url)) {
+          if(showCacheControls && documentFormat(file.url,{provider})) {
             const cache=document.createElement('button');cache.className='cache-document';cache.dataset.cacheKey=e.key;
             cache.title=`Cache ${e.title} locally`;cache.setAttribute('aria-label',cache.title);
             const cacheNote=document.createElement('span');cacheNote.className='cache-status';cacheNote.setAttribute('role','status');
@@ -238,12 +245,12 @@ function render(catalog) {
               if(pendingCache.has(e.key)) return;
               pendingCache.add(e.key);updateCacheButtons();
               try {
-                const result=await chrome.runtime.sendMessage({type:'cache-file',courseId:catalog.courseId,key:e.key});
+                const result=await send({type:'cache-file',courseId:catalog.courseId,key:e.key});
                 if(!result?.ok) throw new Error(result?.error || 'Could not cache this file.');
                 status(result.source==='cache'?'Cache hit: served locally without downloading the file again.':'File fetched and cached locally. Click Cache again to verify a hit.');
                 await refreshCompanion();
               } catch(error) {status(error.message);} finally {
-                downloadRecords=await chrome.storage.session.get(null);pendingCache.delete(e.key);updateCacheButtons();
+                const records=await chrome.storage.session.get(null);downloadRecords=Object.fromEntries(Object.entries(records).filter(([key])=>!key.startsWith('demo:') && !/^(?:cache:|attempt:)/.test(key) || (provider==='demo'?key.startsWith('demo:'): /^(?:cache:|attempt:)/.test(key))).map(([key,value])=>[provider==='demo' && key.startsWith('demo:')?key.slice(5):key,value]));pendingCache.delete(e.key);updateCacheButtons();
               }
             });
             controls.insertBefore(cache,note);controls.append(cacheNote);controls.classList.add('has-cache');
@@ -272,8 +279,9 @@ privateStorage.onChanged.addListener((changes,area)=>{
   }
   if(area!=='session') return;
   for(const [key,change] of Object.entries(changes)) {
-    if(!key.startsWith('download:') && !key.startsWith('attempt:') && !key.startsWith('cache:')) continue;
-    if(change.newValue) downloadRecords[key]=change.newValue; else delete downloadRecords[key];
+    const logical=provider==='demo' && key.startsWith('demo:')?key.slice(5):key;
+    if(!logical.startsWith('download:') && !logical.startsWith('attempt:') && !logical.startsWith('cache:')) continue;
+    if(change.newValue) downloadRecords[logical]=change.newValue; else delete downloadRecords[logical];
   }
   updateDownloadButtons();
   updateCacheButtons();
@@ -313,7 +321,7 @@ const startup=(async()=>{
     const target=await targetPromise;
     $('source').textContent=target?`Advanced scan source: ${target.title} · tab ${target.tabId}`:'No source tab for advanced per-course scans. Semester sync runs from this page.';
     const settings=await privateStorage.get('uiShowManualCache');showCacheControls=settings.uiShowManualCache===true;$('show-cache-controls').checked=showCacheControls;
-    downloadRecords=await chrome.storage.session.get(null);
+    const records=await chrome.storage.session.get(null);downloadRecords=Object.fromEntries(Object.entries(records).filter(([key])=>!key.startsWith('demo:') && !/^(?:cache:|attempt:)/.test(key) || (provider==='demo'?key.startsWith('demo:'): /^(?:cache:|attempt:)/.test(key))).map(([key,value])=>[provider==='demo' && key.startsWith('demo:')?key.slice(5):key,value]));
   } catch(error) {status(error.message);}
   await refreshSavedCourses();
   void loadSemesters();

@@ -11,7 +11,7 @@ try {
   const stats=await app.cache.stats();log('app.ready',{url:app.url,files:stats.files,bytes:stats.usedBytes});
   // The pairing code is an intentional one-time console prompt, never a field
   // in the diagnostic logger. Event logs never include credentials or headers.
-  console.log(`Brightspace companion running at ${app.url}\nCache: ${directory}\nPairing code: ${app.pairingCode}\nEnter this code on the extension's Connect screen. Keep this process running.`);
+  console.log(`Brightspace companion running at ${app.url}\nCache: ${directory}\nPairing code: ${app.pairingCode}\nEnter this code on the extension's Connect screen. Keep this process running.\nLocal fictional demo: ${app.url}/demo/ (select Local demo in extension Settings).`);
   let stopping=false;
   for(const signal of ['SIGINT','SIGTERM']) process.on(signal,()=>{
     if(stopping) return;stopping=true;log('app.stopping',{signal});

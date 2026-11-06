@@ -1,4 +1,5 @@
 import path from 'node:path';
+import {sourceConfig,sourceEndpoint} from '../extension/sources.js';
 import {openVault} from '../companion/vault.js';
 import {createHash} from 'node:crypto';
 import {downloadableFile} from '../extension/file-downloads.js';
@@ -6,9 +7,15 @@ import {documentFormat} from '../extension/document-formats.js';
 import {setTimeout as delay} from 'node:timers/promises';
 
 export class LocalLibrary {
-  constructor(directory,port=47653) {
+  constructor(directory,port=47653,provider='nyu') {
+    sourceConfig(provider);this.provider=provider;this.port=port;
     if(!Number.isInteger(port) || port<1 || port>65535) throw new Error('Invalid companion port.');
     this.directory=path.resolve(directory);this.url=`http://127.0.0.1:${port}`;
+  }
+  forProvider(provider='nyu') {
+    sourceConfig(provider);this.scopes??=new Map([[this.provider,this]]);
+    if(!this.scopes.has(provider)){const scoped=new LocalLibrary(this.directory,this.port,provider);scoped.scopes=this.scopes;this.scopes.set(provider,scoped);}
+    return this.scopes.get(provider);
   }
   async request(endpoint,binary=false,{method='GET',body}={}) {
     let pairing;
@@ -16,7 +23,7 @@ export class LocalLibrary {
     catch {throw new Error('Pair the Chrome extension with the local companion before using Brightspace tools.');}
     if(!/^chrome-extension:\/\/[a-p]{32}$/.test(pairing.origin) || !/^[a-f0-9]{64}$/.test(pairing.token)) throw new Error('Invalid local pairing configuration. Reconnect the extension.');
     let response;
-    try {response=await fetch(this.url+endpoint,{method,headers:{Origin:pairing.origin,Authorization:`Bearer ${pairing.token}`,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(15000)});}
+    try {response=await fetch(this.url+sourceEndpoint(endpoint,this.provider),{method,headers:{Origin:pairing.origin,Authorization:`Bearer ${pairing.token}`,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(15000)});}
     catch {throw new Error('The local companion is unavailable. Open Brightspace Context Companion from the Start menu, or run npm run companion from the source project.');}
     if(!response.ok) {
       let error;try {error=(await response.json()).error;} catch {}
@@ -30,7 +37,7 @@ export class LocalLibrary {
     const terms=query.trim().toLowerCase().split(/\s+/).filter(Boolean);
     const matches=documents.filter(d=>(!courseId || d.courseId===courseId) && terms.every(term=>[d.title,d.courseTitle,...d.modulePath].join(' ').toLowerCase().includes(term)));
     matches.sort((a,b)=>a.courseTitle.localeCompare(b.courseTitle) || a.modulePath.join('/').localeCompare(b.modulePath.join('/')) || a.title.localeCompare(b.title));
-    return {documents:matches.slice(offset,offset+limit).map(d=>({id:d.id,title:d.title,courseId:d.courseId,courseTitle:d.courseTitle,modulePath:d.modulePath,bytes:d.bytes,lastModifiedAt:d.lastModifiedAt,mimeType:documentFormat(d.sourceUrl)?.mimeType,extension:documentFormat(d.sourceUrl)?.extension})),total:matches.length,nextOffset:offset+limit<matches.length?offset+limit:null,coverage:'cached PDF, PPTX and DOCX files only; search covers metadata, not document text'};
+    return {documents:matches.slice(offset,offset+limit).map(d=>({id:d.id,title:d.title,courseId:d.courseId,courseTitle:d.courseTitle,modulePath:d.modulePath,bytes:d.bytes,lastModifiedAt:d.lastModifiedAt,mimeType:documentFormat(d.sourceUrl,{provider:this.provider})?.mimeType,extension:documentFormat(d.sourceUrl,{provider:this.provider})?.extension})),total:matches.length,nextOffset:offset+limit<matches.length?offset+limit:null,coverage:'cached PDF, PPTX and DOCX files only; search covers metadata, not document text'};
   }
   catalogParams({query='',courseId,semesterId,offset=0,limit=25}={}) {
     if(typeof query!=='string' || query.length>500 || (courseId!=null && (typeof courseId!=='string' || !/^\d+$/.test(courseId))) || (semesterId!=null && (typeof semesterId!=='string' || !/^\d+$/.test(semesterId))) || !Number.isInteger(offset) || offset<0 || !Number.isInteger(limit) || limit<1 || limit>100) throw new Error('Invalid catalog search parameters.');
@@ -57,7 +64,7 @@ export class LocalLibrary {
           const modulePath=[];
           for(let parent=byKey.get(entry.parentKey);parent;parent=byKey.get(parent.parentKey)) modulePath.unshift(parent.title);
           if(!terms.every(term=>[course.title,semester.title,entry.title,entry.description,...modulePath].join(' ').toLowerCase().includes(term))) continue;
-          const file=downloadableFile(entry),format=file && documentFormat(file.url);
+          const file=downloadableFile(entry,{provider:this.provider}),format=file && documentFormat(file.url,{provider:this.provider});
           const id=entry.kind==='document'?createHash('sha256').update(`${course.courseId}:${entry.id}`).digest('hex'):null;
           const candidate=id && cached.get(id),fresh=!!candidate && candidate.sourceUrl===file?.url && candidate.lastModifiedAt===(entry.lastModifiedAt || null) && (candidate.lastModifiedAt || Date.now()-candidate.fetchedAt<5*60*1000);
           entries.push({courseId:course.courseId,courseTitle:course.title,semesterId:semester.semesterId,semesterTitle:semester.title,key:entry.key,parentKey:entry.parentKey,title:entry.title,kind:entry.kind,contentType:entry.contentType,modulePath,url:entry.url,lastModifiedAt:entry.lastModifiedAt,outlineScannedAt:course.lastScannedAt,outlineStale:course.stale===true,locked:entry.locked,
@@ -115,16 +122,18 @@ export class LocalLibrary {
   async get(id) {
     this.validId(id);
     const {document}=await this.request(`/v1/cache/documents/${id}`);
-    const format=documentFormat(document.sourceUrl);
+    const format=documentFormat(document.sourceUrl,{provider:this.provider});
     if(!format) throw new Error('Unsupported cached document format.');
-    return {...document,uri:`brightspace-cache://documents/${id}`,encryptedAtRest:true,handoff:'MCP resource bytes; no plaintext file created',mimeType:format.mimeType,extension:format.extension,sourceUrl:`https://brightspace.nyu.edu/d2l/le/lessons/${document.courseId}/topics/${document.topicId}`};
+    return {...document,provider:this.provider,uri:`brightspace-cache://${this.provider==='demo'?'demo/':''}documents/${id}`,encryptedAtRest:true,handoff:'MCP resource bytes; no plaintext file created',mimeType:format.mimeType,extension:format.extension,sourceUrl:`${sourceConfig(this.provider).base}/d2l/le/lessons/${document.courseId}/topics/${document.topicId}`};
   }
   async exportDocument({id,acknowledgePlaintext}={}) {
     this.validId(id);if(acknowledgePlaintext!==true)throw new Error('Explicitly acknowledge the temporary unencrypted file export.');
     return this.request('/v1/cache/exports',false,{method:'POST',body:{id,acknowledgePlaintext:true}});
   }
   async readResource(uri) {
-    const id=uri?.match(/^brightspace-cache:\/\/documents\/([a-f0-9]{64})$/)?.[1];
+    if(this.provider==='nyu' && /^brightspace-cache:\/\/demo\/documents\/[a-f0-9]{64}$/.test(uri))return this.forProvider('demo').readResource(uri);
+    const pattern=this.provider==='demo'?/^brightspace-cache:\/\/demo\/documents\/([a-f0-9]{64})$/:/^brightspace-cache:\/\/documents\/([a-f0-9]{64})$/;
+    const id=uri?.match(pattern)?.[1];
     this.validId(id);
     const document=await this.get(id);
     if(document.bytes>10*1024*1024) throw new Error('This document exceeds the 10 MB embedded resource limit. If the user needs a local copy, enable temporary exports in extension Settings and explicitly use export_document. No plaintext path was created.');

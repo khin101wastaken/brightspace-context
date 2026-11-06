@@ -282,3 +282,8 @@ summary.search-match { padding-inline-start: .7rem; }
   .search-highlight { background: Mark; color: MarkText; forced-color-adjust: none; }
   .status-dot { background: CanvasText; }
 }
+
+/* Library selection stays compact; demo is never presented as a real NYU session. */
+.library-source{padding:0 28px 16px}.library-source #source-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.library-source .hint{margin:0;font-size:12px}
+.source-options{display:inline-flex;border:1px solid var(--border,#aaa);border-radius:10px;padding:3px;gap:3px}.source-options button{font-size:12px;padding:7px 10px;min-height:32px}.source-options button[aria-pressed="true"]{background:var(--accent-soft,rgba(124,90,184,.14));color:var(--accent,#7150a9)}
+.demo-notice{font-size:12px;line-height:1.5;color:var(--muted,#666);margin:8px 0}

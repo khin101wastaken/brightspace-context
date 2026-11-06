@@ -7,18 +7,19 @@ import {documentFormat,validateDocument,MAX_FILE_BYTES} from '../extension/docum
 export const DEFAULT_BUDGET=500*1024*1024;
 export {MAX_FILE_BYTES};
 export const MAX_PDF_BYTES=MAX_FILE_BYTES; // Older extensions use this wire field.
-export function validateMetadata(value) {
+export function validateMetadata(value,{provider='nyu'}={}) {
+  if(value?.provider && value.provider!==provider)throw new Error('Document belongs to another library.');
   if(!value || !/^\d+$/.test(value.courseId) || !/^\d+$/.test(value.topicId)) throw new Error('Invalid course or topic ID.');
   const url=new URL(value.sourceUrl);
-  const format=documentFormat(url.href);
+  const format=documentFormat(url.href,{provider});
   if(!format) throw new Error('Only NYU-hosted PDF, PPTX and DOCX files can be cached.');
   if(typeof value.title!=='string' || value.title.length>1000 || typeof value.courseTitle!=='string' || value.courseTitle.length>1000 || !Array.isArray(value.modulePath) || value.modulePath.length>100 || value.modulePath.some(p=>typeof p!=='string' || p.length>1000)) throw new Error('Invalid document metadata.');
   if(value.lastModifiedAt!=null && (typeof value.lastModifiedAt!=='string' || value.lastModifiedAt.length>100)) throw new Error('Invalid modification date.');
-  return {courseId:value.courseId,topicId:value.topicId,title:value.title,courseTitle:value.courseTitle,modulePath:value.modulePath,sourceUrl:url.href,lastModifiedAt:value.lastModifiedAt || null,extension:format.extension,mimeType:format.mimeType};
+  return {...(provider==='demo'?{provider}:{}),courseId:value.courseId,topicId:value.topicId,title:value.title,courseTitle:value.courseTitle,modulePath:value.modulePath,sourceUrl:url.href,lastModifiedAt:value.lastModifiedAt || null,extension:format.extension,mimeType:format.mimeType};
 }
 export const cacheId=metadata=>createHash('sha256').update(`${metadata.courseId}:${metadata.topicId}`).digest('hex');
 
-export async function openCache(directory,{budgetBytes=DEFAULT_BUDGET,now=Date.now,vault}={}) {
+export async function openCache(directory,{budgetBytes=DEFAULT_BUDGET,now=Date.now,vault,provider='nyu'}={}) {
   if(!Number.isSafeInteger(budgetBytes) || budgetBytes<1024) throw new Error('Cache budget must be at least 1024 bytes.');
   await mkdir(directory,{recursive:true});
   vault??=await openVault(directory);
@@ -26,13 +27,13 @@ export async function openCache(directory,{budgetBytes=DEFAULT_BUDGET,now=Date.n
   try {entries=(await vault.readJson('index.json')).entries;} catch(error) {if(error.code!=='ENOENT') throw error;}
   if(!entries || typeof entries!=='object' || Array.isArray(entries)) throw new Error('Invalid cache index.');
   const blobPath=(id,entry)=>{
-    const format=documentFormat(entry?.sourceUrl);
+    const format=documentFormat(entry?.sourceUrl,{provider});
     if(!/^[a-f0-9]{64}$/.test(id) || !format) throw new Error('Invalid cache ID or format.');
     return path.join(directory,`${id}.${format.extension}`);
   };
   for(const [id,entry] of Object.entries(entries)) {
     try {
-      const meta=validateMetadata(entry);
+      const meta=validateMetadata(entry,{provider});
       if(cacheId(meta)!==id || entry.id!==id) throw new Error('Invalid cache entry.');
       entries[id]={...entry,...meta};
       const bytes=await vault.read(path.basename(blobPath(id,entry)));if(bytes.length!==entry.bytes || createHash('sha256').update(bytes).digest('hex')!==entry.sha256) delete entries[id];
@@ -61,7 +62,7 @@ export async function openCache(directory,{budgetBytes=DEFAULT_BUDGET,now=Date.n
     list:()=>serial(async()=>Object.values(entries).map(entry=>({...entry}))),
     stats:()=>serial(async()=>stats()),
     lookup:metadata=>serial(async()=>{
-      const meta=validateMetadata(metadata),id=cacheId(meta),entry=entries[id];
+      const meta=validateMetadata(metadata,{provider}),id=cacheId(meta),entry=entries[id];
       const fresh=entry && entry.sourceUrl===meta.sourceUrl && entry.lastModifiedAt===meta.lastModifiedAt && (meta.lastModifiedAt || now()-entry.fetchedAt<5*60*1000);
       if(!fresh) return {hit:false,id};
       try {
@@ -75,8 +76,8 @@ export async function openCache(directory,{budgetBytes=DEFAULT_BUDGET,now=Date.n
       return {hit:true,id,entry:entries[id],stats:stats()};
     }),
     put:(metadata,bytes)=>serial(async()=>{
-      const meta=validateMetadata(metadata),id=cacheId(meta);
-      validateDocument(bytes,documentFormat(meta.sourceUrl));
+      const meta=validateMetadata(metadata,{provider}),id=cacheId(meta);
+      validateDocument(bytes,documentFormat(meta.sourceUrl,{provider}));
       const entry={...meta,id,bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex'),fetchedAt:now(),lastAccessAt:now()};
       const next={...entries,[id]:entry},evicted=[];
       while(usage(next)>budgetBytes) {

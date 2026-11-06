@@ -1,9 +1,10 @@
+import {sourceConfig} from './sources.js';
 import {descriptionText} from './rich-text.js';
 import {searchTermPattern,matchingPassages} from './search-highlight.js';
 
-export function flattenOutline(payload,courseId) {
+export function flattenOutline(payload,courseId,{provider='nyu'}={}) {
   if(!/^\d+$/.test(String(courseId)) || !Array.isArray(payload?.Modules)) throw new Error('Invalid course outline.');
-  const origin='https://brightspace.nyu.edu', entries=[], seen=new Set();
+  const origin=sourceConfig(provider).base, entries=[], seen=new Set();
   const safeUrl=value=>{
     try {const url=new URL(value,origin); return ['https:','http:'].includes(url.protocol)?url.href:null;} catch {return null;}
   };
@@ -16,7 +17,7 @@ export function flattenOutline(payload,courseId) {
     if(seen.has(key)) throw new Error('Course outline contains a duplicate identifier.');
     seen.add(key);
     const contentType=kind==='module'?'module':item.ToolId===2000?'assignment':item.TypeIdentifier==='File'?'file':'link';
-    entries.push({key,id,kind,contentType,title:String(item.Title || 'Untitled'),parentKey,
+    entries.push({...(provider==='demo'?{provider}:{}),key,id,kind,contentType,title:String(item.Title || 'Untitled'),parentKey,
       order:Number.isFinite(item.SortOrder)?item.SortOrder:entries.length,
       url:`${origin}/d2l/le/lessons/${courseId}/${kind==='module'?'units':'topics'}/${id}`,
       sourceUrl:item.Url?safeUrl(item.Url):null,

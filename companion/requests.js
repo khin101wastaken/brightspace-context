@@ -14,7 +14,9 @@ const syncResult=value=>Object.fromEntries(Object.entries(value || {}).filter(([
   ['courses','complete','bytes','semesterCount'].includes(key)?Number.isSafeInteger(item) && item>=0:
   key==='semesterId'?typeof item==='string' && /^\d+$/.test(item):
   key==='discoveredAt'?typeof item==='string' && Number.isFinite(Date.parse(item)):false));
-export async function openRequests(directory,{catalog,cache,notify=()=>{},workerConnected=()=>false,syncWorkerConnected=workerConnected,now=Date.now,log=()=>{},vault}={}) {
+export async function openRequests(directory,{catalog,cache,notify=()=>{},workerConnected=()=>false,syncWorkerConnected=workerConnected,now=Date.now,log=()=>{},vault,provider='nyu'}={}) {
+  const loginMessage=provider==='demo'?'Restore demo access on the local demo LMS page, then retry with provider:demo and retry:true.':errors.NEEDS_LOGIN;
+  const failureMessages={...errors,NEEDS_LOGIN:loginMessage};
   const emit=safeLogger(log),fields=job=>({requestId:job.requestId,...(isSync(job)?{semesterId:job.sync.semesterId}:{courseId:job.metadata.courseId,topicId:job.metadata.topicId})});
   let recovered=0;
   vault??=await openVault(directory);let jobs=[],queue=Promise.resolve();
@@ -25,7 +27,7 @@ export async function openRequests(directory,{catalog,cache,notify=()=>{},worker
     jobs=stored.jobs.map(job=>{
       if(!UUID.test(job.requestId) || !['queued','fetching','ready','needs_login','failed'].includes(job.state) || !Number.isFinite(job.createdAt) || !Number.isFinite(job.updatedAt)) throw new Error('Invalid saved request.');
       if(job.kind!=null && !['document','catalog-sync'].includes(job.kind)) throw new Error('Invalid request kind.');
-      const metadata=isSync(job)?null:validateMetadata(job.metadata);
+      const metadata=isSync(job)?null:validateMetadata(job.metadata,{provider});
       if(job.state==='fetching') recovered++;
       return {...job,...(isSync(job)?{sync:validateSyncSpec(job.sync),result:syncResult(job.result),...(job.progress?{progress:validateProgress(job.progress)}:{})}:{metadata,documentId:cacheId(metadata)}),...(job.state==='fetching'?{state:'queued',leaseId:null,leaseUntil:null}:{})};
     });
@@ -44,8 +46,8 @@ export async function openRequests(directory,{catalog,cache,notify=()=>{},worker
   };
   const present=job=>isSync(job)?({requestId:job.requestId,kind:'catalog-sync',scope:job.sync.semesterId?'semester':'discovery',...job.sync,state:job.state,createdAt:job.createdAt,updatedAt:job.updatedAt,progress:job.progress || null,result:job.result || null,code:job.code || null,error:job.error || null,workerConnected:syncWorkerConnected(),
     nextAction:job.state==='ready'?(job.sync.semesterId?'Use list_courses or search_catalog to inspect the refreshed catalog.':'Choose a returned semesterId and call request_catalog_sync to refresh its courses.'):
-    job.state==='needs_login'?errors.NEEDS_LOGIN:job.state==='failed'?'Address the error, then call request_catalog_sync with retry:true.':jobs.some(j=>j.state==='needs_login')?'Sign into Brightspace, then retry catalog sync with retry:true.':syncWorkerConnected()?'Catalog sync is queued or running. Check get_catalog_sync shortly.':'Open Chrome with the updated paired extension enabled and model requests allowed. This request is saved.'}):({requestId:job.requestId,state:job.state,documentId:job.state==='ready'?job.documentId:null,courseId:job.metadata.courseId,title:job.metadata.title,createdAt:job.createdAt,updatedAt:job.updatedAt,source:job.source || null,error:job.error || null,code:job.code || null,workerConnected:workerConnected(),
-    nextAction:job.state==='ready'?'Read the verified document before answering.':job.state==='needs_login'?errors.NEEDS_LOGIN:job.state==='failed'?'Retry request_document with retry: true after resolving the error.':jobs.some(j=>j.state==='needs_login')?'Sign into Brightspace in Chrome, then call request_catalog_sync with retry:true to resume blocked requests.':workerConnected()?'The extension is fetching requested documents. Check this request again shortly.':'Open Chrome with the paired extension enabled and automatic retrieval allowed. The request is saved.'});
+    job.state==='needs_login'?loginMessage:job.state==='failed'?'Address the error, then call request_catalog_sync with retry:true.':jobs.some(j=>j.state==='needs_login')?loginMessage:syncWorkerConnected()?'Catalog sync is queued or running. Check get_catalog_sync shortly.':'Open Chrome with the updated paired extension enabled and model requests allowed. This request is saved.'}):({requestId:job.requestId,state:job.state,documentId:job.state==='ready'?job.documentId:null,courseId:job.metadata.courseId,title:job.metadata.title,createdAt:job.createdAt,updatedAt:job.updatedAt,source:job.source || null,error:job.error || null,code:job.code || null,workerConnected:workerConnected(),
+    nextAction:job.state==='ready'?'Read the verified document before answering.':job.state==='needs_login'?loginMessage:job.state==='failed'?'Retry request_document with retry: true after resolving the error.':jobs.some(j=>j.state==='needs_login')?loginMessage:workerConnected()?'The extension is fetching requested documents. Check this request again shortly.':'Open Chrome with the paired extension enabled and automatic retrieval allowed. The request is saved.'});
   async function resolveMetadata(courseId,key) {
     if(typeof courseId!=='string' || !/^\d+$/.test(courseId) || typeof key!=='string' || !/^document:\d+$/.test(key)) throw new Error('Use courseId and a document key returned by search_catalog.');
     const {semesters}=await catalog.read();
@@ -53,7 +55,7 @@ export async function openRequests(directory,{catalog,cache,notify=()=>{},worker
     const course=courses[0];
     if(!course || !course.entries?.some(e=>e.key===key)) throw new Error('This document is not in the synced catalog. Rescan the semester.');
     if(course.stale || course.status!=='complete') throw new Error('This course outline is stale after a failed sync. Rescan the course before requesting its files.');
-    return validateMetadata(documentMetadata(course,key));
+    return validateMetadata(documentMetadata(course,key),{provider});
   }
   return {
     syncRequest:args=>serial(async()=>{
@@ -120,7 +122,7 @@ export async function openRequests(directory,{catalog,cache,notify=()=>{},worker
       }
       if(code!=null) {
         if(!Object.hasOwn(errors,code)) throw new Error('Unsupported failure code.');
-        Object.assign(job,{state:code==='NEEDS_LOGIN'?'needs_login':code==='PAUSED'?'queued':'failed',code,error:errors[code]});
+        Object.assign(job,{state:code==='NEEDS_LOGIN'?'needs_login':code==='PAUSED'?'queued':'failed',code,error:failureMessages[code]});
       } else if(isSync(job)) {
         if(!result) throw new Error('A verified catalog result is required.');
         Object.assign(job,{state:'ready',source:'brightspace',error:null,code:null});

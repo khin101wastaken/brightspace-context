@@ -1,4 +1,10 @@
-import {privateStorage} from './private-storage.js';
+import {privateStorage as rootStorage} from './private-storage.js';
+import {sourceStorage} from './sources.js';
+import {wireSourcePicker} from './source-picker.js';
+const provider=(await chrome.storage.local.get('activeSource')).activeSource??'nyu';
+const privateStorage=sourceStorage(rootStorage,provider);
+const send=message=>chrome.runtime.sendMessage({...message,provider});
+wireSourcePicker({provider});
 import {wireProductLinks} from './product-links.js';
 wireProductLinks(document);
 const $=id=>document.getElementById(id);
@@ -38,7 +44,7 @@ async function refresh() {
     const saved=await privateStorage.get(['companionPairing','automaticRetrieval','retrievalStatus']);
     $('storage-status').textContent=(await privateStorage.get('storageProtection')).storageProtection.message;
     paired=!!saved.companionPairing;enabled=saved.automaticRetrieval!==false;requestStatus=saved.retrievalStatus;
-    const result=await chrome.runtime.sendMessage({type:'companion-status'});
+    const result=await send({type:'companion-status'});
     if(attempt!==refreshAttempt) return;
     if(!result?.ok || !result.connected) throw Object.assign(new Error(result?.error || 'Companion is not paired.'),{code:result?.code});
     feedback('');
@@ -47,7 +53,7 @@ async function refresh() {
   finally {if(attempt===refreshAttempt) $('companion-refresh').disabled=false;}
 }
 async function setRetrieval(value) {
-  const result=await chrome.runtime.sendMessage({type:'retrieval-settings',enabled:value});
+  const result=await send({type:'retrieval-settings',enabled:value});
   if(!result?.ok) throw new Error(result?.error || 'Unable to change retrieval.');
   enabled=value;await refresh();
 }
@@ -60,7 +66,7 @@ $('repair-browser').addEventListener('click',()=>{forcePair=true;showSettings(fa
 $('disconnect-browser').addEventListener('click',async()=>{
   $('disconnect-browser').disabled=true;
   try {
-    const result=await chrome.runtime.sendMessage({type:'disconnect-companion'});
+    const result=await send({type:'disconnect-companion'});
     if(!result?.ok) throw new Error(result?.error || 'Unable to disconnect this browser.');
     forcePair=false;feedback('');showSettings(false);await refresh();
   } catch(error) {$('companion-status').textContent=error.message;}
@@ -69,7 +75,7 @@ $('disconnect-browser').addEventListener('click',async()=>{
 $('pair-form').addEventListener('submit',async event=>{
   event.preventDefault();$('pair-button').disabled=true;feedback('');
   try {
-    const result=await chrome.runtime.sendMessage({type:'pair-companion',code:$('pair-code').value});
+    const result=await send({type:'pair-companion',code:$('pair-code').value});
     if(!result?.ok) throw new Error(result?.error || 'Unable to pair this browser.');
     $('pair-code').value='';forcePair=false;await refresh();
   } catch(error) {feedback(error.message);}
@@ -77,13 +83,13 @@ $('pair-form').addEventListener('submit',async event=>{
 });
 $('automatic-retrieval').addEventListener('change',async()=>{try {await setRetrieval($('automatic-retrieval').checked);} catch(error) {$('automatic-retrieval').checked=enabled;$('companion-status').textContent=error.message;}});
 $('temporary-exports').addEventListener('change',async()=>{
-  try {const result=await chrome.runtime.sendMessage({type:'export-settings',enabled:$('temporary-exports').checked});if(!result?.ok)throw new Error(result?.error || 'Unable to change exports.');}
+  try {const result=await send({type:'export-settings',enabled:$('temporary-exports').checked});if(!result?.ok)throw new Error(result?.error || 'Unable to change exports.');}
   catch(error){$('temporary-exports').checked=!$('temporary-exports').checked;$('companion-status').textContent=error.message;}
 });
 $('pause-retrieval').addEventListener('click',async()=>{try {await setRetrieval(!enabled);} catch(error) {feedback(error.message);}});
 $('retry-requests').addEventListener('click',async()=>{
   $('retry-requests').disabled=true;
-  try {const result=await chrome.runtime.sendMessage({type:'retry-requests'});if(!result?.ok) throw new Error(result?.error || 'Unable to retry.');await refresh();}
+  try {const result=await send({type:'retry-requests'});if(!result?.ok) throw new Error(result?.error || 'Unable to retry.');await refresh();}
   catch(error) {feedback(error.message);}
   finally {$('retry-requests').disabled=false;}
 });
