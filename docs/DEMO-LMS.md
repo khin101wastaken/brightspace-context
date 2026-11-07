@@ -13,6 +13,8 @@ The matching Windows companion serves a working fictional LMS at `http://127.0.0
 
 Known check values, contained in the actual original files: field-guide PDF `CEDAR-42`, slide deck `WILLOW-28`, worksheet `MAPLE-17`.
 
+The current source adds `read_document_text` for paged PDF/DOCX/PPTX reading, plus `create_document_link` when a user explicitly requests a local download. Keep `provider: "demo"` on these calls too. These changes are pending the next companion release; the published 0.9.4 installer still uses the original resource/export handoff. See [document handoff](DOCUMENT-HANDOFF.md) for acceptance checks and client limitations.
+
 **Reset sample content** restores fictional content/access; it does not erase saved catalogs or cached files. Sync again to refresh the outline. Fixture controls reset when the companion restarts. No control changes NYU access, grades, assignments or files.
 
 ## Implementation and isolation

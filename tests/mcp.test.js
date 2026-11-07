@@ -34,7 +34,7 @@ test('desktop MCP process lists, resolves and serves an actual cached PDF withou
   const rejected=await fetch(`${companion.url}/v1/catalog/semesters`,{method:'PUT',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(catalog)});assert.equal(rejected.status,401);
   const synced=await fetch(`${companion.url}/v1/catalog/semesters`,{method:'PUT',headers,body:JSON.stringify(catalog)});assert.equal(synced.status,200);
   await client.connect(transport);
-  const tools=await client.listTools();assert.deepEqual(tools.tools.map(t=>t.name),['request_catalog_sync','get_catalog_sync','list_cached_documents','get_cached_document','export_document','list_courses','search_catalog','request_document','get_document_request']);
+  const tools=await client.listTools();assert.deepEqual(tools.tools.map(t=>t.name),['request_catalog_sync','get_catalog_sync','list_cached_documents','get_cached_document','export_document','read_document_text','create_document_link','list_courses','search_catalog','request_document','get_document_request']);
   const courses=JSON.parse((await client.callTool({name:'list_courses',arguments:{query:'Happiness'}})).content[0].text);
   assert.equal(courses.courses[0].courseId,'200');assert.equal(courses.semesters[0].title,'2026 Fall');
   const uncached=await client.callTool({name:'search_catalog',arguments:{query:'gratitude'}});

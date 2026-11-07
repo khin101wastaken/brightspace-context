@@ -9,6 +9,7 @@ import {openCatalog,MAX_CATALOG_BYTES} from './catalog.js';
 import {openRequests} from './requests.js';
 import {createWorkerChannel} from './worker-channel.js';
 import {safeLogger} from './logging.js';
+import {createDocumentLinks} from './document-links.js';
 
 const same=(a,b)=>typeof a==='string' && typeof b==='string' && Buffer.byteLength(a)===Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a),Buffer.from(b));
 async function body(req,limit) {
@@ -24,6 +25,7 @@ export async function createCompanion({directory,port=47653,budgetBytes,pairingC
   let client=null,settings={allowTemporaryExports:false},exports,primaryExports;
   const session=()=>({token:client.token,credential:vault.credential(client.origin,client.token),storageKey:vault.browserKey(client.origin),storageVersion:1});
   const tickets=new Map();let failedPairings=0,windowStart=Date.now();
+  const documentLinks=createDocumentLinks();
   const send=(res,status,value)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(value));};
   const server=http.createServer(async(req,res)=>{
     const started=Date.now();let route='unknown';
@@ -33,6 +35,20 @@ export async function createCompanion({directory,port=47653,budgetBytes,pairingC
       if(req.headers.host!==expectedHost) return send(res,403,{error:'Invalid local host.'});
       if(!requests || !demo) return send(res,503,{error:'Companion is starting. Try again in a moment.'});
       const url=new URL(req.url,`http://${expectedHost}`);
+      if(url.pathname.startsWith('/local-files/')) {
+        route='document-link';
+        res.setHeader('Cache-Control','no-store');res.setHeader('Referrer-Policy','no-referrer');
+        res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Content-Security-Policy',"default-src 'none'; sandbox");
+        res.setHeader('Cross-Origin-Resource-Policy','same-origin');
+        const token=url.pathname.match(/^\/local-files\/([A-Za-z0-9_-]{32})$/)?.[1];
+        const link=token && documentLinks.get(token,client);
+        if(!link || !['GET','HEAD'].includes(req.method))return send(res,404,{error:'Download link is invalid or expired. Request a new link through MCP.'});
+        const result=await (link.provider==='demo'?demo.cache:cache).read(link.id);
+        if(!result || result.entry.sha256!==link.sha256 || documentLinks.get(token,client)!==link)return send(res,404,{error:'Cached document changed or is no longer available. Request a new link.'});
+        const filename=`${result.entry.title.replace(/[\\/:*?"<>|\x00-\x1f\x7f]/g,'_').slice(0,120)}.${result.entry.extension}`;
+        res.writeHead(200,{'Content-Type':result.entry.mimeType,'Content-Length':result.bytes.length,'Content-Disposition':`attachment; filename="document.${result.entry.extension}"; filename*=UTF-8''${encodeURIComponent(filename).replace(/['()*]/g,c=>'%'+c.charCodeAt(0).toString(16))}`});
+        res.end(req.method==='HEAD'?undefined:result.bytes);return;
+      }
       if(url.pathname==='/demo' || url.pathname.startsWith('/demo/')) {
         route='demo';return await demoLms.handle(req,res,url,expectedHost);
       }
@@ -67,6 +83,7 @@ export async function createCompanion({directory,port=47653,budgetBytes,pairingC
         return send(res,200,{...session(),...(value.credential?{credential:value.credential}:{})});
       }
       if(!client || client.origin!==origin || !same(req.headers.authorization,`Bearer ${client.token}`)) {scopedLog('auth.rejected',{code:!client?'NOT_PAIRED':client.origin!==origin?'BROWSER_MISMATCH':'TOKEN_MISMATCH',origin});return send(res,401,{error:'Pair this extension with the companion first.',code:'PAIRING_REQUIRED'});}
+      const authenticatedClient=client;
       if(req.method==='POST' && url.pathname==='/v1/settings') {
         const value=JSON.parse((await body(req,1024)).toString());
         if(Object.keys(value).length!==1 || typeof value.allowTemporaryExports!=='boolean')throw new Error('Invalid export setting.');
@@ -79,6 +96,14 @@ export async function createCompanion({directory,port=47653,budgetBytes,pairingC
         if(!/^[a-f0-9]{64}$/.test(value.id) || value.acknowledgePlaintext!==true || Object.keys(value).some(key=>!['id','acknowledgePlaintext'].includes(key)))throw new Error('An explicit plaintext-export acknowledgement and document ID are required.');
         const result=await cache.read(value.id);if(!result)return send(res,404,{error:'Document is no longer cached.'});
         return send(res,200,{...await exports.create(result.entry,result.bytes),id:value.id,mimeType:result.entry.mimeType});
+      }
+      if(req.method==='POST' && url.pathname==='/v1/cache/links') {
+        const value=JSON.parse((await body(req,1024)).toString());
+        if(!/^[a-f0-9]{64}$/.test(value.id) || Object.keys(value).some(key=>key!=='id'))throw new Error('One cached document ID is required.');
+        const result=await cache.read(value.id);if(!result)return send(res,404,{error:'Document is no longer cached.'});
+        if(client!==authenticatedClient)return send(res,401,{error:'Pairing changed. Retry the document link request.'});
+        const link=documentLinks.create({provider,entry:result.entry,client});
+        return send(res,200,{title:result.entry.title,mimeType:result.entry.mimeType,sha256:result.entry.sha256,downloadUrl:`http://${expectedHost}${link.path}`,expiresAt:link.expiresAt,temporaryFileCreated:false});
       }
       if(req.method==='POST' && url.pathname==='/v1/requests') return send(res,200,await requests.request(JSON.parse((await body(req,4096)).toString())));
       if(req.method==='POST' && url.pathname==='/v1/requests/catalog-sync') return send(res,200,await requests.syncRequest(JSON.parse((await body(req,4096)).toString())));
@@ -145,5 +170,5 @@ export async function createCompanion({directory,port=47653,budgetBytes,pairingC
     demo={cache:demoCache,catalog:demoCatalog,exports:demoExports,tickets:new Map(),requests:await openRequests(demoDirectory,{catalog:demoCatalog,cache:demoCache,vault:demoVault,provider:'demo',notify:()=>workerChannel.notify('demo'),workerConnected:()=>workerChannel.connected('demo'),syncWorkerConnected:()=>workerChannel.catalogSyncConnected('demo'),log:emit})};
   }
   catch(error) {workerChannel.close();await new Promise(resolve=>server.close(resolve));await exports?.close();throw error;}
-  return {server,cache,requests,demo,pairingCode,url:`http://127.0.0.1:${server.address().port}`,close:async()=>{await new Promise(resolve=>{workerChannel.close();server.close(resolve);server.closeAllConnections();});await exports.close();await demo.exports.close();}};
+  return {server,cache,requests,demo,pairingCode,url:`http://127.0.0.1:${server.address().port}`,close:async()=>{documentLinks.clear();await new Promise(resolve=>{workerChannel.close();server.close(resolve);server.closeAllConnections();});await exports.close();await demo.exports.close();}};
 }
