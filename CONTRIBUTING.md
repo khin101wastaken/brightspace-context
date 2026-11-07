@@ -4,15 +4,15 @@ Check the [roadmap](docs/ROADMAP.md) and [release checklist](docs/RELEASE-CHECKL
 
 Use Node.js 22.13+, run `npm ci`, load `extension/` as an unpacked Chrome extension, then run `npm run companion`. See the README for pairing and MCP setup.
 
-Run `npm test` and `npm run check` before submitting changes, and `npm run package:extension` after browser changes. After editing `assets/`, the bundle builder, or bundled dependencies, regenerate the checked-in browser/companion modules and support assets with `npm run build:rich-text`; `npm run build:rich-text -- --check` verifies them. Commit generated files and upstream licenses with their source changes.
+For code changes, run `npm test` and `npm run check`. Run `npm run package:extension` after browser changes. After editing `assets/`, the bundle builder, or bundled dependencies, regenerate the checked-in browser and companion modules and support assets with `npm run build:rich-text`. Verify them with `npm run build:rich-text -- --check`. Commit generated files and upstream licenses with their source changes.
 
 Describe the problem, resulting behavior and relevant validation in pull requests. Use synthetic fixtures. Include versions and sanitized error codes in bug reports when useful.
 
 ## Keeping GitHub current
 
-Use short `codex/` branches for focused changes and open a pull request against `main`. Commit verified milestones instead of leaving the installed app ahead of its source checkpoint. Keep unrelated work in separate commits; a tested feature branch is not a replacement for an up-to-date default branch.
+Commit small, low-risk changes such as README corrections directly to `main` after checking the diff and running any relevant validation. Check GitHub Actions after pushing.
 
-Before merging, run the same checks as GitHub: dependency installation, generated-bundle verification, the Windows test suite, syntax checks and extension packaging. Check the Actions result for the exact pushed commit. A local pass is useful evidence but does not replace a green hosted run. Investigate failed checks before merging or calling a release ready; do not disable a failing test to hide a regression.
+Use a short `codex/` branch and a pull request for changes that substantially affect behavior, security, packaging or CI. Run the relevant checks locally and verify that GitHub Actions passes on the PR's latest commit before merging. Commit verified milestones and keep unrelated work in separate commits.
 
 Keep `main` as the public source baseline. Once a PR is green and reviewed, merge it, confirm the resulting main-branch check, and close the completed branch. Tag releases only after their versioned artifacts and acceptance records match the source commit. Keep published versioned downloads immutable; update setup/reviewer documentation with the corresponding release, not with an untested local patch.
 
