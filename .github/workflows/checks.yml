@@ -11,6 +11,8 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci
+      - name: Check Windows key protection across subprocess environments
+        run: node scripts/check-key-protection.js
       - run: npm run build:rich-text -- --check
       - run: npm test
       - run: npm run check
