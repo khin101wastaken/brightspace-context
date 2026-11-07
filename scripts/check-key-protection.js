@@ -2,6 +2,7 @@ import {spawnSync} from 'node:child_process';
 import {readFileSync} from 'node:fs';
 import {randomBytes,createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
+import path from 'node:path';
 import {getDefaultEnvironment} from '@modelcontextprotocol/sdk/client/stdio.js';
 import {windowsKeyProtection} from '../companion/key-protection.js';
 
@@ -17,7 +18,7 @@ if(process.argv.includes('--child')) {
   const sample=randomBytes(32),wrapped=await windowsKeyProtection.protect(sample),input=JSON.stringify({wrapped:wrapped.toString('base64'),digest:digest(sample)});
   const defaults=getDefaultEnvironment(),extra=['WINDIR','COMSPEC','PATHEXT','PROGRAMDATA','PROGRAMFILES(X86)','PROGRAMW6432','PSModulePath'];
   console.log(JSON.stringify({node:process.version,platform:process.platform,omittedWindowsVariables:extra.filter(key=>process.env[key] && !defaults[key])}));
-  const variants=[['sdk-default',defaults],['sdk-windir',{...defaults,WINDIR:process.env.WINDIR}],['sdk-windows-system',{...defaults,...Object.fromEntries(extra.filter(key=>process.env[key]).map(key=>[key,process.env[key]]))}],['inherited',process.env]];
+  const variants=[['sdk-default',defaults],['sdk-programdata',{...defaults,PROGRAMDATA:process.env.PROGRAMDATA}],['sdk-comspec',{...defaults,COMSPEC:process.env.COMSPEC}],['sdk-psmodulepath',{...defaults,PSModulePath:process.env.PSModulePath}],['sdk-system-modules',{...defaults,PSModulePath:path.join(process.env.SystemRoot || 'C:\\Windows','System32','WindowsPowerShell','v1.0','Modules')}],['inherited',process.env]];
   let failed=false;
   for(const [name,env] of variants){
     const run=spawnSync(process.execPath,[fileURLToPath(import.meta.url),'--child'],{env,input,encoding:'utf8',timeout:25000,maxBuffer:16384,windowsHide:true});
