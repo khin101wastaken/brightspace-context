@@ -1,0 +1,13 @@
+# Original demo documents must retain exact bytes and PDF cross-reference offsets.
+*.pdf binary
+*.pptx binary
+*.docx binary
+
+# PDF.js mapping and font data must survive Windows checkouts byte-for-byte.
+*.bcmap binary
+*.pfb binary
+*.ttf binary
+
+# Preserve the upstream notices without rewriting their formatting.
+companion/pdfjs/cmaps/LICENSE whitespace=-blank-at-eol
+companion/pdfjs/standard_fonts/LICENSE_LIBERATION whitespace=-blank-at-eol

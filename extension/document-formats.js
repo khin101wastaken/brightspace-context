@@ -481,10 +481,11 @@ var formats = {
   docx: { extension: "docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", part: "word/document.xml", contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml" }
 };
 var MAX_FILE_BYTES = 50 * 1024 * 1024;
-function documentFormat(value) {
+function documentFormat(value, { provider = "nyu" } = {}) {
   try {
     const url = new URL(value), suffix = url.pathname.split(".").at(-1).toLowerCase();
-    if (url.origin !== "https://brightspace.nyu.edu" || !url.pathname.startsWith("/content/") || url.username || url.password || !Object.hasOwn(formats, suffix)) return null;
+    const valid = provider === "nyu" ? url.origin === "https://brightspace.nyu.edu" && url.pathname.startsWith("/content/") : provider === "demo" && url.origin === "http://127.0.0.1:47653" && url.pathname.startsWith("/demo/content/");
+    if (!valid || url.username || url.password || !Object.hasOwn(formats, suffix)) return null;
     return { ...formats[suffix] };
   } catch {
     return null;

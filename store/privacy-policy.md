@@ -2,7 +2,7 @@
 
 Publisher: Khin Aung
 Contact: khinaungwrk@gmail.com
-Last updated: November 4, 2026
+Last updated: November 5, 2026
 
 ## Purpose and data handled
 
@@ -10,7 +10,7 @@ Brightspace Context helps users organize NYU Brightspace course resources, downl
 
 The extension handles semester and course names/IDs; module hierarchy; resource titles, links, descriptions and modification dates; browser preferences; download progress/errors; and a token for its local companion connection. Content-outline descriptions can include assignment-related titles or text supplied in that outline. The product does not request gradebook data, assignment submissions, feedback or dedicated assignment details.
 
-The optional companion stores synced catalog metadata, pairing configuration, document-request state and selected PDF, PPTX and DOCX files in a bounded local cache. Its diagnostic events include local startup paths, identifiers, counts and result/error codes, while excluding document contents and authentication credentials from event fields.
+The optional companion stores synced catalog metadata, pairing configuration, document-request state and selected PDF, PPTX and DOCX files in a bounded local cache. Its diagnostic events include local startup paths, identifiers, counts and result/error codes, while excluding document contents and authentication credentials from event fields. Beginning with version 0.9.2, its persistent data is encrypted with AES-256-GCM and a key protected by the current Windows account.
 
 ## Where data goes
 
@@ -20,11 +20,21 @@ The browser transfers catalog metadata and selected requested files to the paire
 
 When you connect and use an AI/MCP client, that client can receive catalog metadata and requested documents. Its own processing and retention practices, including any transmission to its AI provider, are governed by the provider and your settings. The extension's local storage architecture does not control the AI client's practices.
 
+While the browser is paired and automatic retrieval is enabled, your connected MCP client can also request semester discovery and catalog refreshes through the extension. These refreshes use the existing browser session, update local course/module metadata and notes, and do not download every course file. You can pause automatic retrieval or disconnect the browser in the extension.
+
+Course data and connection information are used to provide these user-facing features. They are not sold, used for advertising, or used to determine creditworthiness or lending eligibility. Data use and transfer comply with the Chrome Web Store User Data Policy, including its Limited Use requirements.
+
 External resource links open their own websites when you choose to visit them. Those websites have their own privacy practices.
 
 ## Storage and removal
 
-Extension data is stored in the Chrome profile. Companion files are stored locally; the current Windows default is `%USERPROFILE%\BrightspaceContext\cache`, or a location explicitly configured by the user. The product does not add application-level encryption to these local files. Access depends on the computer/account's protections.
+Extension preferences and encrypted saved catalogs are stored in the Chrome profile. In version 0.9.2, decrypted course data, live pairing credentials and the browser encryption key use browser session memory. Without pairing, newly synced catalogs last only for that browser session. After a browser restart, the paired companion must be running to unlock saved catalogs; normal unlocking does not require another pairing code. The persisted pairing credential is encrypted and bound to the paired extension identity.
+
+Companion files are stored locally; the current Windows default is `%USERPROFILE%\BrightspaceContext\cache`, or a location explicitly configured by the user. Version 0.9.2 encrypts persistent cache documents, catalog/index metadata, pairing configuration, settings and request history. Its random master key is wrapped using Windows account protection; no raw master key is stored beside these files. This does not protect an unlocked application from software running as the same Windows user or control copies made by the chosen AI client.
+
+Earlier versions stored ordinary unencrypted local files. On the first updated companion start, recognized legacy files are encrypted and verified before their plaintext originals are retired. Legacy browser data is encrypted when the updated companion can unlock storage; if it is unavailable or migration fails, originals are retained and a migration-pending message is shown. Migration does not promise forensic erasure of deleted blocks, backups or sync history. Preserve the original cache/key files and Windows profile if unlocking fails; moving encrypted data to another computer/account does not by itself make it readable.
+
+Normal version 0.9.2 MCP retrieval decrypts requested bytes in memory and creates no plaintext filesystem path. A separately enabled temporary-export feature supports clients that require readable local files. It is disabled by default and requires an explicit export request. These compatibility copies are unencrypted, expire after 15 minutes, and are removed when exports are disabled or the companion shuts down normally. A crash can leave them until the companion starts again. Ordinary browser downloads remain unencrypted files where you choose to save them, and are not automatically removed by this feature. The AI client may retain its own copies under its own policies.
 
 Document cache entries can be replaced or evicted to enforce freshness and storage limits. Saved catalog and request metadata can remain until replaced or removed. Ordinary downloads remain wherever you saved them.
 
@@ -39,3 +49,6 @@ This website serves static privacy/setup information and companion installer dow
 ## Contact and changes
 
 For questions or data-handling concerns, contact khinaungwrk@gmail.com. This policy will be updated if storage, transmission or distribution behavior changes. This product is independent of NYU and D2L.
+
+
+The optional local demo serves only packaged fictional courses and original sample files on your computer. Demo catalogs and cache data are separate from the real NYU library and use the same encrypted storage treatment. The public review guide does not host your local demo server or real course data.

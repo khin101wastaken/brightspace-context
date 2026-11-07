@@ -89,3 +89,7 @@ Version 0.8.4 adds diagnostic logging and passes all 62 regression checks. Its p
 ## Platform plan
 
 The Node companion, extension and MCP server remain portable JavaScript. Packaging and launch UX are platform-specific. Future macOS and Linux installers should reuse those components and provide their own runtime, installation paths, signing/notarization and startup integration. A single download page can select the appropriate OS build; there is no universal native installer executable.
+
+## Independent companion releases
+
+The installer version comes from `companion/version.js` (`COMPANION_VERSION`); the bundled Chrome extension retains its own `extension/manifest.json` version. The payload inventory records both. Companion 0.9.4 ships concise terminal logging with the unchanged extension 0.9.3. This allows companion-only fixes to ship without replacing a frozen Chrome upload ZIP. Older versioned installer files/checksums remain immutable; the public setup page points at the latest companion.

@@ -1,9 +1,10 @@
+import {sourceConfig} from './sources.js';
 import {descriptionText} from './rich-text.js';
-import {searchTermPattern} from './search-highlight.js';
+import {searchTermPattern,matchingPassages} from './search-highlight.js';
 
-export function flattenOutline(payload,courseId) {
+export function flattenOutline(payload,courseId,{provider='nyu'}={}) {
   if(!/^\d+$/.test(String(courseId)) || !Array.isArray(payload?.Modules)) throw new Error('Invalid course outline.');
-  const origin='https://brightspace.nyu.edu', entries=[], seen=new Set();
+  const origin=sourceConfig(provider).base, entries=[], seen=new Set();
   const safeUrl=value=>{
     try {const url=new URL(value,origin); return ['https:','http:'].includes(url.protocol)?url.href:null;} catch {return null;}
   };
@@ -16,7 +17,7 @@ export function flattenOutline(payload,courseId) {
     if(seen.has(key)) throw new Error('Course outline contains a duplicate identifier.');
     seen.add(key);
     const contentType=kind==='module'?'module':item.ToolId===2000?'assignment':item.TypeIdentifier==='File'?'file':'link';
-    entries.push({key,id,kind,contentType,title:String(item.Title || 'Untitled'),parentKey,
+    entries.push({...(provider==='demo'?{provider}:{}),key,id,kind,contentType,title:String(item.Title || 'Untitled'),parentKey,
       order:Number.isFinite(item.SortOrder)?item.SortOrder:entries.length,
       url:`${origin}/d2l/le/lessons/${courseId}/${kind==='module'?'units':'topics'}/${id}`,
       sourceUrl:item.Url?safeUrl(item.Url):null,
@@ -37,27 +38,38 @@ export function flattenOutline(payload,courseId) {
 
 export function searchOutline(entries,query) {
   const terms=query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
-  const patterns=terms.map(term=>searchTermPattern([term]));
-  const matches=new Set(),noteMatches=new Set(),deepestMatches=new Set();
-  if(!terms.length) return {entries,terms,matches,noteMatches,deepestMatches,resourceMatches:0,moduleMatches:0};
+  const prefixTerms=/\s$/.test(query)?[]:terms.slice(-1);
+  const patterns=terms.map((term,index)=>searchTermPattern([term],{prefixTerms:index===terms.length-1?prefixTerms:[]}));
+  const matches=new Set(),noteMatches=new Set(),deepestMatches=new Set(),expandedModules=new Set(),titleMatches=new Set();
+  if(!terms.length) return {entries,terms,prefixTerms,matches,noteMatches,deepestMatches,expandedModules,resourceMatches:0,moduleMatches:0};
   const byKey=new Map(entries.map(e=>[e.key,e])),included=new Set(),ancestorsByKey=new Map();
   for(const entry of entries) {
     const ancestors=[], visited=new Set([entry.key]);
     for(let p=byKey.get(entry.parentKey);p && !visited.has(p.key);p=byKey.get(p.parentKey)) {ancestors.push(p);visited.add(p.key);}
     ancestorsByKey.set(entry.key,ancestors);
-    const text=[entry.title,entry.description,...ancestors.map(e=>e.title)].join(' ').toLocaleLowerCase();
-    if(patterns.every(pattern=>pattern.test(text))) {
+    const title=entry.title || '',notes=entry.description || '',ancestorTitles=ancestors.map(e=>e.title).join(' ');
+    const allIn=text=>patterns.every(pattern=>pattern.test(text));
+    if(allIn(title)) titleMatches.add(entry.key);
+    const ownNotes=matchingPassages(notes,patterns).length>0;
+    if(entry.kind==='module' && ownNotes) noteMatches.add(entry.key);
+    // A path-scoped query such as "week 3 worksheet" can still find its file.
+    // If the path already supplies the entire query, the file is only context.
+    const scopedFile=entry.kind==='document' && !allIn(ancestorTitles) && allIn(`${ancestorTitles} ${title}`);
+    if(titleMatches.has(entry.key) || ownNotes || scopedFile) matches.add(entry.key);
+  }
+  for(const entry of entries) {
+    const ancestors=ancestorsByKey.get(entry.key);
+    if(matches.has(entry.key) || ancestors.some(e=>e.kind==='module' && titleMatches.has(e.key))) {
       included.add(entry.key);ancestors.forEach(e=>included.add(e.key));
-      const title=(entry.title || '').toLocaleLowerCase(),notes=(entry.description || '').toLocaleLowerCase();
-      // Inherited module-path matches keep files visible as context; only the
-      // item whose own title/notes matches gets the direct-match treatment.
-      if(patterns.some(pattern=>pattern.test(title) || pattern.test(notes))) matches.add(entry.key);
-      if(entry.kind==='module' && patterns.some(pattern=>pattern.test(notes))) noteMatches.add(entry.key);
     }
+  }
+  for(const key of matches) {
+    ancestorsByKey.get(key).forEach(e=>expandedModules.add(e.key));
+    if(noteMatches.has(key)) expandedModules.add(key);
   }
   for(const key of matches) deepestMatches.add(key);
   for(const key of matches) for(const ancestor of ancestorsByKey.get(key)) deepestMatches.delete(ancestor.key);
-  return {entries:entries.filter(e=>included.has(e.key)),terms,matches,noteMatches,deepestMatches,
+  return {entries:entries.filter(e=>included.has(e.key)),terms,prefixTerms,matches,noteMatches,deepestMatches,expandedModules,
     resourceMatches:entries.filter(e=>e.kind==='document' && matches.has(e.key)).length,
     moduleMatches:entries.filter(e=>e.kind==='module' && matches.has(e.key)).length};
 }

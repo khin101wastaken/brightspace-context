@@ -6,8 +6,8 @@ import {zipSync,unzipSync,strFromU8} from 'fflate';
 
 export const EXTENSION_FILES=[
   'manifest.json','background.js','brightspace-client.js','catalog.js','companion-client.js','course-api.js',
-  'download.js','file-downloads.js','popup.css','popup.html','popup.js','resources.html','resources.js',
-  'retrieval-worker.js','semester.js','tab-context.js','rich-text.js','document-formats.js','search-highlight.js','product-links.js','LICENSE','THIRD-PARTY-LICENSES.txt',
+  'download.js','file-downloads.js','appearance.js','motion-settings.js','popup.css','popup.html','popup.js','resources.html','resources.js',
+  'retrieval-worker.js','semester.js','semester-picker.js','sync-progress.js','ui-motion.js','tab-context.js','rich-text.js','document-formats.js','search-highlight.js','product-links.js','private-storage.js','sources.js','source-picker.js','LICENSE','THIRD-PARTY-LICENSES.txt',
   ...[16,32,48,128].map(size=>`icons/icon-${size}.png`),
 ];
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');

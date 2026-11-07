@@ -17,6 +17,7 @@ cache/
 data/
 downloads/
 artifacts/
+.codex-remote-attachments/
 sites/
 tmp/pdfs/
 *.har
@@ -30,3 +31,8 @@ storage-state*.json
 *.doc
 *.docx
 *.zip
+
+# Original, project-authored fictional reviewer documents only.
+!companion/demo-assets/field-guide.pdf
+!companion/demo-assets/fair-experiment.pptx
+!companion/demo-assets/observation-worksheet.docx

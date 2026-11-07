@@ -1,15 +1,27 @@
+import {privateStorage as rootStorage} from './private-storage.js';
+import {sourceStorage} from './sources.js';
+import {wireSourcePicker} from './source-picker.js';
+const provider=(await chrome.storage.local.get('activeSource')).activeSource??'nyu';
+const privateStorage=sourceStorage(rootStorage,provider);
+const send=message=>chrome.runtime.sendMessage({...message,provider});
+wireSourcePicker({provider});
 import { mergeCatalog } from './catalog.js';
 import {captureTarget,validateTarget} from './tab-context.js';
 import {flattenOutline,searchOutline} from './course-api.js';
-import {appendHighlightedText} from './search-highlight.js';
+import {appendHighlightedText,appendHighlightedPassages} from './search-highlight.js';
 import {wireProductLinks} from './product-links.js';
 import {readCourseOutline} from './brightspace-client.js';
 import {downloadableFile,resourceTypeLabel} from './file-downloads.js';
 import {documentFormat} from './document-formats.js';
+import {enhanceSemesterPicker} from './semester-picker.js';
+import {animateDisclosure} from './ui-motion.js';
+import {createSyncStatus} from './sync-progress.js';
 const $ = id => document.getElementById(id);
+const semesterPicker=enhanceSemesterPicker($('semester-select'));
 wireProductLinks(document);
 const status = message => {$('status').textContent=message;$('status').hidden=!message;};
-const semesterStatus=message=>{$('semester-status').textContent=message;$('semester-status').hidden=!message;};
+const syncStatus=createSyncStatus($('semester-status'));
+const semesterStatus=message=>syncStatus.message(message);
 let busy = false;
 let currentCatalog = null;
 let selectedSemester='',showCacheControls=false,libraryValues={};
@@ -28,13 +40,13 @@ function updateCacheButtons() {
 }
 async function refreshCompanion() {
   try {
-    const result=await chrome.runtime.sendMessage({type:'companion-status'});
+    const result=await send({type:'companion-status'});
     if(!result?.ok || !result.connected) throw new Error(result?.error || 'Companion is not paired.');
     $('companion-status').textContent=`Connected · ${result.files} files · ${sizeLabel(result.usedBytes)} / ${sizeLabel(result.budgetBytes)} · automatic retrieval ${result.workerConnected?'connected':'not connected'}`;
   } catch(error) {$('companion-status').textContent=`Not connected. ${error.message || 'Start the companion and try again.'}`;}
 }
 function downloadStatus(key) {
-  return Object.values(downloadRecords).filter(r=>r.courseId===currentCatalog?.courseId && r.key===key).sort((a,b)=>b.startedAt-a.startedAt)[0];
+  return Object.values(downloadRecords).filter(r=>(r.provider??'nyu')===provider && r.courseId===currentCatalog?.courseId && r.key===key).sort((a,b)=>b.startedAt-a.startedAt)[0];
 }
 function updateDownloadButtons() {
   document.querySelectorAll('button[data-download-key]').forEach(button=>{
@@ -58,12 +70,14 @@ function updateDownloadButtons() {
 const sourceId=new URL(location.href).searchParams.get('sourceTabId');
 let targetPromise=sourceId && /^\d+$/.test(sourceId)?captureTarget(chrome.tabs,{allowHome:true,tabId:Number(sourceId)}).catch(()=>null):Promise.resolve(null);
 async function activeCourse() {
+  if(provider==='demo')throw new Error('Demo outlines use Sync semester; no NYU tab is read.');
   const target=await targetPromise;
   if(!target?.courseId) throw new Error('Open a course in Brightspace, then reopen Resources from the extension to scan that source course.');
   return validateTarget(chrome.tabs,target);
 }
 async function refreshSavedCourses() {
-  libraryValues=await chrome.storage.local.get(null);
+  libraryValues=await privateStorage.get(null);
+  $('storage-status').textContent=libraryValues.storageProtection.message;
   const savedSemesters=Object.entries(libraryValues).filter(([key])=>key.startsWith('semester:')).map(([,value])=>value);
   const all=new Map(savedSemesters.map(s=>[s.semesterId,s]));
   for(const semester of libraryValues.availableSemesters || []) if(!all.has(semester.semesterId)) all.set(semester.semesterId,{...semester,courses:[]});
@@ -80,6 +94,7 @@ async function refreshSavedCourses() {
     if(!semesters.some(s=>s.semesterId===selectedSemester)) selectedSemester=semesters[0]?.semesterId || '';
   }
   select.value=selectedSemester;
+  semesterPicker.refresh();
   $('sync-semester').disabled=busy || !/^\d+$/.test(selectedSemester);
   const semester=semesters.find(s=>s.semesterId===selectedSemester);
   $('semester-name').textContent=semester?.title || 'YOUR LIBRARY';
@@ -96,23 +111,23 @@ async function refreshSavedCourses() {
   }
   const courseId=semester?.courses.find(c=>c.courseId===currentCatalog?.courseId)?.courseId || semester?.courses.find(c=>c.courseId===libraryValues.resourcesSelection?.courseId)?.courseId || semester?.courses.find(c=>libraryValues[`course:${c.courseId}`])?.courseId;
   selectCourse(courseId,false);
-  if(libraryValues.semesterSync?.state && !['complete'].includes(libraryValues.semesterSync.state)) semesterStatus(libraryValues.semesterSync.message);
+  if(libraryValues.semesterSync?.state) syncStatus.render(libraryValues.semesterSync,{restore:true});
 }
 function selectCourse(id,persist=true) {
   const saved=libraryValues[`course:${id}`];
   if(currentCatalog?.courseId!==id) $('search').value='';
   render(saved?{...saved,openFolders:libraryValues[`folders:${id}`] || []}:null);
   document.querySelectorAll('.course-item').forEach(button=>button.setAttribute('aria-current',String(button.dataset.courseId===id)));
-  if(persist && id) {libraryValues.resourcesSelection={semesterId:selectedSemester,courseId:id};chrome.storage.local.set({resourcesSelection:libraryValues.resourcesSelection}).catch(error=>status(error.message));}
+  if(persist && id) {libraryValues.resourcesSelection={semesterId:selectedSemester,courseId:id};privateStorage.set({resourcesSelection:libraryValues.resourcesSelection}).catch(error=>status(error.message));}
 }
 $('semester-select').addEventListener('change',()=>{selectedSemester=$('semester-select').value;currentCatalog=null;void refreshSavedCourses();});
 async function loadSemesters() {
   $('refresh-semesters').disabled=true;
   try {
-    const result=await chrome.runtime.sendMessage({type:'list-semesters'});
+    const result=await send({type:'list-semesters'});
     if(!result?.ok) throw new Error(result?.error || 'Unable to load semesters.');
     await refreshSavedCourses();
-    if(!busy && (!libraryValues.semesterSync || libraryValues.semesterSync.state==='complete')) semesterStatus('');
+    if(!busy && !libraryValues.semesterSync) semesterStatus('');
   } catch(error) {semesterStatus(error.message+' Saved course outlines are still available.');}
   finally {$('refresh-semesters').disabled=false;}
 }
@@ -121,18 +136,19 @@ for(const [id,type] of [['sync-semester','sync-semester'],['send-catalog','send-
   if(busy) return;busy=true;$(id).disabled=true;
   try {
     semesterStatus(type==='sync-semester'?'Loading this semester’s courses from Brightspace…':'Sending saved catalog…');
-    const result=await chrome.runtime.sendMessage({type,...(type==='sync-semester'?{semesterId:selectedSemester}:{})});
+    const result=await send({type,...(type==='sync-semester'?{semesterId:selectedSemester}:{})});
     if(!result?.ok) throw new Error(result?.error || 'Catalog sync failed.');
-    await refreshSavedCourses();semesterStatus(result.message);
-  } catch(error) {semesterStatus(error.message);}
+    await refreshSavedCourses();if(type==='sync-semester' && libraryValues.semesterSync) syncStatus.render(libraryValues.semesterSync);else semesterStatus(result.message);
+  } catch(error) {if(type==='sync-semester' && libraryValues.semesterSync?.state==='failed') syncStatus.render(libraryValues.semesterSync);else semesterStatus(error.message);}
   finally {busy=false;$(id).disabled=type==='sync-semester' && !/^\d+$/.test(selectedSemester);}
 });
 function render(catalog) {
   $('catalog').replaceChildren();
   currentCatalog=catalog;
   $('resources-empty').hidden=!!catalog;$('resource-tools').hidden=!catalog;
-  if(!catalog) {$('course').textContent='Your semester, organized.';$('summary').textContent='Choose a saved course, or sync a semester to get started.';return;}
-  const query=$('search').value.trim(),search=searchOutline(catalog.entries,query),filtered=search.entries;
+  if(!catalog) {$('course').textContent='Course resources';$('summary').textContent='Choose a saved course, or sync a semester to get started.';return;}
+  const rawQuery=$('search').value,query=rawQuery.trim(),search=searchOutline(catalog.entries,rawQuery),filtered=search.entries;
+  const highlightOptions={prefixTerms:search.prefixTerms};
   $('course').textContent = catalog.title || `Course ${catalog.courseId}`;
   const matches=[search.resourceMatches?`${search.resourceMatches} resource match${search.resourceMatches===1?'':'es'}`:'',search.moduleMatches?`${search.moduleMatches} module match${search.moduleMatches===1?'':'es'}`:''].filter(Boolean).join(' · ') || 'No matches';
   $('summary').textContent = `${catalog.entries.filter(e=>e.kind==='document').length} resources · ${catalog.entries.filter(e=>e.kind==='module').length} modules · Updated ${new Date(catalog.lastScannedAt).toLocaleDateString()}${query?` · ${matches}`:''}`;
@@ -155,27 +171,31 @@ function render(catalog) {
       const li=document.createElement('li'), kind=document.createElement('span'), a=document.createElement('a');
       kind.className='kind'; kind.textContent=resourceTypeLabel(e);
       if(e.contentType==='file') kind.title=kind.textContent==='Unknown'?'File type not supplied in the resource URL':`${kind.textContent} file${e.locked?' · locked':''}`;
-      appendHighlightedText(a,e.title,search.matches.has(e.key)?search.terms:[]);a.href=e.url; a.target='_blank'; a.rel='noopener';
+      appendHighlightedText(a,e.title,search.matches.has(e.key)?search.terms:[],highlightOptions);a.href=e.url; a.target='_blank'; a.rel='noopener';
       let content=li;
       if(e.kind==='module') {
         const details=document.createElement('details'), summary=document.createElement('summary');
-        details.open=!!query || openFolders.has(e.key);
-        appendHighlightedText(summary,e.title,search.matches.has(e.key)?search.terms:[]);
+        details.open=query?search.expandedModules.has(e.key):openFolders.has(e.key);
+        appendHighlightedText(summary,e.title,search.matches.has(e.key)?search.terms:[],highlightOptions);
         if(search.deepestMatches.has(e.key)) summary.classList.add('search-match');
         const count=document.createElement('span'),childCount=children.get(e.key)?.length || 0;count.className='count';count.textContent=` ${childCount}`;count.hidden=!!query && !childCount;summary.append(count);
         details.append(summary); li.append(details); content=details;
+        animateDisclosure(details);
         details.addEventListener('toggle',()=>{
           if(!mounted || query) return;
           if(details.open) openFolders.add(e.key); else openFolders.delete(e.key);
           catalog.openFolders=[...openFolders];
-          chrome.storage.local.set({[foldersKey]:[...openFolders]}).catch(error=>status(error.message));
+          privateStorage.set({[foldersKey]:[...openFolders]}).catch(error=>status(error.message));
         });
         a.className='module-link'; a.textContent='Open module in Brightspace'; content.append(a);
         if(e.description) {
           const notes=document.createElement('details'),heading=document.createElement('summary'),text=document.createElement('p');
           notes.className='module-notes';notes.open=search.noteMatches.has(e.key);heading.textContent=notes.open?'Module notes · matching text':'Module notes';
-          appendHighlightedText(text,e.description+(e.descriptionTruncated?'\n[Notes truncated; open module for the full text.]':''),search.noteMatches.has(e.key)?search.terms:[]);
+          text.tabIndex=0;text.setAttribute('aria-label','Module notes');
+          appendHighlightedPassages(text,e.description,search.noteMatches.has(e.key)?search.terms:[],highlightOptions);
+          if(e.descriptionTruncated) text.append(document.createTextNode('\n[Notes truncated; open module for the full text.]'));
           notes.append(heading,text);content.append(notes);
+          animateDisclosure(notes);
         }
         if(e.descriptionStatus==='unavailable') {
           const note=document.createElement('p');note.className='module-notes-unavailable';note.textContent='Module notes unavailable. Open in Brightspace to check access.';content.append(note);
@@ -183,7 +203,7 @@ function render(catalog) {
       } else {
         const row=document.createElement('div');row.className='file-row';
         const label=document.createElement('div'); label.className='file-label';if(search.deepestMatches.has(e.key)) label.classList.add('search-match');label.append(kind,a);row.append(label);content.append(row);
-        const file=downloadableFile(e);
+        const file=downloadableFile(e,{provider});
         if(file) {
           const controls=document.createElement('div');controls.className='file-controls';
           const button=document.createElement('button');button.className='inline-download';button.dataset.downloadKey=e.key;button.dataset.fileTitle=e.title;
@@ -206,18 +226,18 @@ function render(catalog) {
             if(pendingDownloads.has(e.key)) return;
             pendingDownloads.add(e.key);updateDownloadButtons();
             try {
-              const response=await chrome.runtime.sendMessage({type:'download-file',courseId:catalog.courseId,key:e.key,saveAs});
+              const response=await send({type:'download-file',courseId:catalog.courseId,key:e.key,saveAs});
               if(!response?.ok) throw new Error(response?.error || 'Download could not start.');
-              downloadRecords=await chrome.storage.session.get(null);
+              const records=await chrome.storage.session.get(null);downloadRecords=Object.fromEntries(Object.entries(records).filter(([key])=>!key.startsWith('demo:') && !/^(?:cache:|attempt:)/.test(key) || (provider==='demo'?key.startsWith('demo:'): /^(?:cache:|attempt:)/.test(key))).map(([key,value])=>[provider==='demo' && key.startsWith('demo:')?key.slice(5):key,value]));
               status('Download started. Chrome continues downloading if you close this page.');
-            } catch(error) {downloadRecords=await chrome.storage.session.get(null);status(error.message);} finally {pendingDownloads.delete(e.key);updateDownloadButtons();}
+            } catch(error) {const records=await chrome.storage.session.get(null);downloadRecords=Object.fromEntries(Object.entries(records).filter(([key])=>!key.startsWith('demo:') && !/^(?:cache:|attempt:)/.test(key) || (provider==='demo'?key.startsWith('demo:'): /^(?:cache:|attempt:)/.test(key))).map(([key,value])=>[provider==='demo' && key.startsWith('demo:')?key.slice(5):key,value]));status(error.message);} finally {pendingDownloads.delete(e.key);updateDownloadButtons();}
           };
           button.addEventListener('click',()=>startDownload(false));
           const saveAs=document.createElement('button');saveAs.className='download-save-as';saveAs.textContent='Save as…';
           saveAs.setAttribute('aria-label',`Choose save location for ${e.title}`);
           saveAs.addEventListener('click',()=>startDownload(true));
           controls.append(button,saveAs,note,details);row.append(controls);
-          if(showCacheControls && documentFormat(file.url)) {
+          if(showCacheControls && documentFormat(file.url,{provider})) {
             const cache=document.createElement('button');cache.className='cache-document';cache.dataset.cacheKey=e.key;
             cache.title=`Cache ${e.title} locally`;cache.setAttribute('aria-label',cache.title);
             const cacheNote=document.createElement('span');cacheNote.className='cache-status';cacheNote.setAttribute('role','status');
@@ -225,12 +245,12 @@ function render(catalog) {
               if(pendingCache.has(e.key)) return;
               pendingCache.add(e.key);updateCacheButtons();
               try {
-                const result=await chrome.runtime.sendMessage({type:'cache-file',courseId:catalog.courseId,key:e.key});
+                const result=await send({type:'cache-file',courseId:catalog.courseId,key:e.key});
                 if(!result?.ok) throw new Error(result?.error || 'Could not cache this file.');
                 status(result.source==='cache'?'Cache hit: served locally without downloading the file again.':'File fetched and cached locally. Click Cache again to verify a hit.');
                 await refreshCompanion();
               } catch(error) {status(error.message);} finally {
-                downloadRecords=await chrome.storage.session.get(null);pendingCache.delete(e.key);updateCacheButtons();
+                const records=await chrome.storage.session.get(null);downloadRecords=Object.fromEntries(Object.entries(records).filter(([key])=>!key.startsWith('demo:') && !/^(?:cache:|attempt:)/.test(key) || (provider==='demo'?key.startsWith('demo:'): /^(?:cache:|attempt:)/.test(key))).map(([key,value])=>[provider==='demo' && key.startsWith('demo:')?key.slice(5):key,value]));pendingCache.delete(e.key);updateCacheButtons();
               }
             });
             controls.insertBefore(cache,note);controls.append(cacheNote);controls.classList.add('has-cache');
@@ -249,17 +269,19 @@ function render(catalog) {
   updateDownloadButtons();
   updateCacheButtons();
 }
-chrome.storage.onChanged.addListener((changes,area)=>{
+privateStorage.onChanged.addListener((changes,area)=>{
   if(area==='local') {
+    if(changes.storageProtection)refreshSavedCourses().catch(error=>status(error.message));
     for(const [key,change] of Object.entries(changes)) if(key.startsWith('folders:')) libraryValues[key]=change.newValue;
-    if(changes.semesterSync?.newValue) semesterStatus(changes.semesterSync.newValue.message);
+    if(changes.semesterSync?.newValue) {libraryValues.semesterSync=changes.semesterSync.newValue;syncStatus.render(changes.semesterSync.newValue);}
     if(Object.keys(changes).some(key=>key==='availableSemesters' || key.startsWith('semester:') || key.startsWith('course:'))) refreshSavedCourses().catch(error=>status(error.message));
     return;
   }
   if(area!=='session') return;
   for(const [key,change] of Object.entries(changes)) {
-    if(!key.startsWith('download:') && !key.startsWith('attempt:') && !key.startsWith('cache:')) continue;
-    if(change.newValue) downloadRecords[key]=change.newValue; else delete downloadRecords[key];
+    const logical=provider==='demo' && key.startsWith('demo:')?key.slice(5):key;
+    if(!logical.startsWith('download:') && !logical.startsWith('attempt:') && !logical.startsWith('cache:')) continue;
+    if(change.newValue) downloadRecords[logical]=change.newValue; else delete downloadRecords[logical];
   }
   updateDownloadButtons();
   updateCacheButtons();
@@ -268,7 +290,7 @@ $('companion-refresh').addEventListener('click',refreshCompanion);
 $('open-advanced').addEventListener('click',()=>{
   const open=$('advanced-panel').hidden;$('advanced-panel').hidden=!open;$('open-advanced').setAttribute('aria-expanded',String(open));
 });
-$('show-cache-controls').addEventListener('change',async()=>{showCacheControls=$('show-cache-controls').checked;await chrome.storage.local.set({uiShowManualCache:showCacheControls});if(currentCatalog) render(currentCatalog);});
+$('show-cache-controls').addEventListener('change',async()=>{showCacheControls=$('show-cache-controls').checked;await privateStorage.set({uiShowManualCache:showCacheControls});if(currentCatalog) render(currentCatalog);});
 async function action(fn) {
   if(busy) return; busy=true; $('scan').disabled=$('download').disabled=true;
   try {await startup; await fn();} catch(error) {status(error.message);} finally {busy=false; $('scan').disabled=$('download').disabled=false;}
@@ -278,11 +300,11 @@ $('scan').addEventListener('click',()=>action(async()=>{
   const entries=flattenOutline(await readCourseOutline(identity.courseId),identity.courseId);
   const latest=await activeCourse();
   const storageKey=`course:${identity.courseId}`;
-  const saved=(await chrome.storage.local.get(storageKey))[storageKey];
+  const saved=(await privateStorage.get(storageKey))[storageKey];
   const title=latest.tab.title?.replace(/^.*? - /,'') || saved?.title || `Course ${identity.courseId}`;
   const catalog=mergeCatalog(saved,{courseId:identity.courseId,title,entries,coverage:'full-toc'});
-  catalog.openFolders=(await chrome.storage.local.get(`folders:${identity.courseId}`))[`folders:${identity.courseId}`] || [];
-  await chrome.storage.local.set({[storageKey]:catalog}); render(catalog);
+  catalog.openFolders=(await privateStorage.get(`folders:${identity.courseId}`))[`folders:${identity.courseId}`] || [];
+  await privateStorage.set({[storageKey]:catalog}); render(catalog);
   const modules=entries.filter(e=>e.kind==='module').length;
   status(`Loaded ${modules} modules and ${entries.length-modules} topics. No page expansion or document downloads needed.`);
 }));
@@ -298,8 +320,8 @@ const startup=(async()=>{
   try {
     const target=await targetPromise;
     $('source').textContent=target?`Advanced scan source: ${target.title} · tab ${target.tabId}`:'No source tab for advanced per-course scans. Semester sync runs from this page.';
-    const settings=await chrome.storage.local.get('uiShowManualCache');showCacheControls=settings.uiShowManualCache===true;$('show-cache-controls').checked=showCacheControls;
-    downloadRecords=await chrome.storage.session.get(null);
+    const settings=await privateStorage.get('uiShowManualCache');showCacheControls=settings.uiShowManualCache===true;$('show-cache-controls').checked=showCacheControls;
+    const records=await chrome.storage.session.get(null);downloadRecords=Object.fromEntries(Object.entries(records).filter(([key])=>!key.startsWith('demo:') && !/^(?:cache:|attempt:)/.test(key) || (provider==='demo'?key.startsWith('demo:'): /^(?:cache:|attempt:)/.test(key))).map(([key,value])=>[provider==='demo' && key.startsWith('demo:')?key.slice(5):key,value]));
   } catch(error) {status(error.message);}
   await refreshSavedCourses();
   void loadSemesters();

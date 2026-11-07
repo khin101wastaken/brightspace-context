@@ -23,6 +23,8 @@ export async function verifyPayload(payload) {
     assert.equal(createHash('sha256').update(bytes).digest('hex'),entry.sha256,`Payload changed: ${entry.path}`);
   }
   for(const required of ['runtime/node.exe','runtime/LICENSE','app/companion/start.js','app/mcp/start.js','app/extension/manifest.json','SETUP.html','Start Companion.cmd']) assert.ok(seen.has(required),`Missing ${required}`);
+  const extension=JSON.parse(await readFile(path.join(payload,'app/extension/manifest.json'),'utf8'));
+  assert.equal(manifest.extensionVersion??manifest.version,extension.version,'payload records the actual bundled extension version');
   const guide=await readFile(path.join(payload,'SETUP.html'),'utf8'),script=guide.match(/<script>([\s\S]*?)<\/script>/)?.[1];
   assert.ok(script,'setup guide script exists');
   assert.ok(guide.includes(`'sha256-${createHash('sha256').update(script).digest('base64')}'`),'setup guide CSP permits exactly its inline script');
@@ -51,7 +53,7 @@ export async function startCompanion(node,payload,directory,port=0,launcher=fals
       child.once('error',error=>{clearTimeout(timeout);reject(error);});child.once('exit',fail);
       child.stdout.on('data',chunk=>{
         stdout+=chunk;
-        const url=stdout.match(/running at (http:\/\/127\.0\.0\.1:\d+)/)?.[1],code=stdout.match(/Pairing code: ([a-f0-9]{10})/)?.[1];
+        const url=stdout.match(/(?:running at |Address: )(http:\/\/127\.0\.0\.1:\d+)/)?.[1],code=stdout.match(/Pairing code: ([a-f0-9]{10})/)?.[1];
         if(url && code) {clearTimeout(timeout);child.off('exit',fail);resolve({url,code});}
       });
     });
@@ -74,6 +76,7 @@ export async function smokeWindows(payload) {
   let companion,client;
   try {
     companion=await startCompanion(node,payload,directory,0,true);
+    if(manifest.extensionVersion)await companion.waitForOutput(new RegExp('Brightspace Context companion '+manifest.version.replaceAll('.','\\.')));
     const origin=`chrome-extension://${'a'.repeat(32)}`;
     const request=async(endpoint,body,method='POST',token)=>{
       const response=await fetch(companion.url+endpoint,{method,headers:{Origin:origin,...(token?{Authorization:`Bearer ${token}`}:{})},...(body!==undefined?{body:Buffer.isBuffer(body)?body:JSON.stringify(body)}:{})});
@@ -97,6 +100,29 @@ export async function smokeWindows(payload) {
       client=new Client({name:'installer-smoke',version:'1.0.0'});await client.connect(transport);
     };
     await connect();
+    const tools=await client.listTools();assert.ok(tools.tools.some(tool=>tool.name==='request_catalog_sync'));assert.ok(tools.tools.some(tool=>tool.name==='get_catalog_sync'));
+    assert.deepEqual(tools.tools.find(tool=>tool.name==='search_catalog').inputSchema.properties.provider.enum,['nyu','demo']);
+    const demoPage=await fetch(companion.url+'/demo/');assert.equal(demoPage.status,200);assert.match(await demoPage.text(),/LOCAL DEMO/);
+    for(const filename of ['field-guide.pdf','fair-experiment.pptx','observation-worksheet.docx']) {
+      const response=await fetch(companion.url+'/demo/content/'+filename);assert.equal(response.status,200);
+      assert.deepEqual(Buffer.from(await response.arrayBuffer()),await readFile(path.join(payload,'app/companion/demo-assets',filename)));
+    }
+    const demoDiscovery=JSON.parse((await client.callTool({name:'request_catalog_sync',arguments:{provider:'demo',waitSeconds:0}})).content[0].text);
+    assert.equal(demoDiscovery.state,'queued');assert.equal(demoDiscovery.provider,'demo');
+    const demoClaim=await request('/demo-api/v1/requests/claim',{capabilities:['catalog-sync']},'POST',token);
+    assert.equal(demoClaim.job.requestId,demoDiscovery.requestId);
+    await request('/demo-api/v1/requests/finish',{requestId:demoDiscovery.requestId,leaseId:demoClaim.job.leaseId,result:{semesters:[{semesterId:'990001',title:'Demo 2026 Fall'}]}},'POST',token);
+    const demoCatalog=JSON.parse((await client.callTool({name:'list_courses',arguments:{provider:'demo'}})).content[0].text);assert.equal(demoCatalog.semesters[0].semesterId,'990001');
+    const discovery=JSON.parse((await client.callTool({name:'request_catalog_sync',arguments:{waitSeconds:0}})).content[0].text);
+    assert.equal(discovery.state,'queued');
+    const claimed=await request('/v1/requests/claim',{capabilities:['catalog-sync']},'POST',token);
+    assert.equal(claimed.job.requestId,discovery.requestId);
+    await request('/v1/requests/finish',{requestId:discovery.requestId,leaseId:claimed.job.leaseId,result:{semesters:[{semesterId:'200',title:'Synthetic semester'}]}},'POST',token);
+    const checkDiscovery=async()=>{
+      const result=JSON.parse((await client.callTool({name:'get_catalog_sync',arguments:{requestId:discovery.requestId,waitSeconds:0}})).content[0].text);
+      assert.equal(result.state,'ready');assert.equal(result.semesters[0].semesterId,'200');
+    };
+    await checkDiscovery();
     const checkNotes=async()=>{
       const result=JSON.parse((await client.callTool({name:'search_catalog',arguments:{query:'fixture film'}})).content[0].text);
       assert.equal(result.total,1);assert.equal(result.entries[0].description,moduleNotes);assert.equal(result.entries[0].descriptionStatus,'synced');assert.equal(result.entries[0].descriptionTruncated,true);
@@ -105,7 +131,7 @@ export async function smokeWindows(payload) {
     const checkOffice=async()=>{
       for(const entry of office) {
         const result=await client.callTool({name:'get_cached_document',arguments:{id:entry.id}}),metadata=JSON.parse(result.content[0].text);
-        assert.equal(path.extname(metadata.localPath),'.'+entry.format.extension);assert.equal(result.content[1].mimeType,entry.format.mimeType);
+        assert.equal(metadata.localPath,undefined);assert.equal(metadata.encryptedAtRest,true);assert.equal(result.content[1].mimeType,entry.format.mimeType);
         const resource=await client.readResource({uri:metadata.uri});assert.equal(resource.contents[0].mimeType,entry.format.mimeType);assert.deepEqual(Buffer.from(resource.contents[0].blob,'base64'),entry.original);
       }
     };
@@ -122,12 +148,13 @@ export async function smokeWindows(payload) {
     const status=await request('/v1/status',undefined,'GET',token);
     assert.equal(status.files,3,'pairing and all verified formats survive companion restart');
     await connect();
+    await checkDiscovery();
     await checkNotes();
     await checkOffice();
     const repeated=JSON.parse((await client.callTool({name:'list_cached_documents',arguments:{}})).content[0].text);
     assert.equal(repeated.documents[0].id,listed.documents[0].id);
     await companion.waitForOutput(/DEBUG http\.request/);
-    console.log(`PASS: payload inventory, bundled Node ${manifest.nodeVersion}, normal/verbose launchers with spaces, fresh-cache startup, pairing, PDF/PPTX/DOCX bytes and module notes through packaged MCP, restart persistence.`);
+    console.log(`PASS: payload inventory, bundled Node ${manifest.nodeVersion}, normal/verbose launchers with spaces, fresh-cache startup, pairing, PDF/PPTX/DOCX bytes and module notes through packaged MCP, isolated demo website/documents/discovery queue, catalog-sync tools, restart persistence.`);
   } finally {
     await client?.close();await companion?.stop();
     const resolved=path.resolve(directory);

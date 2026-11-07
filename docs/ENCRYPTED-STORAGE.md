@@ -1,0 +1,41 @@
+# Encrypted storage and document handoff
+
+The Windows companion encrypts persistent document bytes, catalog/index metadata, pairing configuration, settings and request history using AES-256-GCM. Every write has a fresh 96-bit nonce and authentication tag; additional authenticated data binds ciphertext to its logical filename. The 256-bit random master key is wrapped with Windows DPAPI CurrentUser and persisted only in wrapped form. Keys and secrets never enter command arguments, environment variables or logs. Unsupported platforms and key-unlock failures fail closed; no plaintext fallback or automatic vault reset is provided.
+
+Windows account protection is called through the built-in Windows PowerShell/.NET APIs using anonymous pipes and a hidden child process. It runs for key setup/unlock and export-folder permissions, not for each document's encryption. No new runtime dependency or extension permission is added. Source functional CI runs on Windows because the supported companion now requires that native key protector.
+
+## Browser state
+
+The paired browser persists an origin-bound encrypted credential and AES-GCM-encrypted catalogs, notes, selection/folder state and retrieval status. The companion derives a separate browser key from the vault key and extension origin. Live bearer credentials and the browser key live in `chrome.storage.session`; local preferences such as theme and animation mode remain ordinary settings. Persistent storage is restricted to trusted extension contexts.
+
+After a full browser restart the companion must be running to unlock saved browser catalogs. Service-worker suspension does not clear Chrome session storage. Pairing can resume using the sealed credential without another code, provided the same companion vault and extension identity remain. Re-pairing under the same vault/origin retains the derived browser key; rotating the bearer invalidates older sealed credentials.
+
+Unpaired browsing stores newly fetched course data in browser session memory. It does not persist that data across a browser restart. Existing legacy browser data is retained if the updated companion is unavailable, with a migration-pending message. It is replaced by verified encrypted records when the companion can unlock storage. Failed migration/quota writes preserve the session copy for retry.
+
+## Migration and integrity
+
+On the first updated companion start, recognized legacy files are encrypted into `.vault` files. Ciphertext is flushed, atomically replaced, reread, authenticated and compared before its plaintext original is retired. A crash with identical plaintext/ciphertext copies resumes cleanup; differing copies fail with `MIGRATION_CONFLICT` so an older running app cannot silently overwrite migrated state. Damaged ciphertext or an unavailable original Windows key does not generate a replacement key or reset the vault. Ordinary filesystem deletion cannot promise forensic erasure of old blocks, backups or sync history.
+
+The installer itself does not migrate cache data. Migration occurs only when the updated companion starts. Close the older companion and desktop MCP process first, update both together, reload the extension and restart MCP. Uninstall preserves the vault and wrapped key. Copying the cache to another Windows account/computer does not by itself make it readable; retain the original Windows profile and vault key files for recovery.
+
+## MCP handoff
+
+Ordinary `get_cached_document` / ready retrieval results return an MCP resource link, with no `localPath`. `resources/read` decrypts original PDF/PPTX/DOCX bytes in memory and returns them to the client. Its 10 MiB embedded-resource limit remains in place. A `brightspace-cache://` URI is an internal MCP resource address, not a browser hyperlink or a guaranteed ChatGPT file attachment. A host that exposes binary resources as text can exhaust its tool-output budget even when the complete cached original is intact.
+
+The current source also offers `read_document_text` for PDF, DOCX and PPTX. It reads PDF text layers and existing Office XML in memory and returns at most 16,000 characters per call (12,000 by default), with `nextOffset`, `totalCharacters`, `hasMore` and a checksum. Follow `nextOffset` with the returned `sha256`; a changed document requires restarting at offset zero. XML expansion and text size are bounded. PDF parsing runs in a separate worker with a 20-second deadline, a 192 MiB JavaScript heap limit, at most two concurrent readers, a 500-page limit and a 2 MiB extracted-text limit. Worker library logs cannot enter MCP stdout; network fetching, dynamic code evaluation, rendering and OCR are not used. PDF text order/equations/tables may require visual inspection; pages without text are reported explicitly. Coverage also excludes images/OCR and omitted Office features. No plaintext text file, index, embedding or background processing is created. These tools are source changes pending the next companion release; published 0.9.4 does not include them.
+
+When the user explicitly asks to open, download or review the original, `create_document_link` creates a five-minute URL on `127.0.0.1`. The URL contains a random 192-bit capability restricted to one provider, document and checksum; it contains no pairing token. Link state lives in memory, is bounded to 100 links, and is invalidated by expiry, re-pairing, restart, file replacement or eviction. Anyone holding the link on this computer can download that one file until expiry. The server decrypts verified bytes in memory and returns an attachment with no-store, no-referrer and nosniff headers, without CORS or a plaintext server file. The browser saves a normal readable download when the user opens it. It works only on the companion computer; the AI provider cannot fetch its own remote localhost, and some chat clients may block localhost hyperlinks. No native attachment is promised. This is separate from the opt-in filesystem export feature.
+
+Clients requiring a filesystem path can use the separate `export_document` tool only after the user enables **Settings → Temporary file exports**, which is off by default. The tool also requires `acknowledgePlaintext:true` and must not be called automatically during ordinary retrieval/search. It creates one random-named, unencrypted compatibility file in an account-restricted export folder, returns `expiresAt`, and enforces a 100 MiB aggregate budget. Copies expire after 15 minutes, are swept periodically, and are removed when exports are disabled or the companion shuts down normally. A crash can leave copies until the next companion start. Disabling exports is serialized with file creation to prevent a late export after cleanup.
+
+These explicit exports and user-requested browser downloads are readable files on disk. Encrypted-cache protection does not mean every exported copy is encrypted, and ordinary Downloads are not automatically removed. A client may create its own copies outside our control.
+
+## Scope of protection
+
+This protects persistent application data and copied cache files using the Windows account's key protection. It does not protect an unlocked app from malware running as the same Windows user, administrator access, host-managed copies, or the chosen AI provider's processing. Review approval remains Google's decision; implementation is not a guarantee of policy acceptance.
+
+## Verification
+
+Tests exercise authenticated-encryption tamper/context failures, native DPAPI round trips, legacy migration and restart, preserved originals on conflicts/unlock failures, encrypted browser state and session-only keys, offline locking, quota-failure retry, origin-bound credential resume/revocation, original document bytes through real MCP, export opt-in/acknowledgement/expiration, and disabling/shutdown cleanup. Installer/upgrade checks use only isolated synthetic caches. Live acceptance against the user's existing cache is a separate step.
+
+References: [Google data-handling FAQ](https://developer.chrome.com/docs/webstore/program-policies/user-data-faq), [Windows DPAPI](https://learn.microsoft.com/en-us/windows/win32/api/dpapi/nf-dpapi-cryptprotectdata), [Chrome session storage](https://developer.chrome.com/docs/extensions/reference/api/storage).
