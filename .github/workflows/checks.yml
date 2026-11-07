@@ -2,15 +2,21 @@ name: Checks
 on: [push, pull_request]
 permissions:
   contents: read
+concurrency:
+  group: checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   test:
     runs-on: windows-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - run: npm ci
+      - name: Check Windows key protection across subprocess environments
+        run: node scripts/check-key-protection.js
       - run: npm run build:rich-text -- --check
       - run: npm test
       - run: npm run check
