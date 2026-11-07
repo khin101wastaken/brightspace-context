@@ -6,9 +6,10 @@ flowchart TB
     m_catalog["DONE<br/>Semester catalog + hierarchy"]:::done
     m_cache["DONE<br/>Bounded local document cache"]:::done
     m_retrieval["DONE<br/>On-demand desktop MCP retrieval"]:::done
-    m_catalog_sync["IN PROGRESS<br/>Model-initiated catalog refresh"]:::in_progress
+    m_catalog_sync["DONE<br/>Model-initiated catalog refresh"]:::done
     m_formats["DONE<br/>PDF / PPTX / DOCX transport"]:::done
     m_module_notes["DONE<br/>Module landing-page context"]:::done
+    m_document_text["DONE<br/>Paged document text + cache links"]:::done
   end
   subgraph p_readiness["02 / Ready for classmates"]
     direction LR
@@ -18,8 +19,8 @@ flowchart TB
     m_hardening["IN PROGRESS<br/>Release reliability checks"]:::in_progress
     m_installer["DONE<br/>Windows installer preview"]:::done
     m_mcp_install["PLANNED<br/>Simpler ChatGPT MCP installation"]:::planned
-    m_file_readers["PLANNED<br/>Real client file-reading checks"]:::planned
-    m_terminal_readability["PLANNED<br/>Readable companion terminal output"]:::planned
+    m_file_readers["DONE<br/>Real client file-reading checks"]:::done
+    m_terminal_readability["DONE<br/>Readable companion terminal output"]:::done
     m_encrypted_storage["DONE<br/>Encrypted storage + explicit document handoff"]:::done
   end
   subgraph p_release["03 / Desktop beta and distribution"]
@@ -27,8 +28,9 @@ flowchart TB
     m_pilot["PLANNED<br/>Small NYU student pilot"]:::planned
     m_desktop_release["IN PROGRESS<br/>Accessible desktop release"]:::in_progress
     m_store_assets["DONE<br/>Store ZIP + public privacy policy"]:::done
-    m_store_listing["NEXT<br/>Chrome Web Store submission — pinned priority"]:::next
-    m_review_demo["NEXT<br/>Local mock LMS for reviewer testing"]:::next
+    m_beta_bundle["NEXT<br/>0.10.0 beta: freeze, bundle + acceptance"]:::next
+    m_store_listing["IN PROGRESS<br/>Chrome Web Store submission — pinned priority"]:::in_progress
+    m_review_demo["DONE<br/>Local mock LMS for reviewer testing"]:::done
   end
   subgraph p_web["Deferred / Hosted course-data access"]
     direction LR
@@ -40,7 +42,7 @@ flowchart TB
     direction LR
     m_firefox["DEFERRED<br/>Firefox port"]:::deferred
     m_platforms["DEFERRED<br/>More platforms + Brightspace tenants"]:::deferred
-    m_indexing["DEFERRED<br/>Optional text search / RAG"]:::deferred
+    m_indexing["DEFERRED<br/>Optional full-text search / RAG"]:::deferred
     m_ocr["DEFERRED<br/>OCR only if justified"]:::deferred
     m_claude["PLANNED<br/>Claude Desktop package"]:::planned
   end
@@ -65,10 +67,10 @@ flowchart TB
   m_retrieval --> m_installer
   m_installer --> m_mcp_install
   m_installer --> m_onboarding
-  m_mcp_install --> m_onboarding
+  m_mcp_install -.-> m_onboarding
   m_lifecycle -.-> m_onboarding
   m_formats --> m_file_readers
-  m_mcp_install --> m_file_readers
+  m_mcp_install -.-> m_file_readers
   m_file_readers --> m_pilot
   m_installer --> m_store_assets
   m_store_assets --> m_store_listing
@@ -78,6 +80,15 @@ flowchart TB
   m_retrieval --> m_catalog_sync
   m_encrypted_storage --> m_store_listing
   m_review_demo --> m_store_listing
+  m_formats --> m_document_text
+  m_encrypted_storage --> m_document_text
+  m_document_text --> m_beta_bundle
+  m_installer --> m_beta_bundle
+  m_review_demo --> m_beta_bundle
+  m_terminal_readability --> m_beta_bundle
+  m_store_assets --> m_beta_bundle
+  m_beta_bundle --> m_store_listing
+  m_file_readers --> m_beta_bundle
   classDef done fill:#e8f5ee,stroke:#319465,color:#164b33,stroke-width:1.5px;
   classDef in_progress fill:#e0f2fe,stroke:#0284c7,color:#075985,stroke-width:2px;
   classDef next fill:#ede9fe,stroke:#7c3aed,color:#4c1d95,stroke-width:3px;

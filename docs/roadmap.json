@@ -2,7 +2,7 @@
   "$schema": "./roadmap.schema.json",
   "schemaVersion": 1,
   "title": "Brightspace Context - Development Roadmap",
-  "scope": "Current encrypted-storage Windows preview: v0.9.2; live client acceptance pending, NYU Brightspace and Chrome/Chromium. Semester catalogs, module landing text, bounded PDF/PPTX/DOCX caching and desktop MCP transport are implemented. PDF answers and module text have live evidence; Office transport has automated and packaged-runtime evidence, with real client reading still to verify. Pinned priority: finish the essential Chrome Web Store submission requirements and submit an unlisted pilot as soon as they are ready. Simpler MCP installation and a small student pilot follow; optional client/platform features must not delay submission. Operator-hosted course-data deployment is deferred.",
+  "scope": "Local Windows/NYU retrieval is accepted as the current MVP baseline on November 6, 2026: semester hierarchies, module notes, on-demand original files, encrypted bounded caches and paged PDF/DOCX/PPTX text reading. The actual desktop connector read all 10 pages of a real PDF in two bounded responses; remaining client/format and live refresh checks are tracked explicitly. Public artifacts remain companion 0.9.4 and extension 0.9.3; installed working-copy repairs are not a frozen release. Next: prepare and validate the requested 0.10.0 beta, then finish the existing Chrome Web Store submission. Simpler MCP installation, tray/startup, client/platform expansion and a student pilot follow; hosted course-data deployment, indexing/RAG and OCR remain deferred.",
   "phases": [
     {
       "id": "core",
@@ -46,7 +46,7 @@
       "phase": "core",
       "title": "Bounded local document cache",
       "status": "done",
-      "deliverable": "Pair Chrome with the local companion and cache individual PDF, PPTX and DOCX files with freshness checks, SHA-256 verification, a shared 500 MiB LRU budget and a 50 MiB per-file limit.",
+      "deliverable": "Pair Chrome with the local companion and cache individual PDF, PPTX and DOCX files with freshness checks, SHA-256 verification, a 500 MiB LRU budget per isolated NYU/demo library and a 50 MiB per-file limit.",
       "acceptance": [
         "First requests fetch original file bytes; repeats use the verified cache.",
         "Old PDF cache entries remain usable after adding Office formats."
@@ -62,22 +62,22 @@
       "phase": "core",
       "title": "On-demand desktop MCP retrieval",
       "status": "done",
-      "deliverable": "Connect catalog requests to a durable queue, the signed-in Chrome worker and verified original-file handoff through MCP.",
+      "deliverable": "Connect catalog requests to a durable queue, the signed-in Chrome worker and verified original files; answer content questions through bounded text pages without a default plaintext export.",
       "acceptance": [
-        "A chat can request one catalogued file and receive verified bytes, MIME type and a matching local filename.",
-        "PDF answers use actual document contents, and offline/login/failure states provide recovery steps."
+        "A chat can request one catalogued file and receive verified original bytes, correct MIME/extension and an explicit reading route.",
+        "PDF answers use actual document text; offline/login/failure states provide recovery steps. Normal retrieval creates no plaintext server file."
       ],
       "evidence": [
-        "Live uncached PDF fetch, PDF reading and repeat cache hits were verified through desktop MCP.",
-        "PPTX and DOCX pass complete worker-to-cache-to-MCP tests; live Office file reading remains a separate acceptance check.",
-        "80 local tests passed at v0.8.8; the packaged-runtime smoke check also passed."
+        "Live uncached PDF fetch, document reading and repeat cache hits were verified through desktop MCP.",
+        "The refreshed live connector read a real 10-page PDF completely: 20,454 characters in two responses, with no empty text pages and no plaintext export. User confirmed it works.",
+        "140 source tests pass, including browser-worker/cache/MCP integration, ordered Office text, PDF pagination, parser limits, expiring links and encrypted-storage recovery."
       ]
     },
     {
       "id": "catalog_sync",
       "phase": "core",
       "title": "Model-initiated catalog refresh",
-      "status": "in_progress",
+      "status": "done",
       "deliverable": "Discover semesters and refresh one semester through durable MCP requests and the paired Chrome worker, without opening Resources.",
       "acceptance": [
         "A connected desktop model refreshes a live semester and searches its current readings with Resources closed.",
@@ -86,7 +86,8 @@
       "evidence": [
         "Real STDIO MCP, authenticated companion/WebSocket and actual extension background integration tests pass with synthetic school responses.",
         "Shared leases, progress renewal, deduplication, rate limiting, login retry, pause at module boundaries and version-one queue migration are tested.",
-        "Standalone NYU acceptance with the matching v0.9.0 components remains pending."
+        "November 6, 2026: user confirmed the requested live 2026 Fall refresh with Resources closed worked, and the companion terminal also reported success. No course count or refreshed timestamp was captured in this confirmation.",
+        "Live signed-in refresh is accepted in the current setup. Session-expiry/partial-result retry has automated integration evidence; a live expired-session exercise is not claimed."
       ]
     },
     {
@@ -115,9 +116,9 @@
         "The setup flow verifies browser sign-in, companion connection and one retrieved PDF."
       ],
       "evidence": [
-        "The v0.8.8 Windows installer bundles Node, companion, MCP and extension; isolated payload/restart checks pass.",
-        "An isolated v0.8.3-to-v0.8.4 install/upgrade/uninstall test previously passed; v0.8.8 has packaged-runtime and cache compatibility checks.",
-        "Chrome loading and MCP registration are still manual. Fresh-account onboarding acceptance remains pending."
+        "Versioned Windows installers, Start menu launcher, pairing code, guided setup and update/uninstall instructions are implemented.",
+        "Fresh-install testing exposed confusing extension identities and stale MCP processes. Browser-store installation and manual MCP setup must be checked against the final beta.",
+        "Chrome loading and MCP registration are still manual before distribution improvements. Fresh-account/classmate onboarding remains unverified."
       ]
     },
     {
@@ -146,9 +147,9 @@
         "A fresh-profile check covers scan, fetch, read, repeat and restart without mixing courses."
       ],
       "evidence": [
-        "80 local tests cover existing downloads, pairing, queue recovery, catalog persistence, file validation, PDF compatibility and Office transport.",
-        "The v0.8.8 packaged-runtime smoke test passed.",
-        "Fresh-profile/account, reboot and multi-profile acceptance remain; the live Office deck fetch/read has not yet been confirmed."
+        "140 source tests cover existing retrieval, PDF/Office text reading, byte integrity, paging, parser limits, demo isolation, pairing, queue recovery and encrypted-storage behavior.",
+        "Published 0.9.4 passed packaged-runtime smoke and an isolated upgrade from 0.9.3. The final 0.10.0 bundle still needs its own smoke/upgrade checks.",
+        "Live PowerPoint reading and MCP semester refresh with Resources closed are user-confirmed. Final beta fresh-install, reboot and multi-profile checks remain separate release acceptance work."
       ]
     },
     {
@@ -252,15 +253,15 @@
       "evidence": [
         "80 local tests passed, including full PPTX and DOCX browser-worker/MCP flows.",
         "The final Windows payload passed PDF/PPTX/DOCX handoff checks using its bundled runtime.",
-        "The real Adolescence and Peers Fall 26 CC deck is recognized as a supported PPTX; real host reading is still pending."
+        "The real Adolescence and Peers Fall 26 CC deck is recognized as a supported PPTX. The user separately confirmed live PPTX reading on November 6; the acceptance report did not name the tested deck."
       ]
     },
     {
       "id": "indexing",
       "phase": "later",
-      "title": "Optional text search / RAG",
+      "title": "Optional full-text search / RAG",
       "status": "deferred",
-      "deliverable": "Evaluate lightweight extraction of existing PDF text and retrieval quality against real pilot needs and operating cost.",
+      "deliverable": "Evaluate document indexing, chunk search or embeddings against pilot needs, using existing on-demand PDF/Office text reading as the baseline. Text extraction itself is implemented; no persistent text index or RAG pipeline exists.",
       "acceptance": [
         "A measured evaluation demonstrates improved document discovery or context efficiency without requiring OCR."
       ]
@@ -291,6 +292,23 @@
       ]
     },
     {
+      "id": "document_text",
+      "phase": "core",
+      "title": "Paged document text + cache links",
+      "status": "done",
+      "deliverable": "Read existing PDF text layers and Word/PowerPoint XML in small checksum-bound pages; provide explicit expiring local download links to originals.",
+      "acceptance": [
+        "Supported formats have bounded original-text reading without OCR, host-installed parsers or default plaintext exports.",
+        "Pagination is explicit and detects document changes; original-byte access remains available for visual or unsupported content.",
+        "The actual desktop connector reads a complete real PDF; remaining client/format checks stay tracked separately."
+      ],
+      "evidence": [
+        "140 tests pass. PDF parsing has worker deadlines/heap limits, bounded concurrent work, page/text limits and no runtime network fetching.",
+        "The live connector read all 10 pages of a real PDF in two responses; the user accepted the retrieval pipeline. Real Word text was also read through MCP.",
+        "Expiring links return byte-identical originals, bind to provider/file version/pairing and expire or revoke without a plaintext server file. PDF visual layout/images and scanned pages remain outside text-only coverage."
+      ]
+    },
+    {
       "id": "installer",
       "phase": "readiness",
       "title": "Windows installer preview",
@@ -300,8 +318,9 @@
         "The packaged runtime starts, pairs, serves supported cached files through MCP and preserves them across restart."
       ],
       "evidence": [
-        "v0.8.8 installer and its SHA-256 were built.",
-        "Isolated packaged-runtime checks passed for PDF, PPTX, DOCX and module notes; no real user cache was used."
+        "Published Windows companion 0.9.4 bundles its pinned Node runtime, production dependencies, MCP, companion and unpacked extension.",
+        "Packaged-runtime smoke and isolated 0.9.3-to-0.9.4 upgrade checks passed; installer hashes and immutable release records are retained.",
+        "Installed UI and document-reading working copies were patched with rollback records. The 0.10.0 beta installer is not built yet."
       ]
     },
     {
@@ -324,15 +343,17 @@
       "id": "file_readers",
       "phase": "readiness",
       "title": "Real client file-reading checks",
-      "status": "planned",
-      "deliverable": "Verify that advertised desktop clients can read real returned PDF, PPTX and DOCX files, and clearly report unsupported host readers.",
+      "status": "done",
+      "deliverable": "Record actual file-reading evidence for PDF, PPTX and DOCX in the current Windows desktop setup, using bounded local text tools and original-file fallback where visual inspection is needed.",
       "acceptance": [
-        "The actual Adolescence and Peers PPTX is fetched and its slide content is read in a supported chat.",
+        "A real PPTX is retrieved and its slide content is read in the supported desktop chat.",
         "A real DOCX is retrieved/read and repeated requests use the cache.",
-        "Each advertised client/format combination has an actual file-reading check; transport alone is not evidence of document interpretation."
+        "The current Windows desktop setup has actual PDF, PPTX and DOCX reading evidence; other clients require their own acceptance checks."
       ],
       "evidence": [
-        "Live PDF reading and module-note context are confirmed. Office bytes/MIME types are tested; actual Office interpretation by chat hosts is still unverified."
+        "Live desktop PDF text reading is confirmed through the actual connector, including complete continuation across two responses.",
+        "A real DOCX syllabus was read through the connector and installed-runtime checks; its original checksum and grading text were verified.",
+        "November 6, 2026: user confirmed that live PPTX reading works. The tested deck title was not specified; this does not claim the named example deck, Claude or every desktop client was tested."
       ]
     },
     {
@@ -346,27 +367,44 @@
         "The privacy policy is publicly readable and covers PDF/PPTX/DOCX handling."
       ],
       "evidence": [
-        "Validated BrightspaceContext-0.8.8-chrome-web-store.zip was built.",
-        "The public privacy policy was updated at https://brightspace-context.khin101.chatgpt.site.",
-        "Public setup/download page: https://brightspace-context.khin101.chatgpt.site/setup/ . The v0.8.8 public installer was downloaded and its SHA-256 verified against the tested build.",
-        "v0.9.1 ZIP validates with 31 entries; three labelled synthetic 1280×800 screenshots, privacy answers and reviewer instructions are ready. Matching preview installer/setup/privacy/walkthrough published November 5, 2026."
+        "A validated 34-entry extension 0.9.3 ZIP, icons, synthetic screenshots, publisher/support details, permission answers and public privacy/setup/reviewer pages exist.",
+        "Public companion 0.9.4 downloads are checksum-verified. Public source is MIT-licensed.",
+        "Final beta assets, text-reading/download-link disclosures, demo navigation instructions and download URLs must match the frozen 0.10.0 candidate before upload."
+      ]
+    },
+    {
+      "id": "beta_bundle",
+      "phase": "release",
+      "title": "0.10.0 beta: freeze, bundle + acceptance",
+      "status": "next",
+      "deliverable": "Freeze current UI, demo, encrypted storage, logging and paged document-reading changes into matching 0.10.0 beta artifacts; verify the actual release build before publishing it.",
+      "acceptance": [
+        "Version metadata, source checkpoint, extension ZIP, Windows installer and artifact hashes all identify the final candidate.",
+        "Isolated packaged-runtime smoke and 0.9.4-to-beta upgrade preserve encrypted data and verify text reading through bundled production dependencies.",
+        "Fresh-install Chrome/desktop checks cover pairing, demo and NYU sync/search, supported file reading/downloads, cache hits and restart. Supported-format reading and live MCP semester refresh are already verified in the current setup.",
+        "Public setup/reviewer/privacy material and store screenshots match the final build; reviewers can test the local demo without institutional credentials."
+      ],
+      "evidence": [
+        "Requested public milestone: 0.10.0 beta, replacing alpha/preview status after fresh-install acceptance. No version bump or new public artifact is claimed yet.",
+        "Current public artifacts are companion 0.9.4 and extension 0.9.3. Installed working copies include newer review patches; rebuilding published versioned artifacts in place would not produce an auditable beta.",
+        "PDF, DOCX and user-confirmed PPTX reading are accepted in the current desktop setup. The frozen beta will still receive its own installation and upgrade checks.",
+        "November 6: user confirmed live semester refresh with Resources closed and a successful companion-terminal result. The remaining next step is freezing and validating the beta artifacts."
       ]
     },
     {
       "id": "store_listing",
       "phase": "release",
       "title": "Chrome Web Store submission — pinned priority",
-      "status": "next",
+      "status": "in_progress",
       "deliverable": "Complete final live acceptance and dashboard fields, disclose the NYU access limitation, and submit an unlisted pilot listing.",
       "acceptance": [
         "All required listing/privacy/reviewer fields and assets are complete.",
         "A real listing URL is approved and used by onboarding, allowing Chrome installation without Developer mode."
       ],
       "evidence": [
-        "The ZIP, icons, publisher/support details, privacy URL and listing drafts are ready.",
-        "Developer registration confirmed and screenshots prepared. Final live acceptance, dashboard draft and review remain pending; no institutional reviewer account has been arranged.",
-        "Pinned by the user on November 4, 2026. Finish release essentials before adding optional installation, Claude, tray or indexing features. See docs/RELEASE-CHECKLIST.md.",
-        "Draft created: iadmhandkbomngnaplppiopojmfkcodi. Store fields are being completed; encrypted-storage acceptance and a reproducible reviewer demo remain before submission."
+        "Chrome developer registration is confirmed. Existing draft item: iadmhandkbomngnaplppiopojmfkcodi; last recorded upload was 0.9.1. No submission or approval is claimed.",
+        "The local reviewer demo and encrypted storage are implemented. Final beta packaging, live acceptance, matching listing material and dashboard validation remain before submission.",
+        "Chrome publishing remains pinned. Submit the final candidate to the existing draft; optional tray, automated MCP setup, Claude, Firefox and indexing must not delay it."
       ]
     },
     {
@@ -388,14 +426,15 @@
       "id": "terminal_readability",
       "phase": "readiness",
       "title": "Readable companion terminal output",
-      "status": "planned",
+      "status": "done",
       "deliverable": "Make ordinary companion output concise and readable, while retaining useful detail in verbose mode.",
       "acceptance": [
         "Normal output summarizes connection, sync and retrieval outcomes without flooding the terminal with IDs and repeated events.",
         "Login, failure and recovery actions remain clear; verbose mode retains structured diagnostic detail without exposing credentials or course contents."
       ],
       "evidence": [
-        "Requested by the user and explicitly deferred; finish the sync-ring polish and return to Chrome Web Store publishing first."
+        "Compact normal logs, separate NYU/demo labels, useful sync/cache outcomes and actionable errors are implemented. Verbose mode retains structured diagnostics without file contents or credentials.",
+        "Published companion 0.9.4 includes the change; packaged-runtime smoke and isolated 0.9.3-to-0.9.4 upgrade checks passed."
       ]
     },
     {
@@ -403,7 +442,7 @@
       "phase": "readiness",
       "title": "Encrypted storage + explicit document handoff",
       "status": "done",
-      "deliverable": "Protect persistent companion and browser data with Windows-protected keys; return MCP bytes by default and gate temporary plaintext exports separately.",
+      "deliverable": "Protect persistent companion and browser data with Windows-protected keys; read requested bytes/text in memory, gate temporary plaintext exports separately, and scope user-requested download links to one file version.",
       "acceptance": [
         "Verified migration preserves catalogs, original document bytes, pairing and pending requests.",
         "No plaintext path or persistent browser bearer/key is produced by normal retrieval.",
@@ -411,15 +450,16 @@
       ],
       "evidence": [
         "128 source tests pass, including native key protection, corruption/key-loss/access-error preservation, origin-bound browser unlocking, port-before-migration startup and export revocation.",
-        "The encrypted Windows runtime and isolated 0.9.1-to-0.9.2 migration/upgrade pass; exact final artifact verification is recorded in store/RELEASE-0.9.2.md. The user’s actual cache and installed app are untouched; live acceptance remains separate.",
-        "Matching v0.9.2 public installer, setup guide and versioned privacy policy published as site version 6; the public installer SHA-256 matches the frozen tested artifact."
+        "The encrypted Windows runtime and isolated 0.9.1-to-0.9.2 migration/upgrade passed; historical artifact verification is recorded in store/RELEASE-0.9.2.md. Subsequent installed working-copy and live retrieval checks are recorded separately.",
+        "Matching v0.9.2 public installer, setup guide and versioned privacy policy published as site version 6; the public installer SHA-256 matches the frozen tested artifact.",
+        "Installed and live connector checks verified original cached bytes and bounded text reading without a plaintext server copy. Explicit five-minute download capabilities and separately enabled 15-minute filesystem exports retain different lifetimes and disclosures."
       ]
     },
     {
       "id": "review_demo",
       "phase": "release",
       "title": "Local mock LMS for reviewer testing",
-      "status": "next",
+      "status": "done",
       "deliverable": "Serve fictional semester/course/module metadata and sample PDF/PPTX/DOCX files from the companion; exercise the production parsing, sync and MCP pipeline through a clearly labelled demo source.",
       "acceptance": [
         "Reviewers can sync, search, download, resync and retrieve sample documents without NYU credentials.",
@@ -427,7 +467,9 @@
         "Instructions state that demo testing does not verify real NYU authentication."
       ],
       "evidence": [
-        "Design agreed November 5: a local mock website can reuse the existing localhost permission. Implementation is deferred until encrypted storage acceptance finishes."
+        "Published companion 0.9.3/0.9.4 serves the fictional LMS and original PDF/PPTX/DOCX fixtures locally, with nested modules, module notes, resync changes and simulated session expiry.",
+        "Production HTTP/background/MCP integration tests verify demo versus NYU isolation, including colliding numeric IDs and cached reads while offline. Public reviewer instructions disclose the limits.",
+        "Demo selection is tucked into Resources > Advanced > Demo and testing in the source and installed working copy. Final 0.10.0 fresh-install acceptance remains part of the beta release milestone."
       ]
     }
   ],
@@ -541,7 +583,8 @@
     {
       "from": "mcp_install",
       "to": "onboarding",
-      "kind": "requires"
+      "kind": "optional",
+      "reason": "The initial beta can use documented manual MCP registration; one-click setup must not block publishing or file-reading acceptance."
     },
     {
       "from": "lifecycle",
@@ -557,7 +600,8 @@
     {
       "from": "mcp_install",
       "to": "file_readers",
-      "kind": "requires"
+      "kind": "optional",
+      "reason": "The initial beta can use documented manual MCP registration; one-click setup must not block publishing or file-reading acceptance."
     },
     {
       "from": "file_readers",
@@ -603,6 +647,51 @@
     {
       "from": "review_demo",
       "to": "store_listing",
+      "kind": "requires"
+    },
+    {
+      "from": "formats",
+      "to": "document_text",
+      "kind": "requires"
+    },
+    {
+      "from": "encrypted_storage",
+      "to": "document_text",
+      "kind": "requires"
+    },
+    {
+      "from": "document_text",
+      "to": "beta_bundle",
+      "kind": "requires"
+    },
+    {
+      "from": "installer",
+      "to": "beta_bundle",
+      "kind": "requires"
+    },
+    {
+      "from": "review_demo",
+      "to": "beta_bundle",
+      "kind": "requires"
+    },
+    {
+      "from": "terminal_readability",
+      "to": "beta_bundle",
+      "kind": "requires"
+    },
+    {
+      "from": "store_assets",
+      "to": "beta_bundle",
+      "kind": "requires"
+    },
+    {
+      "from": "beta_bundle",
+      "to": "store_listing",
+      "kind": "requires"
+    },
+    {
+      "from": "file_readers",
+      "to": "beta_bundle",
       "kind": "requires"
     }
   ]

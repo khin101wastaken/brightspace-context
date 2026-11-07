@@ -2,9 +2,26 @@
 
 Updated November 6, 2026. Objective: submit an unlisted local Windows/NYU pilot. The existing item is a draft; no review or approval is claimed.
 
-## Current replacement candidate: v0.9.3
+## Next release target: 0.10.0 beta
 
-The existing draft `iadmhandkbomngnaplppiopojmfkcodi` still contains v0.9.1. Replace its package with v0.9.3 after the final live acceptance below; do not create another store item. See `store/UPDATE-0.9.3.md` and `docs/DEMO-LMS.md`.
+The retrieval pipeline is accepted for the current MVP. The next step is a frozen release candidate, not more retrieval features. The public companion remains 0.9.4 and the last frozen extension ZIP is 0.9.3; installed working-copy patches are not a published beta. The roadmap source and generated flowchart now track this distinction.
+
+- [x] 140 source tests pass, including bounded PDF/Office reading, encrypted original-byte integrity, expiring download links and existing browser/demo flows.
+- [x] The actual desktop connector read a real 10-page PDF completely in two bounded responses, with no plaintext export; user accepted the current retrieval pipeline.
+- [x] Reviewer demo, compact terminal logs, encrypted storage and the latest UI changes are implemented.
+- [x] Real PowerPoint reading works in the current desktop setup, confirmed by the user November 6. PDF and DOCX also have live reading evidence; other clients remain separate checks.
+- [x] Live MCP semester refresh with Resources closed worked, confirmed by the user November 6; the companion terminal also reported success. Live expired-session recovery is not claimed by this check.
+- [ ] Freeze the source checkpoint, set matching 0.10.0 beta version metadata and build new extension/installer artifacts with recorded hashes. Preserve prior versioned downloads.
+- [ ] Run packaged-runtime and isolated 0.9.4-to-beta upgrade checks against that exact build.
+- [ ] Complete fresh-install acceptance using the final Chrome package and companion: pairing, demo/NYU libraries, sync/search, download/read, cache hit and restart.
+- [ ] Update public setup/reviewer/privacy text, demo navigation instructions, screenshots and download links to match the final build.
+- [ ] Replace the package in existing draft `iadmhandkbomngnaplppiopojmfkcodi`, finish dashboard validation and submit the unlisted pilot. No approval is claimed.
+
+One-click MCP registration, tray/autostart, automatic updates, Claude, Firefox and indexing/RAG/OCR remain follow-ups. They are not added as beta blockers. Live tests and final packaging should not introduce another feature sweep.
+
+## Previous replacement candidate: v0.9.3
+
+The last recorded dashboard upload for draft `iadmhandkbomngnaplppiopojmfkcodi` was v0.9.1. The v0.9.3 packet below is retained as a historical candidate; use the final 0.10.0 beta artifacts after the checks above rather than uploading this older packet. Do not create another store item. See `store/UPDATE-0.9.3.md` and `docs/DEMO-LMS.md`.
 
 - [x] 130 source tests pass, including the real demo HTTP/background/MCP workflow; focused final namespace-collision, cached-offline and MCP checks pass.
 - [x] The 34-entry extension ZIP validates without new permissions or remote executable extension code.

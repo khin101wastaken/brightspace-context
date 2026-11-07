@@ -45,13 +45,13 @@ Queue format 2 reads and migrates existing format-1 document requests. Keep the 
 
 Automated integration uses a real STDIO MCP process, authenticated local HTTP/WebSocket companion, the actual extension background module and mocked school responses. It verifies discovery from an empty catalog, no popup/source-tab dependency, semester selection, searchable module text, zero file downloads, deduplication, partial login failure, old-outline preservation and retry entirely through MCP. Additional tests cover shared leases, progress renewal, restart recovery, forged/stale completion rejection, older-worker compatibility, throttling and format-1 migration.
 
-Live acceptance is still pending. Use the updated companion/MCP together, reload the development extension, and restart the desktop MCP connection so it discovers the two new tools. The currently configured installed MCP path can remain unchanged after installing the matching updated Windows candidate. The source tests do not establish that a live NYU session is signed in or that a particular model will select the right tools.
+Live signed-in acceptance passed November 6, 2026: the user confirmed that requesting a 2026 Fall refresh with Resources closed worked, and the companion terminal also reported success. This confirms the ordinary live refresh path in the current setup; it does not establish live expired-session recovery, every client/profile, or final beta installation behavior. The procedure below remains useful for validating the frozen beta.
 
 1. Leave Chrome signed into NYU Brightspace with the extension paired; keep Resources closed.
 2. Ask the model to discover semesters, refresh the intended semester, and find a known module reading.
 3. Verify progress and refreshed scan times, then request one uncached file.
 4. Confirm subsequent catalog searches and cached retrieval do not trigger another semester scan.
 
-The public installer and store submission are not updated by this source change.
+The latest working-copy document-reading repairs and the planned 0.10.0 beta are not a new published installer or store submission. Final packaging and fresh-install acceptance are tracked in RELEASE-CHECKLIST.md.
 
-Candidate validation: all 111 source tests and syntax checks pass. The local v0.9.0 Windows bundle passed packaged-runtime discovery/restart checks and an isolated v0.8.9-to-v0.9.0 upgrade, including retained files/pairing/catalogs and exactly-once completion of a retained request. Source, store ZIP and installer browser assets are byte-identical. Live NYU acceptance is still pending.
+Historical candidate validation: 111 tests and syntax checks passed for v0.9.0, along with packaged-runtime discovery/restart and an isolated v0.8.9-to-v0.9.0 upgrade. Current source has 140 passing tests. Those historical artifact comparisons do not certify the upcoming 0.10.0 beta; its own build, smoke and upgrade checks remain required.
