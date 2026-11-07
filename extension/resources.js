@@ -3,8 +3,11 @@ import {sourceStorage} from './sources.js';
 import {wireSourcePicker} from './source-picker.js';
 const provider=(await chrome.storage.local.get('activeSource')).activeSource??'nyu';
 const privateStorage=sourceStorage(rootStorage,provider);
+const downloadStorage=sourceStorage(chrome.storage.session,provider);
+const hosted=provider==='hosted-demo';
 const send=message=>chrome.runtime.sendMessage({...message,provider});
 wireSourcePicker({provider});
+if(hosted) document.querySelector('.advanced-grid').hidden=true;
 import { mergeCatalog } from './catalog.js';
 import {captureTarget,validateTarget} from './tab-context.js';
 import {flattenOutline,searchOutline} from './course-api.js';
@@ -39,6 +42,7 @@ function updateCacheButtons() {
   });
 }
 async function refreshCompanion() {
+  if(hosted) return;
   try {
     const result=await send({type:'companion-status'});
     if(!result?.ok || !result.connected) throw new Error(result?.error || 'Companion is not paired.');
@@ -70,14 +74,14 @@ function updateDownloadButtons() {
 const sourceId=new URL(location.href).searchParams.get('sourceTabId');
 let targetPromise=sourceId && /^\d+$/.test(sourceId)?captureTarget(chrome.tabs,{allowHome:true,tabId:Number(sourceId)}).catch(()=>null):Promise.resolve(null);
 async function activeCourse() {
-  if(provider==='demo')throw new Error('Demo outlines use Sync semester; no NYU tab is read.');
+  if(provider!=='nyu')throw new Error('Use Sync semester to load the sample courses.');
   const target=await targetPromise;
   if(!target?.courseId) throw new Error('Open a course in Brightspace, then reopen Resources from the extension to scan that source course.');
   return validateTarget(chrome.tabs,target);
 }
 async function refreshSavedCourses() {
   libraryValues=await privateStorage.get(null);
-  $('storage-status').textContent=libraryValues.storageProtection.message;
+  $('storage-status').textContent=hosted?'Sample outlines are stored in this browser.':libraryValues.storageProtection.message;
   const savedSemesters=Object.entries(libraryValues).filter(([key])=>key.startsWith('semester:')).map(([,value])=>value);
   const all=new Map(savedSemesters.map(s=>[s.semesterId,s]));
   for(const semester of libraryValues.availableSemesters || []) if(!all.has(semester.semesterId)) all.set(semester.semesterId,{...semester,courses:[]});
@@ -187,7 +191,7 @@ function render(catalog) {
           catalog.openFolders=[...openFolders];
           privateStorage.set({[foldersKey]:[...openFolders]}).catch(error=>status(error.message));
         });
-        a.className='module-link'; a.textContent='Open module in Brightspace'; content.append(a);
+        a.className='module-link'; a.textContent=hosted?'Open module in demo LMS':'Open module in Brightspace'; content.append(a);
         if(e.description) {
           const notes=document.createElement('details'),heading=document.createElement('summary'),text=document.createElement('p');
           notes.className='module-notes';notes.open=search.noteMatches.has(e.key);heading.textContent=notes.open?'Module notes · matching text':'Module notes';
@@ -228,16 +232,16 @@ function render(catalog) {
             try {
               const response=await send({type:'download-file',courseId:catalog.courseId,key:e.key,saveAs});
               if(!response?.ok) throw new Error(response?.error || 'Download could not start.');
-              const records=await chrome.storage.session.get(null);downloadRecords=Object.fromEntries(Object.entries(records).filter(([key])=>!key.startsWith('demo:') && !/^(?:cache:|attempt:)/.test(key) || (provider==='demo'?key.startsWith('demo:'): /^(?:cache:|attempt:)/.test(key))).map(([key,value])=>[provider==='demo' && key.startsWith('demo:')?key.slice(5):key,value]));
+              downloadRecords=await downloadStorage.get(null);
               status('Download started. Chrome continues downloading if you close this page.');
-            } catch(error) {const records=await chrome.storage.session.get(null);downloadRecords=Object.fromEntries(Object.entries(records).filter(([key])=>!key.startsWith('demo:') && !/^(?:cache:|attempt:)/.test(key) || (provider==='demo'?key.startsWith('demo:'): /^(?:cache:|attempt:)/.test(key))).map(([key,value])=>[provider==='demo' && key.startsWith('demo:')?key.slice(5):key,value]));status(error.message);} finally {pendingDownloads.delete(e.key);updateDownloadButtons();}
+            } catch(error) {downloadRecords=await downloadStorage.get(null);status(error.message);} finally {pendingDownloads.delete(e.key);updateDownloadButtons();}
           };
           button.addEventListener('click',()=>startDownload(false));
           const saveAs=document.createElement('button');saveAs.className='download-save-as';saveAs.textContent='Save as…';
           saveAs.setAttribute('aria-label',`Choose save location for ${e.title}`);
           saveAs.addEventListener('click',()=>startDownload(true));
           controls.append(button,saveAs,note,details);row.append(controls);
-          if(showCacheControls && documentFormat(file.url,{provider})) {
+          if(!hosted && showCacheControls && documentFormat(file.url,{provider})) {
             const cache=document.createElement('button');cache.className='cache-document';cache.dataset.cacheKey=e.key;
             cache.title=`Cache ${e.title} locally`;cache.setAttribute('aria-label',cache.title);
             const cacheNote=document.createElement('span');cacheNote.className='cache-status';cacheNote.setAttribute('role','status');
@@ -250,7 +254,7 @@ function render(catalog) {
                 status(result.source==='cache'?'Cache hit: served locally without downloading the file again.':'File fetched and cached locally. Click Cache again to verify a hit.');
                 await refreshCompanion();
               } catch(error) {status(error.message);} finally {
-                const records=await chrome.storage.session.get(null);downloadRecords=Object.fromEntries(Object.entries(records).filter(([key])=>!key.startsWith('demo:') && !/^(?:cache:|attempt:)/.test(key) || (provider==='demo'?key.startsWith('demo:'): /^(?:cache:|attempt:)/.test(key))).map(([key,value])=>[provider==='demo' && key.startsWith('demo:')?key.slice(5):key,value]));pendingCache.delete(e.key);updateCacheButtons();
+                downloadRecords=await downloadStorage.get(null);pendingCache.delete(e.key);updateCacheButtons();
               }
             });
             controls.insertBefore(cache,note);controls.append(cacheNote);controls.classList.add('has-cache');
@@ -278,8 +282,7 @@ privateStorage.onChanged.addListener((changes,area)=>{
     return;
   }
   if(area!=='session') return;
-  for(const [key,change] of Object.entries(changes)) {
-    const logical=provider==='demo' && key.startsWith('demo:')?key.slice(5):key;
+  for(const [logical,change] of Object.entries(changes)) {
     if(!logical.startsWith('download:') && !logical.startsWith('attempt:') && !logical.startsWith('cache:')) continue;
     if(change.newValue) downloadRecords[logical]=change.newValue; else delete downloadRecords[logical];
   }
@@ -321,7 +324,7 @@ const startup=(async()=>{
     const target=await targetPromise;
     $('source').textContent=target?`Advanced scan source: ${target.title} · tab ${target.tabId}`:'No source tab for advanced per-course scans. Semester sync runs from this page.';
     const settings=await privateStorage.get('uiShowManualCache');showCacheControls=settings.uiShowManualCache===true;$('show-cache-controls').checked=showCacheControls;
-    const records=await chrome.storage.session.get(null);downloadRecords=Object.fromEntries(Object.entries(records).filter(([key])=>!key.startsWith('demo:') && !/^(?:cache:|attempt:)/.test(key) || (provider==='demo'?key.startsWith('demo:'): /^(?:cache:|attempt:)/.test(key))).map(([key,value])=>[provider==='demo' && key.startsWith('demo:')?key.slice(5):key,value]));
+    downloadRecords=await downloadStorage.get(null);
   } catch(error) {status(error.message);}
   await refreshSavedCourses();
   void loadSemesters();

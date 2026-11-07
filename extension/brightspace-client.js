@@ -4,11 +4,16 @@ import {flattenOutline} from './course-api.js';
 // widget. All UI selection lives in Resources; no website tab is queried.
 import {sourceConfig} from './sources.js';
 async function json(path,fetcher,{optionalModule=false,provider='nyu'}={}) {
+  const hosted=provider==='hosted-demo';
+  const url=new URL(sourceConfig(provider).base+path);
+  if(hosted) url.pathname+='.json';
+  const unavailable='The hosted sample library is unavailable. Check your connection and try again.';
   const login=provider==='demo'?'Demo session expired. Choose Restore demo access on the local demo LMS page, then retry.':'Brightspace access was denied. Sign into NYU Brightspace in this Chrome profile, then retry.';
   let response;
-  try {response=await fetcher(sourceConfig(provider).base+path,{credentials:'include',redirect:'error',headers:{Accept:'application/json'},signal:AbortSignal.timeout(20000)});}
-  catch(error) {if(error.code==='PAUSED') throw error;throw Object.assign(new Error('Brightspace could not be reached. Check your connection and sign into NYU Brightspace in this Chrome profile.'),{code:'NETWORK_ERROR'});}
+  try {response=await fetcher(url.href,{credentials:hosted?'omit':'include',redirect:'error',headers:{Accept:'application/json'},signal:AbortSignal.timeout(20000)});}
+  catch(error) {if(error.code==='PAUSED') throw error;throw Object.assign(new Error(hosted?unavailable:'Brightspace could not be reached. Check your connection and sign into NYU Brightspace in this Chrome profile.'),{code:'NETWORK_ERROR'});}
   if(optionalModule && [403,404].includes(response.status)) return null;
+  if(hosted && (!response.ok || !response.headers.get('content-type')?.includes('json'))) throw new Error(unavailable);
   if(response.status===403 && path.endsWith('/content/toc')) throw Object.assign(new Error('Brightspace denied access to this course outline. Check your course access in Brightspace.'),{code:'ACCESS_DENIED'});
   if([401,403].includes(response.status)) throw Object.assign(new Error(login),{code:'NEEDS_LOGIN'});
   if(response.status===429) throw Object.assign(new Error('Brightspace is limiting requests. Wait a moment before syncing again.'),{code:'RATE_LIMITED'});

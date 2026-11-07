@@ -23,7 +23,8 @@ export function validateExtension(files) {
   const allowed=new Set(['scripting','storage','downloads','alarms']);
   if(!Array.isArray(manifest.permissions) || new Set(manifest.permissions).size!==allowed.size || manifest.permissions.length!==allowed.size || manifest.permissions.some(value=>!allowed.has(value))) throw new Error('Unexpected extension permissions. Review the store permission explanations.');
   const hosts=manifest.host_permissions;
-  if(!Array.isArray(hosts) || hosts.length!==2 || !hosts.includes('https://brightspace.nyu.edu/*') || !hosts.includes('http://127.0.0.1/*')) throw new Error('Unexpected host permissions.');
+  const allowedHosts=['https://brightspace.nyu.edu/*','http://127.0.0.1/*','https://brightspace-context.khin101.chatgpt.site/*'];
+  if(!Array.isArray(hosts) || hosts.length!==allowedHosts.length || !allowedHosts.every(host=>hosts.includes(host))) throw new Error('Unexpected host permissions.');
   requireFile(files,manifest.background?.service_worker);requireFile(files,manifest.action?.default_popup);
   for(const size of [16,32,48,128]) {
     const name=manifest.icons?.[size];requireFile(files,name);

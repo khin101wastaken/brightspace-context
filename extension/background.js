@@ -1,4 +1,4 @@
-import {sourceStorage,sourceConfig} from './sources.js';
+import {sourceStorage,sourceConfig,sourceKey} from './sources.js';
 import {createPrivateStorage} from './private-storage.js';
 import {downloadPlan,preflightFile,downloadState} from './file-downloads.js';
 import {pairCompanion,companionStatus,cacheDocument,syncCatalog,retryLoginRequests,setCompanionSettings} from './companion-client.js';
@@ -76,13 +76,15 @@ async function syncSemester(message,{remote=false,onProgress=async()=>{},assertA
       });
       const summary={...snapshot,courses:snapshot.courses.map(({entries,...course})=>({...course,entryCount:entries?.length??null}))};
       await privateStorage.set({[`semester:${semester.semesterId}`]:summary});
-      await writeSync({phase:'saving',message:`${semester.title}: saving catalog to companion…`});
+      const hosted=provider==='hosted-demo';
+      await writeSync({phase:'saving',message:hosted?`${semester.title}: saving sample outlines…`:`${semester.title}: saving catalog to companion…`});
       await onProgress({phase:'saving',completed:snapshot.courses.length,total:snapshot.courses.length});
-      if(remote) {
+      if(remote || hosted) {
         const failed=snapshot.courses.filter(course=>course.status==='failed');
         const code=failed.some(course=>course.code==='NEEDS_LOGIN')?'NEEDS_LOGIN':failed.some(course=>course.code==='RATE_LIMITED')?'RATE_LIMITED':failed.length?'SYNC_FAILED':null;
-        await writeSync({state:code?'failed':'complete',phase:'finished',message:`${snapshot.title}: ${snapshot.courses.length-failed.length}/${snapshot.courses.length} course outlines scanned. No files downloaded.`,finishedAt:Date.now()});
-        return {snapshot,...(code?{code}:{})};
+        const message=`${snapshot.title}: ${snapshot.courses.length-failed.length}/${snapshot.courses.length} course outlines ${hosted?'synced':'scanned'}. No files downloaded.`;
+        await writeSync({state:code?'failed':'complete',phase:'finished',message,finishedAt:Date.now()});
+        return {snapshot,message,...(code?{code}:{})};
       }
       const pairing=(await privateStorage.get('companionPairing')).companionPairing;
       const complete=snapshot.courses.filter(c=>c.status==='complete').length;
@@ -104,6 +106,7 @@ async function syncSemester(message,{remote=false,onProgress=async()=>{},assertA
   try {return await task;} finally {semesterTask=null;semesterTaskId=null;}
 }
 async function sendSavedCatalog(provider='nyu') {
+  if(provider==='hosted-demo') throw new Error('Hosted sample outlines stay in the browser.');
   const privateStorage=sourceStorage(rootStorage,provider);
   if(semesterTask) throw new Error('Wait for the semester scan to finish.');
   const values=await privateStorage.get(null),token=values.companionPairing?.token;
@@ -122,6 +125,7 @@ async function companionMessage(message) {
   const provider=message.provider??'nyu',privateStorage=sourceStorage(rootStorage,provider);
   sourceConfig(provider);
   if(message.type==='source-settings') {await rootStorage.set({activeSource:provider});return {provider};}
+  if(provider==='hosted-demo') throw new Error('Choose NYU Brightspace or Local demo for companion features.');
   if(message.type==='disconnect-companion') {
     for(const worker of Object.values(workers))worker.stop();
     await privateStorage.remove('companionPairing');
@@ -196,7 +200,7 @@ async function downloadFile(message) {
   // Explicit alternative: let the user choose a location without nested-folder
   // creation. Never automatically retry a cancellation.
   if(saveAs) plan.filename=plan.filename.split('/').at(-1);
-  const attemptKey=`${provider==='demo'?'demo:':''}attempt:${courseId}:${key}`;
+  const attemptKey=sourceKey(`attempt:${courseId}:${key}`,provider);
   const attempt={provider,courseId,key,startedAt:Date.now(),state:'starting',phase:'session-check',filename:plan.filename,sourceUrl:plan.url,saveMode:saveAs?'choose-location':'course-folders'};
   await chrome.storage.session.set({[attemptKey]:attempt});
   try {

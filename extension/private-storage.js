@@ -1,7 +1,7 @@
 import {resumeCompanion} from './companion-client.js';
 
 const SESSION='vaultSession',PREFIX='private:';
-const sensitive=name=>{const key=name.replace(/^demo:/,'');return /^(?:course:|semester:|folders:)/.test(key) || ['availableSemesters','resourcesSelection','semesterSync','retrievalStatus'].includes(key);};
+const sensitive=name=>{const key=name.replace(/^(?:demo|hosted-demo):/,'');return /^(?:course:|semester:|folders:)/.test(key) || ['availableSemesters','resourcesSelection','semesterSync','retrievalStatus'].includes(key);};
 const encrypted=value=>value?.encryptedStorage===1;
 const encode=bytes=>btoa(String.fromCharCode(...bytes));
 const decode=value=>Uint8Array.from(atob(value),c=>c.charCodeAt(0));

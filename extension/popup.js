@@ -3,7 +3,7 @@ import {sourceStorage} from './sources.js';
 import {wireSourceStatus} from './source-picker.js';
 const provider=(await chrome.storage.local.get('activeSource')).activeSource??'nyu';
 const privateStorage=sourceStorage(rootStorage,provider);
-const send=message=>chrome.runtime.sendMessage({...message,provider});
+const send=message=>chrome.runtime.sendMessage({...message,provider:provider==='hosted-demo'?'nyu':provider});
 wireSourceStatus({provider});
 import {wireProductLinks} from './product-links.js';
 wireProductLinks(document);

@@ -1,4 +1,4 @@
-# Privacy practices: v0.9.1
+# Privacy practices for 0.10.0 beta
 
 Copy the single purpose and permission explanations from [SUBMISSION.md](SUBMISSION.md). Privacy policy: https://brightspace-context.khin101.chatgpt.site/ .
 
@@ -28,3 +28,5 @@ Version 0.9.2 implements encrypted companion storage with a Windows-account-prot
 - https://developer.chrome.com/docs/webstore/program-policies/user-data-faq
 
 The local demo uses only packaged fictional courses and original sample files. It has separate encrypted catalog/cache/request storage and does not change the real NYU data flow or add permissions. Demo-page scripts execute in that separate local website, not as remote extension code.
+
+Hosted demo reads public fictional outlines and sample files from the setup site. The extension sends no school credentials, real course data, or pairing credentials to those sample endpoints. Its catalog is separate from the NYU and Local demo catalogs.

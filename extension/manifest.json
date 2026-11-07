@@ -17,7 +17,8 @@
   },
   "host_permissions": [
     "https://brightspace.nyu.edu/*",
-    "http://127.0.0.1/*"
+    "http://127.0.0.1/*",
+    "https://brightspace-context.khin101.chatgpt.site/*"
   ],
   "icons": {
     "16": "icons/icon-16.png",

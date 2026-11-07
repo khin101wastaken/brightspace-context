@@ -17,9 +17,10 @@ export function flattenOutline(payload,courseId,{provider='nyu'}={}) {
     if(seen.has(key)) throw new Error('Course outline contains a duplicate identifier.');
     seen.add(key);
     const contentType=kind==='module'?'module':item.ToolId===2000?'assignment':item.TypeIdentifier==='File'?'file':'link';
-    entries.push({...(provider==='demo'?{provider}:{}),key,id,kind,contentType,title:String(item.Title || 'Untitled'),parentKey,
+    const page=provider==='hosted-demo'?`${origin}/#${kind}-${id}`:`${origin}/d2l/le/lessons/${courseId}/${kind==='module'?'units':'topics'}/${id}`;
+    entries.push({...(provider!=='nyu'?{provider}:{}),key,id,kind,contentType,title:String(item.Title || 'Untitled'),parentKey,
       order:Number.isFinite(item.SortOrder)?item.SortOrder:entries.length,
-      url:`${origin}/d2l/le/lessons/${courseId}/${kind==='module'?'units':'topics'}/${id}`,
+      url:page,
       sourceUrl:item.Url?safeUrl(item.Url):null,
       ...descriptionText(item.Description,`${origin}/d2l/le/lessons/${courseId}/units/${id}`),
       descriptionStatus:item.DescriptionStatus || (Object.hasOwn(item,'Description')?'synced':'not_synced'),

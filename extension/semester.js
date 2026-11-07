@@ -44,7 +44,7 @@ export async function scanSemester(semester,{readOutline,saveCourse,onProgress=a
     try {
       if(stopReason) throw Object.assign(new Error(stopReason),{code:stopCode});
       const entries=flattenOutline(await readOutline(course.courseId),course.courseId,{provider});
-      const catalog={...course,...(provider==='demo'?{provider}:{}),entries,coverage:'full-toc',lastScannedAt:new Date().toISOString()};
+      const catalog={...course,...(provider!=='nyu'?{provider}:{}),entries,coverage:'full-toc',lastScannedAt:new Date().toISOString()};
       await saveCourse(catalog);
       courses.push({...catalog,status:'complete'});
       item.state='complete';
@@ -56,5 +56,5 @@ export async function scanSemester(semester,{readOutline,saveCourse,onProgress=a
     }
     await publish(null);
   }
-  return {...(provider==='demo'?{provider}:{}),semesterId:semester.semesterId,title:semester.title,updatedAt:new Date().toISOString(),courses};
+  return {...(provider!=='nyu'?{provider}:{}),semesterId:semester.semesterId,title:semester.title,updatedAt:new Date().toISOString(),courses};
 }

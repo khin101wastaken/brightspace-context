@@ -1,4 +1,4 @@
-Current replacement instructions: see [UPDATE-0.9.3.md](UPDATE-0.9.3.md). The existing draft already exists; use its package-update action after final live acceptance. The first-upload notes below are historical.
+Current replacement instructions: see [UPDATE-0.10.0.md](UPDATE-0.10.0.md). The existing draft already exists; use its package-update action after final live acceptance. The first-upload notes below are historical.
 
 # First Chrome Web Store upload: v0.9.1
 

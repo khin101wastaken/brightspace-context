@@ -8,7 +8,7 @@ The Chrome extension uses the browser's existing Brightspace session. It keeps t
 
 ## Current status
 
-The setup page offers Windows companion **0.9.4** with extension **0.9.3** for Windows 10 and 11 x64. The preview uses Chrome's **Load unpacked** flow and manual MCP registration. Chrome Web Store submission is pending.
+The setup page offers Windows companion and extension **0.10.0 beta** for Windows 10 and 11 x64. The preview uses Chrome's **Load unpacked** flow and manual MCP registration. Chrome Web Store submission is pending.
 
 Run the current source to try paged PDF, DOCX and PPTX reading, expiring local download links and the updated demo controls. The next release target is **0.10.0 beta**.
 
@@ -81,14 +81,11 @@ Normal MCP retrieval creates no plaintext local path. Optional temporary exports
 
 Browser disconnect, companion uninstall and stopping the service preserve data. To remove companion data, stop it and explicitly remove its cache directory. Remove the extension or clear its storage separately. See the [privacy policy](https://brightspace-context.khin101.chatgpt.site/) for details. Use synthetic data in issues and screenshots.
 
-## Local reviewer demo
+## Reviewer demo
 
-The companion serves a fictional LMS at `http://127.0.0.1:47653/demo/` for testing without an NYU account. Pair the extension and choose **Local demo** from the menu for your build.
+In the 0.10.0 beta Chrome ZIP, choose **Resources → Advanced → Demo and testing → Hosted demo**. Sync **Demo 2026 Fall** to browse and search fictional courses and download sample files without installing the companion or signing into NYU.
 
-| Build | Where to find Local demo |
-| --- | --- |
-| Published Windows preview | Extension popup → **Settings → Local demo** |
-| Current source | **Resources → Advanced → Demo and testing** |
+The companion serves a fictional LMS at `http://127.0.0.1:47653/demo/` for testing without an NYU account. Pair the extension and choose **Resources → Advanced → Demo and testing → Local demo**.
 
 In Resources, sync **Demo 2026 Fall**. For demo MCP calls, use `provider: "demo"`. The demo has its own catalog, cache and request queue. [Demo walkthrough](docs/DEMO-LMS.md)
 

@@ -75,7 +75,7 @@ export async function preflightFile(plan,fetcher=fetch) {
   const file=downloadableFile({contentType:'file',sourceUrl:plan.url},{provider:plan.provider??'nyu'});
   if(!file) throw new Error('Invalid Brightspace file URL.');
   const allowHtml=HTML_TYPES.has(file.type);
-  const options={credentials:'include',redirect:'error',signal:AbortSignal.timeout(15000)};
+  const options={credentials:plan.provider==='hosted-demo'?'omit':'include',redirect:'error',signal:AbortSignal.timeout(15000)};
   let response;
   try {response=await fetcher(file.url,{...options,method:'HEAD'});}
   catch(error) {throw new Error(`Session check could not reach the file (${error.message}). No file download was started.`);}

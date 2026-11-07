@@ -1,19 +1,19 @@
-# Local demo LMS (0.9.3)
+# Local demo LMS
 
 The matching Windows companion serves a working fictional LMS at `http://127.0.0.1:47653/demo/`. It needs no NYU account and is available to every user, including reviewers. It is local sample content, not a publisher-hosted course service or an imitation NYU sign-in page.
 
 ## Try it
 
-1. Start the 0.9.3 companion and pair the extension using its printed code. Reload the extension after updating its files.
+1. Start the 0.10.0 beta companion and pair the extension using its printed code. Reload the extension after updating its files.
 2. Open Resources → **Advanced → Demo and testing** and choose **Local demo**, then sync **Demo 2026 Fall**. Switch back to NYU from the same Advanced section. The popup has no demo controls.
 3. Browse the two courses and nested modules, search `east gate`, inspect module notes, and download PDF/PPTX/DOCX samples. Advanced → Show manual cache buttons exposes the optional Cache action.
-4. In a connected MCP client ask it to use the demo library. Every tool call for this library takes `provider: "demo"`; omitted provider means real NYU. Discover semesters with `request_catalog_sync`, scan the returned semester, find a file with `search_catalog`, retrieve it with `request_document`, poll if pending and read its MCP resource bytes. Cache hits avoid another file fetch. The host must actually read the bytes to answer a content question.
+4. In a connected MCP client ask it to use the demo library. Every tool call for this library takes `provider: "demo"`; omitted provider means real NYU. Discover semesters with `request_catalog_sync`, scan the returned semester, find a file with `search_catalog`, retrieve it with `request_document`, poll if pending and use `read_document_text` to read the cached document. Repeating the request should hit the cache.
 5. Open the demo LMS page and choose **Add a sample reading**. Sync again in Resources to see the added item and updated module notes. MCP sync retains its normal 30-second completed-request deduplication window; wait that window before requesting another successful scan of the same semester.
 6. Choose **Simulate expired session**, then try a fresh scan or an uncached file. Restore access on the demo page and retry the blocked operation (`retry: true` through MCP). A fresh cached document remains readable while access is expired.
 
 Known check values, contained in the actual original files: field-guide PDF `CEDAR-42`, slide deck `WILLOW-28`, worksheet `MAPLE-17`.
 
-The current source adds `read_document_text` for paged PDF/DOCX/PPTX reading, plus `create_document_link` when a user explicitly requests a local download. Keep `provider: "demo"` on these calls too. These changes are pending the next companion release; the published 0.9.4 installer still uses the original resource/export handoff. See [document handoff](DOCUMENT-HANDOFF.md) for acceptance checks and client limitations.
+The 0.10.0 beta includes `read_document_text` for paged PDF/DOCX/PPTX reading, plus `create_document_link` when a user explicitly requests a local download. Keep `provider: "demo"` on these calls too. See [document handoff](DOCUMENT-HANDOFF.md) for acceptance checks and client limitations.
 
 **Reset sample content** restores fictional content/access; it does not erase saved catalogs or cached files. Sync again to refresh the outline. Fixture controls reset when the companion restarts. No control changes NYU access, grades, assignments or files.
 

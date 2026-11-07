@@ -1,23 +1,26 @@
 # Pinned priority: Chrome Web Store submission
 
-Updated November 6, 2026. Objective: submit an unlisted local Windows/NYU pilot. The existing item is a draft; no review or approval is claimed.
+Updated November 7, 2026. Objective: submit an unlisted local Windows/NYU pilot. The existing item is a draft; no review or approval is claimed.
 
 ## Next release target: 0.10.0 beta
 
-The retrieval pipeline is accepted for the current MVP. The next step is a frozen release candidate, not more retrieval features. The public companion remains 0.9.4 and the last frozen extension ZIP is 0.9.3; installed working-copy patches are not a published beta. The roadmap source and generated flowchart now track this distinction.
+The retrieval pipeline is accepted for the current MVP. The 0.10.0 beta companion was built at `da7a5dd792c0d879a564c02d272bf16882fc53b0`. The Chrome ZIP includes a hosted demo for extension review without the companion. See the [dashboard handoff](../store/UPDATE-0.10.0.md) for the current ZIP, checksums and review steps.
 
 - [x] 140 source tests pass, including bounded PDF/Office reading, encrypted original-byte integrity, expiring download links and existing browser/demo flows.
 - [x] The actual desktop connector read a real 10-page PDF completely in two bounded responses, with no plaintext export; user accepted the current retrieval pipeline.
 - [x] Reviewer demo, compact terminal logs, encrypted storage and the latest UI changes are implemented.
 - [x] Real PowerPoint reading works in the current desktop setup, confirmed by the user November 6. PDF and DOCX also have live reading evidence; other clients remain separate checks.
 - [x] Live MCP semester refresh with Resources closed worked, confirmed by the user November 6; the companion terminal also reported success. Live expired-session recovery is not claimed by this check.
-- [ ] Freeze the source checkpoint, set matching 0.10.0 beta version metadata and build new extension/installer artifacts with recorded hashes. Preserve prior versioned downloads.
-- [ ] Run packaged-runtime and isolated 0.9.4-to-beta upgrade checks against that exact build.
-- [ ] Complete fresh-install acceptance using the final Chrome package and companion: pairing, demo/NYU libraries, sync/search, download/read, cache hit and restart.
-- [ ] Update public setup/reviewer/privacy text, demo navigation instructions, screenshots and download links to match the final build.
+- [x] Freeze the source checkpoint and build matching 0.10.0 beta extension and installer artifacts with recorded hashes.
+- [x] Packaged-runtime and isolated 0.9.4-to-beta upgrade checks passed against the frozen payload.
+- [x] Live NYU document retrieval and cache reuse on 0.10.0 confirmed by the publisher.
+- [x] Verify the extracted final Chrome ZIP in a clean profile without pairing. Hosted demo synced both courses, found the module note, and downloaded the original sample PDF.
+- [x] Publish the matching setup, reviewer and privacy pages. Retain the existing listing screenshots, including the actual Chrome popup.
 - [ ] Replace the package in existing draft `iadmhandkbomngnaplppiopojmfkcodi`, finish dashboard validation and submit the unlisted pilot. No approval is claimed.
 
 One-click MCP registration, tray/autostart, automatic updates, Claude, Firefox and indexing/RAG/OCR remain follow-ups. They are not added as beta blockers. Live tests and final packaging should not introduce another feature sweep.
+
+- [ ] Low priority, after the beta submission. Auto-dismiss the Resources “Download started” banner after a short delay. Keep download errors and per-file status visible.
 
 ## Previous replacement candidate: v0.9.3
 
