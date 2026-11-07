@@ -8,7 +8,7 @@ The Chrome extension uses the browser's existing Brightspace session. It keeps t
 
 ## Current status
 
-The Windows x64 preview is available from the setup page. Chrome Web Store submission is pending; the preview extension uses Chrome's **Load unpacked** flow. Desktop MCP registration is manual. The source checkout can include improvements newer than the downloadable preview.
+The setup page offers Windows companion **0.9.4** with extension **0.9.3**. Chrome Web Store submission is pending; the preview uses Chrome's **Load unpacked** flow and manual MCP registration. The source includes newer paged document reading, expiring local download links and Windows CI fixes that are not in that installer. The 0.10.0 beta has not been packaged yet.
 
 | Capability | Status |
 | --- | --- |
@@ -16,9 +16,9 @@ The Windows x64 preview is available from the setup page. Chrome Web Store submi
 | Module notes, readings and links through MCP | Implemented; live-tested |
 | Individual browser Download / Save as | Accessible NYU-hosted file formats supported |
 | On-demand MCP retrieval and local cache | PDF, PPTX and DOCX supported |
-| MCP semester discovery and catalog refresh | Implemented in source; real background-worker/MCP integration tests pass; live acceptance pending |
-| Answers using actual PDF contents | Live-tested with a local desktop client |
-| PPTX/DOCX file handoff | Worker, byte-equality, MIME-type and packaged-runtime tests pass; real host reading still needs acceptance testing |
+| MCP semester discovery and catalog refresh | Live signed-in refresh verified with Resources closed; session-expiry retry covered by automated tests |
+| PDF text reading | The live desktop connector read a complete 10-page PDF in two bounded responses |
+| PPTX/DOCX text reading | Confirmed in the current desktop setup; original-byte integrity and format checks also pass automatically |
 | Firefox, other Brightspace tenants, Mac/Linux installers | Not yet supported as tested releases |
 
 Account-switch isolation, queued-request cancellation and in-app cache deletion remain unfinished. This is a single-account local preview. Closing or disconnecting the browser does not erase saved companion data.
@@ -33,7 +33,7 @@ Follow the [public setup guide](https://brightspace-context.khin101.chatgpt.site
 4. Open **Browse resources**, select a semester and choose **Sync semester**.
 5. Add the local STDIO MCP server to a supported desktop client using the installed guide's exact Command and Argument, then restart that connection.
 
-Ask the connected client to find a resource, retrieve it and read the actual file before answering. A successful download or a resource title does not establish that the client has read its contents. File reading depends on the host's tools.
+Ask the connected client to find a resource, retrieve it and read the actual file before answering. A successful download or a resource title does not establish that the client has read its contents. The published preview depends on host file-reading tools; the updated source provides its own bounded PDF/Office text reader.
 
 ## Run from source
 
