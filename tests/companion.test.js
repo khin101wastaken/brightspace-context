@@ -1,3 +1,4 @@
+import {openVault} from '../companion/vault.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,rm,readFile,mkdir,writeFile} from 'node:fs/promises';
@@ -36,7 +37,7 @@ test('cache persists exact PDF bytes and refreshes versions without duplicate fi
   await assert.rejects(reopened.put(metadata(2),Buffer.from('<html>Login</html>')),/not a PDF/);
   assert.equal((await reopened.stats()).files,1);
   // A crash during replacement must never make mismatched bytes a cache hit.
-  await writeFile(path.join(directory,`${first.id}.pdf`),Buffer.alloc(pdf.length));
+  await (await openVault(directory)).write(`${first.id}.pdf`,Buffer.alloc(pdf.length));
   assert.equal((await reopened.lookup(changed)).hit,false);
   assert.equal(await reopened.read(first.id),null);
 });
@@ -94,7 +95,7 @@ test('paired HTTP flow: first PDF request fetches, second is a cache hit, and st
   assert.equal(hit.source,'cache');assert.equal(upstreamRequests,1);assert.equal(hit.id,fetched.id);
   const saved=await fetch(`${app.url}/v1/cache/files/${hit.id}`,{headers:{Origin:origin,Authorization:`Bearer ${pairing.token}`}});
   assert.deepEqual(Buffer.from(await saved.arrayBuffer()),pdf);
-  assert.deepEqual(await readFile(path.join(directory,`${hit.id}.pdf`)),pdf);
+  assert.deepEqual(await (await openVault(directory)).read(`${hit.id}.pdf`),pdf);
   catalog.entries[2].lastModifiedAt='2026-02-01T00:00:00Z';
   assert.equal((await cacheDocument(catalog,'document:1',pairing.token,fetcher)).source,'brightspace');
   assert.equal(upstreamRequests,2);assert.equal((await companionStatus(pairing.token,fetcher)).files,1);

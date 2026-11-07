@@ -1,3 +1,10 @@
+import {privateStorage as rootStorage} from './private-storage.js';
+import {sourceStorage} from './sources.js';
+import {wireSourceStatus} from './source-picker.js';
+const provider=(await chrome.storage.local.get('activeSource')).activeSource??'nyu';
+const privateStorage=sourceStorage(rootStorage,provider);
+const send=message=>chrome.runtime.sendMessage({...message,provider});
+wireSourceStatus({provider});
 import {wireProductLinks} from './product-links.js';
 wireProductLinks(document);
 const $=id=>document.getElementById(id);
@@ -7,7 +14,7 @@ const size=bytes=>`${(bytes/1024/1024).toFixed(1)} MB`;
 // window merely because it later gains focus. Connection setup needs no LMS tab.
 const sourceTab=chrome.tabs.query({active:true,currentWindow:true}).then(([tab])=>tab).catch(()=>null);
 function feedback(message) {$('connection-feedback').textContent=message;$('connection-feedback').hidden=!message;}
-function showSettings(show) {$('connect-view').hidden=show;$('settings-view').hidden=!show;$('open-settings').hidden=show;}
+function showSettings(show) {$('connect-view').hidden=show;$('settings-view').hidden=!show;$('open-settings').hidden=show;$(show?'close-settings':'open-settings').focus();}
 function renderRequest() {
   const relevant=requestStatus && ['fetching','ready','needs_login','failed'].includes(requestStatus.state);
   $('request-notice').hidden=!relevant;
@@ -34,9 +41,10 @@ async function refresh() {
   const attempt=++refreshAttempt;
   $('companion-refresh').disabled=true;
   try {
-    const saved=await chrome.storage.local.get(['companionPairing','automaticRetrieval','retrievalStatus']);
-    paired=!!saved.companionPairing?.token;enabled=saved.automaticRetrieval!==false;requestStatus=saved.retrievalStatus;
-    const result=await chrome.runtime.sendMessage({type:'companion-status'});
+    const saved=await privateStorage.get(['companionPairing','automaticRetrieval','retrievalStatus']);
+    $('storage-status').textContent=(await privateStorage.get('storageProtection')).storageProtection.message;
+    paired=!!saved.companionPairing;enabled=saved.automaticRetrieval!==false;requestStatus=saved.retrievalStatus;
+    const result=await send({type:'companion-status'});
     if(attempt!==refreshAttempt) return;
     if(!result?.ok || !result.connected) throw Object.assign(new Error(result?.error || 'Companion is not paired.'),{code:result?.code});
     feedback('');
@@ -45,7 +53,7 @@ async function refresh() {
   finally {if(attempt===refreshAttempt) $('companion-refresh').disabled=false;}
 }
 async function setRetrieval(value) {
-  const result=await chrome.runtime.sendMessage({type:'retrieval-settings',enabled:value});
+  const result=await send({type:'retrieval-settings',enabled:value});
   if(!result?.ok) throw new Error(result?.error || 'Unable to change retrieval.');
   enabled=value;await refresh();
 }
@@ -58,7 +66,7 @@ $('repair-browser').addEventListener('click',()=>{forcePair=true;showSettings(fa
 $('disconnect-browser').addEventListener('click',async()=>{
   $('disconnect-browser').disabled=true;
   try {
-    const result=await chrome.runtime.sendMessage({type:'disconnect-companion'});
+    const result=await send({type:'disconnect-companion'});
     if(!result?.ok) throw new Error(result?.error || 'Unable to disconnect this browser.');
     forcePair=false;feedback('');showSettings(false);await refresh();
   } catch(error) {$('companion-status').textContent=error.message;}
@@ -67,17 +75,21 @@ $('disconnect-browser').addEventListener('click',async()=>{
 $('pair-form').addEventListener('submit',async event=>{
   event.preventDefault();$('pair-button').disabled=true;feedback('');
   try {
-    const result=await chrome.runtime.sendMessage({type:'pair-companion',code:$('pair-code').value});
+    const result=await send({type:'pair-companion',code:$('pair-code').value});
     if(!result?.ok) throw new Error(result?.error || 'Unable to pair this browser.');
     $('pair-code').value='';forcePair=false;await refresh();
   } catch(error) {feedback(error.message);}
   finally {$('pair-button').disabled=false;}
 });
 $('automatic-retrieval').addEventListener('change',async()=>{try {await setRetrieval($('automatic-retrieval').checked);} catch(error) {$('automatic-retrieval').checked=enabled;$('companion-status').textContent=error.message;}});
+$('temporary-exports').addEventListener('change',async()=>{
+  try {const result=await send({type:'export-settings',enabled:$('temporary-exports').checked});if(!result?.ok)throw new Error(result?.error || 'Unable to change exports.');}
+  catch(error){$('temporary-exports').checked=!$('temporary-exports').checked;$('companion-status').textContent=error.message;}
+});
 $('pause-retrieval').addEventListener('click',async()=>{try {await setRetrieval(!enabled);} catch(error) {feedback(error.message);}});
 $('retry-requests').addEventListener('click',async()=>{
   $('retry-requests').disabled=true;
-  try {const result=await chrome.runtime.sendMessage({type:'retry-requests'});if(!result?.ok) throw new Error(result?.error || 'Unable to retry.');await refresh();}
+  try {const result=await send({type:'retry-requests'});if(!result?.ok) throw new Error(result?.error || 'Unable to retry.');await refresh();}
   catch(error) {feedback(error.message);}
   finally {$('retry-requests').disabled=false;}
 });
@@ -87,12 +99,12 @@ $('browse-resources').addEventListener('click',async()=>{
   const url=chrome.runtime.getURL('resources.html')+(isBrightspace?`?sourceTabId=${source.id}`:'');
   await chrome.tabs.create({url});
 });
-chrome.storage.onChanged.addListener((changes,area)=>{
+privateStorage.onChanged.addListener((changes,area)=>{
   if(area!=='local') return;
   if(changes.retrievalStatus) {requestStatus=changes.retrievalStatus.newValue;renderRequest();}
   if(changes.companionPairing || changes.automaticRetrieval || changes.retrievalStatus?.newValue?.state==='connected') void refresh();
 });
-const saved=await chrome.storage.local.get(null);
+const saved=await privateStorage.get(null).catch(error=>{feedback(error.message);return {};});
 const semesters=Object.entries(saved).filter(([key])=>key.startsWith('semester:')).map(([,value])=>value).sort((a,b)=>Date.parse(b.updatedAt)-Date.parse(a.updatedAt));
 if(semesters.length) $('resource-summary').textContent=`${semesters[0].title} · ${semesters[0].courses.length} courses`;
 await refresh();

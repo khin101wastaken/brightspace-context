@@ -1,16 +1,25 @@
-import {readFile} from 'node:fs/promises';
-import path from 'node:path';
-import {atomicWrite} from './files.js';
+import {sourceConfig} from '../extension/sources.js';
+import {openVault} from './vault.js';
 
 export const MAX_CATALOG_BYTES=10*1024*1024;
 const text=(value,max=1000)=>typeof value==='string' && value.length<=max;
-export function validateSemester(value) {
+export function validateDiscovery(value) {
+  if(!Array.isArray(value) || value.length>200) throw new Error('Invalid semester discovery.');
+  const seen=new Set();
+  return value.map(item=>{
+    if(!item || typeof item.semesterId!=='string' || !/^\d+$/.test(item.semesterId) || seen.has(item.semesterId) || !text(item.title) || !item.title.trim()) throw new Error('Invalid discovered semester.');
+    seen.add(item.semesterId);return {semesterId:item.semesterId,title:item.title};
+  });
+}
+export function validateSemester(value,{provider='nyu'}={}) {
+  const config=sourceConfig(provider);
+  if(value?.provider && value.provider!==provider)throw new Error('Catalog belongs to another library.');
   if(!value || !/^\d+$/.test(value.semesterId) || !text(value.title) || !value.title || !Array.isArray(value.courses) || !value.courses.length || value.courses.length>200 || !Number.isFinite(Date.parse(value.updatedAt))) throw new Error('Invalid semester catalog.');
   const ids=new Set();let total=0;
   const courses=value.courses.map(course=>{
     if(!/^\d+$/.test(course.courseId) || ids.has(course.courseId) || !text(course.title) || !course.title || !['complete','failed'].includes(course.status)) throw new Error('Invalid catalog course.');
     ids.add(course.courseId);
-    const base={courseId:course.courseId,title:course.title,status:course.status};
+    const base={...(provider==='demo'?{provider}:{}),courseId:course.courseId,title:course.title,status:course.status};
     if(course.status==='failed') {
       if(!text(course.error,2000)) throw new Error('Invalid course error.');
       return {...base,error:course.error};
@@ -33,44 +42,53 @@ export function validateSemester(value) {
         const url=new URL(entry.sourceUrl);if(!['https:','http:'].includes(url.protocol) || url.username || url.password || url.href.length>8000) throw new Error('Invalid source link.');
         sourceUrl=url.href;
       }
-      return {key:entry.key,id:entry.id,kind:entry.kind,title:entry.title,parentKey,order:Number.isFinite(entry.order)?entry.order:0,
+      return {...(provider==='demo'?{provider}:{}),key:entry.key,id:entry.id,kind:entry.kind,title:entry.title,parentKey,order:Number.isFinite(entry.order)?entry.order:0,
         contentType:['module','file','link','assignment'].includes(entry.contentType)?entry.contentType:'link',
-        url:`https://brightspace.nyu.edu/d2l/le/lessons/${course.courseId}/${entry.kind==='module'?'units':'topics'}/${entry.id}`,
+        url:`${config.base}/d2l/le/lessons/${course.courseId}/${entry.kind==='module'?'units':'topics'}/${entry.id}`,
         sourceUrl,description:entry.description||'',descriptionTruncated:entry.descriptionTruncated===true,
         descriptionStatus:['synced','unavailable','not_synced'].includes(entry.descriptionStatus)?entry.descriptionStatus:(entry.description?'synced':'not_synced'),
         lastModifiedAt:text(entry.lastModifiedAt,100)?entry.lastModifiedAt:null,locked:entry.locked===true};
     });
     return {...base,entries,coverage:'full-toc',lastScannedAt:course.lastScannedAt};
   });
-  return {semesterId:value.semesterId,title:value.title,updatedAt:value.updatedAt,courses};
+  return {...(provider==='demo'?{provider}:{}),semesterId:value.semesterId,title:value.title,updatedAt:value.updatedAt,courses};
 }
 
-export async function openCatalog(directory) {
-  const filename=path.join(directory,'catalog.json');let state={version:1,semesters:[]},queue=Promise.resolve();
+export async function openCatalog(directory,{vault,provider='nyu'}={}) {
+  vault??=await openVault(directory);
+  let state={version:1,semesters:[]},queue=Promise.resolve();
   try {
-    const raw=await readFile(filename,'utf8');
+    const raw=(await vault.read('catalog.json')).toString('utf8');
     if(Buffer.byteLength(raw)>MAX_CATALOG_BYTES) throw new Error('Stored catalog exceeds its size limit.');
     const parsed=JSON.parse(raw);
     if(parsed.version!==1 || !Array.isArray(parsed.semesters)) throw new Error('Unsupported catalog format.');
     // Validate persisted metadata with the same rules used for new uploads.
-    state={version:1,semesters:parsed.semesters.map(s=>{
-      const validated=validateSemester({...s,courses:s.courses.map(c=>c.entries?{...c,status:'complete'}:c)});
+    state={version:1,...(parsed.availableSemesters?{availableSemesters:validateDiscovery(parsed.availableSemesters),discoveredAt:parsed.discoveredAt}:{}),semesters:parsed.semesters.map(s=>{
+      const validated=validateSemester({...s,courses:s.courses.map(c=>c.entries?{...c,status:'complete'}:c)},{provider});
       return {...validated,courses:validated.courses.map((c,i)=>({...c,status:s.courses[i].status,...(s.courses[i].error?{error:s.courses[i].error}:{}),stale:s.courses[i].stale===true}))};
     })};
   } catch(error) {if(error.code!=='ENOENT') throw error;}
   return {
     async read(){await queue;return structuredClone(state);},
+    discover(value) {
+      const task=queue.then(async()=>{
+        const availableSemesters=validateDiscovery(value),discoveredAt=new Date().toISOString();
+        const next={...state,availableSemesters,discoveredAt},raw=JSON.stringify(next);
+        if(Buffer.byteLength(raw)>MAX_CATALOG_BYTES) throw new Error('Catalog exceeds its 10 MB metadata budget.');
+        await vault.write('catalog.json',raw);state=next;return {semesterCount:availableSemesters.length,discoveredAt};
+      });queue=task.catch(()=>{});return task;
+    },
     put(value) {
       const task=queue.then(async()=>{
-        const snapshot=validateSemester(value),old=state.semesters.find(s=>s.semesterId===snapshot.semesterId);
+        const snapshot=validateSemester(value,{provider}),old=state.semesters.find(s=>s.semesterId===snapshot.semesterId);
         snapshot.courses=snapshot.courses.map(course=>{
           const previous=old?.courses.find(c=>c.courseId===course.courseId);
           return course.status==='failed' && previous?.entries?{...previous,...course,stale:true}:course;
         });
-        const next={version:1,semesters:[...state.semesters.filter(s=>s.semesterId!==snapshot.semesterId),snapshot]};
+        const next={...state,version:1,semesters:[...state.semesters.filter(s=>s.semesterId!==snapshot.semesterId),snapshot]};
         const serialized=JSON.stringify(next);
         if(Buffer.byteLength(serialized)>MAX_CATALOG_BYTES) throw new Error('Catalog exceeds its 10 MB metadata budget.');
-        await atomicWrite(filename,serialized);state=next;
+        await vault.write('catalog.json',serialized);state=next;
         return {semesterId:snapshot.semesterId,courses:snapshot.courses.length,complete:snapshot.courses.filter(c=>c.status==='complete').length,bytes:Buffer.byteLength(serialized)};
       });queue=task.catch(()=>{});return task;
     },

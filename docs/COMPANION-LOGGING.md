@@ -1,31 +1,24 @@
 # Companion terminal diagnostics
 
-The companion prints timestamped diagnostic events at INFO level by default. Each line has a stable event name, a short explanation and a small set of relevant fields.
-
-Normal events cover:
-
-- Startup: process ID, Node version, resolved cache directory, listen address and cached-PDF count.
-- Pairing success/failure and rejected connections, distinguishing missing pairing, browser-origin mismatch and token mismatch.
-- Authenticated browser worker connect/disconnect, without logging keepalive traffic.
-- Catalog sync counts and semester ID.
-- Queued/claimed/ready/failed retrievals with request, course and topic IDs, plus failure codes such as `NETWORK_ERROR` or `NEEDS_LOGIN`.
-- Cache hit/miss, stored byte count and eviction count.
-- Interrupted requests requeued on startup and explicit login retries.
-- Shutdown when a handled SIGINT/SIGTERM is received, and startup failures such as an occupied port.
-
-Example shape (IDs abbreviated here):
+Normal output uses short local-time status lines. It shows browser connection changes, one useful cache/sync outcome, offline queues and actionable warnings. Request IDs, internal event names, queue claims, cache misses and HTTP polling/timings are reserved for verbose mode.
 
 ```text
-2026-11-03T12:00:00.000Z INFO app.ready Companion ready url="http://127.0.0.1:47653" files=5 bytes=10842281
-2026-11-03T12:00:02.000Z INFO retrieval.queued Document request queued requestId="..." courseId="100" topicId="200" workerConnected=true
-2026-11-03T12:00:03.000Z WARN retrieval.failed Document request failed requestId="..." courseId="100" topicId="200" code="NETWORK_ERROR"
+[09:00:01] NYU: Browser connected
+[09:00:01] Demo: Browser connected
+[09:00:03] NYU: Catalog synced (5/5 courses)
+[09:00:05] Demo: Document cached (36 KB)
+[09:00:07] Demo: Cache hit; no download
+[09:00:09] NYU: Document queued; waiting for browser
+[09:00:12] NYU: Warning: Document request failed (NEEDS_LOGIN) Sign into NYU Brightspace in Chrome, then retry.
 ```
 
-Normal idle status/claim polling is silent. Identical authentication/pairing warnings are limited to one line per reason every 30 seconds. Log-output failures cannot fail pairing or document operations.
+A successful model request no longer prints separate queued, claimed, cache-miss, stored and ready messages at normal verbosity. A manual cache operation still reports its result. Completed discovery reports the semester count; completed scans report successful/total courses. Idle status/claim polling and heartbeats are silent. NYU/Demo labels distinguish the two libraries without printing private course titles. Identical authentication/pairing warnings are limited to one per provider/reason every 30 seconds.
+
+Startup prints the local address, cache location/count/size, pairing code and demo URL once, with a pointer to verbose logging. Normal output omits duplicate structured ready/stopping events. The cache, pairing and request behavior are unchanged.
 
 ## Verbose mode
 
-Stop the existing companion, then use **Start menu → Brightspace Context → Troubleshooting → Companion (verbose logs)** in the v0.8.4 installer. It starts the same companion with DEBUG logging, adding local HTTP method, route category, response status and duration. It does not log request bodies or headers.
+Stop the existing companion, then choose **Start menu → Brightspace Context → Troubleshooting → Companion (verbose logs)**. It starts the same companion with DEBUG logging. Full ISO timestamps, stable event names, provider, request/course/topic/semester IDs and allowlisted diagnostic fields remain available, including local HTTP method, route category, status and duration.
 
 For a source checkout in PowerShell:
 
@@ -34,10 +27,14 @@ $env:BRIGHTSPACE_LOG_LEVEL = 'debug'
 npm.cmd run companion
 ```
 
-Supported levels are `debug`, `info`, `warn`, `error` and `silent`. The ordinary launcher defaults to INFO. Restart the process after changing its level. An already running companion does not reload updated code or environment settings.
+Supported levels are `debug`, `info`, `warn`, `error` and `silent`. The ordinary launcher defaults to INFO. Restart after changing the code or level. `silent` suppresses diagnostic events; it does not hide the interactive startup/pairing prompt.
 
-## Data included
+## Privacy and reliability
 
-The diagnostic logger uses an explicit event/field allowlist. It never dumps request objects, error stacks, authentication headers, bearer tokens, pairing codes, upload tickets, leases, PDF contents, course/document titles, descriptions or Brightspace resource URLs. Text fields are bounded and terminal control characters are stripped. The local cache directory and loopback URL are intentional startup fields.
+The logger accepts only known events and allowlisted fields. Neither mode prints request bodies/headers, bearer tokens, upload tickets, leases, document contents, course/document titles, descriptions or Brightspace resource URLs. Text fields are bounded and terminal control characters are removed. The cache directory and loopback URL are intentional startup fields; the pairing code appears once in the interactive prompt, outside diagnostic events. Logging failures cannot fail the underlying operation.
 
-The pairing code is still displayed once in the existing interactive setup prompt, outside diagnostic event lines. This implementation writes diagnostics to the terminal only; it does not create or upload persistent log files. The STDIO MCP server remains quiet except for its JSON-RPC transport.
+Logs go to the terminal only, without a persistent log file or upload. The STDIO MCP server still reserves stdout for JSON-RPC and does not use the companion terminal logger.
+
+## Release status
+
+The concise-output change ships in companion 0.9.4. The Chrome extension remains 0.9.3, and the previously frozen v0.9.3 installer/checksum remain available. No extension reload or Chrome package replacement is needed for this companion-only change once it is shipped. Starting an already installed older companion will keep its older logging behavior until that app is updated.

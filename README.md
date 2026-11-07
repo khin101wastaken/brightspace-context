@@ -8,7 +8,7 @@ The Chrome extension uses the browser's existing Brightspace session. It keeps t
 
 ## Current status
 
-The Windows x64 preview is available from the setup page. Chrome Web Store submission is pending; the preview extension uses Chrome's **Load unpacked** flow. Desktop MCP registration is manual. The source checkout can include improvements newer than the downloadable preview.
+The setup page offers Windows companion **0.9.4** with extension **0.9.3**. Chrome Web Store submission is pending; the preview uses Chrome's **Load unpacked** flow and manual MCP registration. The source includes newer paged document reading, expiring local download links and Windows CI fixes that are not in that installer. The 0.10.0 beta has not been packaged yet.
 
 | Capability | Status |
 | --- | --- |
@@ -16,8 +16,9 @@ The Windows x64 preview is available from the setup page. Chrome Web Store submi
 | Module notes, readings and links through MCP | Implemented; live-tested |
 | Individual browser Download / Save as | Accessible NYU-hosted file formats supported |
 | On-demand MCP retrieval and local cache | PDF, PPTX and DOCX supported |
-| Answers using actual PDF contents | Live-tested with a local desktop client |
-| PPTX/DOCX file handoff | Worker, byte-equality, MIME-type and packaged-runtime tests pass; real host reading still needs acceptance testing |
+| MCP semester discovery and catalog refresh | Live signed-in refresh verified with Resources closed; session-expiry retry covered by automated tests |
+| PDF text reading | The live desktop connector read a complete 10-page PDF in two bounded responses |
+| PPTX/DOCX text reading | Confirmed in the current desktop setup; original-byte integrity and format checks also pass automatically |
 | Firefox, other Brightspace tenants, Mac/Linux installers | Not yet supported as tested releases |
 
 Account-switch isolation, queued-request cancellation and in-app cache deletion remain unfinished. This is a single-account local preview. Closing or disconnecting the browser does not erase saved companion data.
@@ -32,11 +33,11 @@ Follow the [public setup guide](https://brightspace-context.khin101.chatgpt.site
 4. Open **Browse resources**, select a semester and choose **Sync semester**.
 5. Add the local STDIO MCP server to a supported desktop client using the installed guide's exact Command and Argument, then restart that connection.
 
-Ask the connected client to find a resource, retrieve it and read the actual file before answering. A successful download or a resource title does not establish that the client has read its contents. File reading depends on the host's tools.
+Ask the connected client to find a resource, retrieve it and read the actual file before answering. A successful download or a resource title does not establish that the client has read its contents. The published preview depends on host file-reading tools; the updated source provides its own bounded PDF/Office text reader.
 
 ## Run from source
 
-Use Node.js 22+ and Chrome 116+:
+Use Node.js 22.13+ and Chrome 116+:
 
 ```text
 npm ci
@@ -47,7 +48,9 @@ Load this repository's `extension/` folder as an unpacked Chrome extension, sign
 
 For desktop MCP, configure a STDIO process using your Node executable and the absolute path to `mcp/start.js` as its argument. Run it on the same computer as the companion. `npm run mcp` starts that server for development; protocol messages use stdout, so it is not an interactive terminal command.
 
-Searches accept word prefixes, such as `if i ha` for “If I had…”. Single letters match standalone words. Matching text is highlighted, notes open when relevant, and the deepest direct match gets soft row emphasis while ancestor folders remain visible for context.
+The updated MCP exposes `request_catalog_sync` and `get_catalog_sync`. A model can discover semesters, refresh one semester's course outlines and module notes, then search and request individual files without opening the extension UI. Chrome must be running with the paired extension and a valid Brightspace session. [Catalog-sync workflow and acceptance steps](docs/MCP-CATALOG-SYNC.md).
+
+Searches match completed words and allow the final word to be unfinished, such as `if i ha` for “If I had…”. Single letters match standalone words. Notes match and highlight only passages containing all query terms; unrelated lines remain plain context. Only branches leading to relevant files or notes open automatically. A match in a folder's own title leaves it collapsed unless there is a deeper result. The deepest direct match gets soft row emphasis while ancestor folders remain visible for context.
 
 ## How it works
 
@@ -63,7 +66,7 @@ flowchart LR
 - **Catalog:** fixed NYU endpoints discover semesters, courses and recursive outlines. Descriptions already present are reused; missing module descriptions use the module metadata endpoint. Scanning does not expand webpage modules or bulk-download files.
 - **Retrieval:** MCP resolves one stable catalog key and queues a request. The paired Chrome worker fetches it through its browser session. Passwords and cookie values are not read or exported to the companion.
 - **Cache:** original PDF/PPTX/DOCX bytes, a 50 MiB per-file limit, a shared 500 MiB LRU budget, freshness checks and SHA-256 verification. PDF headers and bounded Office manifests are checked before accepting files.
-- **Handoff:** MCP returns the matching extension, MIME type, verified local path and resource link. No OCR, conversion or document-text indexing is performed. Module notes are available directly as source text.
+- **Handoff:** Prefer bounded, paged text reading for PDF, DOCX and PPTX. PDF uses its existing text layer; Office files use existing XML. No OCR or text index is created. Original bytes remain available through an MCP resource link. On explicit request, a five-minute localhost link lets the user download one cached original without a plaintext server copy. Clients requiring a path can use the separately enabled temporary-export feature. Module notes are available directly as source text.
 
 The companion binds to `127.0.0.1:47653` and checks the paired extension origin and token. Browser pairing and desktop MCP registration are separate connections.
 
@@ -71,9 +74,15 @@ The companion binds to `127.0.0.1:47653` and checks the paired extension origin 
 
 Catalogs are stored in Chrome and the paired companion. The Windows cache defaults to `%USERPROFILE%/BrightspaceContext/cache`; source runs on Unix use `XDG_CACHE_HOME` or `~/.cache/brightspace-context`. `BRIGHTSPACE_CACHE_DIR` overrides the directory. `BRIGHTSPACE_COMPANION_PORT` overrides the service/MCP port when consistently configured.
 
-Files have no application-level encryption. The chosen AI client may receive metadata and requested files; its provider policies and settings apply. The static setup/privacy website hosts installers and instructions, not course data.
+The v0.9.2 source encrypts persistent companion data with AES-256-GCM and a Windows-account-protected key. Browser catalogs are encrypted; live credentials and keys use session memory. Windows key protection is currently required for the companion; other platforms fail closed. Existing data migrates on the first updated start, with verified copies before retiring plaintext originals. Unpaired browser catalogs last for the browser session. After a full browser restart, start the companion to unlock saved catalogs.
+
+Normal MCP retrieval creates no plaintext local path. Optional temporary exports are disabled by default, expire after 15 minutes and are removed on normal shutdown; a crash can leave them until the next start. Explicit localhost download links expire after five minutes or companion restart/re-pairing, are restricted to one file version and create no plaintext server file. Anyone with a link on the same computer can use it until expiry; opening it saves an ordinary browser download. User-requested Downloads remain separate ordinary files. The chosen AI client may receive metadata and requested files under its provider policies/settings. See [encrypted storage and handoff](docs/ENCRYPTED-STORAGE.md). The static setup/privacy website hosts installers and instructions, not course data. Live desktop-host acceptance remains a separate check from SDK transport tests.
 
 Browser disconnect, companion uninstall and stopping the service preserve data. To remove companion data, stop it and explicitly remove its cache directory. Remove the extension or clear its storage separately. See the [privacy policy](https://brightspace-context.khin101.chatgpt.site/) for details. Use synthetic data in issues and screenshots.
+
+## Local reviewer demo
+
+The matching companion includes a fictional LMS at `http://127.0.0.1:47653/demo/`. Pair the extension, choose **Settings → Local demo**, then sync **Demo 2026 Fall** in Resources. No NYU account is needed. Catalogs, caches and requests stay separate from the real library. MCP calls use `provider: "demo"`; NYU remains the default. See [demo setup and boundaries](docs/DEMO-LMS.md).
 
 ## Development and validation
 

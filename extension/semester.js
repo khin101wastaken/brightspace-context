@@ -28,26 +28,33 @@ export function discoverSemester() {
   return {semesterId,title:tab.getAttribute('title') || tab.textContent.trim(),courses:[...courses.values()]};
 }
 
-export async function scanSemester(semester,{readOutline,saveCourse,onProgress=async()=>{}}) {
+export async function scanSemester(semester,{readOutline,saveCourse,onProgress=async()=>{},provider='nyu'}) {
   if(!/^\d+$/.test(semester?.semesterId) || !semester.title || !Array.isArray(semester.courses) || !semester.courses.length || semester.courses.length>200) throw new Error('Invalid semester selection.');
   if(new Set(semester.courses.map(c=>c.courseId)).size!==semester.courses.length || semester.courses.some(c=>!/^\d+$/.test(c.courseId) || !c.title)) throw new Error('Invalid semester course list.');
   const courses=[];
+  const progress=semester.courses.map(course=>({courseId:course.courseId,title:course.title,state:'pending'}));
+  const publish=async current=>onProgress({completed:courses.length,total:semester.courses.length,title:current?.title || '',courseId:current?.courseId || null,courses:progress.map(course=>({...course}))});
   // Sequential requests keep school traffic modest and permit an immediate stop
   // after an expired session or rate limit, without losing completed courses.
-  let stopReason=null;
+  let stopReason=null,stopCode=null;
   for(const course of semester.courses) {
-    await onProgress({completed:courses.length,total:semester.courses.length,title:course.title});
+    const item=progress[courses.length],skipped=!!stopReason;
+    item.state=skipped?'skipped':'scanning';
+    await publish(skipped?null:course);
     try {
-      if(stopReason) throw new Error(stopReason);
-      const entries=flattenOutline(await readOutline(course.courseId),course.courseId);
-      const catalog={...course,entries,coverage:'full-toc',lastScannedAt:new Date().toISOString()};
+      if(stopReason) throw Object.assign(new Error(stopReason),{code:stopCode});
+      const entries=flattenOutline(await readOutline(course.courseId),course.courseId,{provider});
+      const catalog={...course,...(provider==='demo'?{provider}:{}),entries,coverage:'full-toc',lastScannedAt:new Date().toISOString()};
       await saveCourse(catalog);
       courses.push({...catalog,status:'complete'});
+      item.state='complete';
     } catch(error) {
       const message=error.message || 'Unable to scan this course.';
-      if(/expired|sign.in|limiting requests|429/i.test(message)) stopReason=message;
-      courses.push({...course,status:'failed',error:message});
+      if(/expired|sign.in|limiting requests|429/i.test(message)) {stopReason=message;stopCode=error.code || (/limiting requests|429/i.test(message)?'RATE_LIMITED':'NEEDS_LOGIN');}
+      courses.push({...course,status:'failed',error:message,...(error.code || stopCode?{code:error.code || stopCode}:{})});
+      item.state=skipped?'skipped':'failed';
     }
+    await publish(null);
   }
-  return {semesterId:semester.semesterId,title:semester.title,updatedAt:new Date().toISOString(),courses};
+  return {...(provider==='demo'?{provider}:{}),semesterId:semester.semesterId,title:semester.title,updatedAt:new Date().toISOString(),courses};
 }

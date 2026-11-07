@@ -3,6 +3,7 @@ import {createHash,randomUUID} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {COMPANION_VERSION} from '../companion/version.js';
 
 export const PAYLOAD_SOURCES=['extension','companion','mcp','package.json','package-lock.json','LICENSE'];
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
@@ -39,8 +40,9 @@ async function download(url,destination,expected) {
 export async function buildWindows() {
   if(process.platform!=='win32' || process.arch!=='x64') throw new Error('Build on Windows x64. Mac/Linux installers are not implemented.');
   const config=JSON.parse(await readFile(path.join(root,'packaging/windows/build-config.json')));
-  const {version}=JSON.parse(await readFile(path.join(root,'extension/manifest.json')));
-  if(!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Invalid application version.');
+  const {version:extensionVersion}=JSON.parse(await readFile(path.join(root,'extension/manifest.json')));
+  const version=COMPANION_VERSION;
+  if(!/^\d+\.\d+\.\d+$/.test(version) || !/^\d+\.\d+\.\d+$/.test(extensionVersion)) throw new Error('Invalid application version.');
   const compiler=process.env.BRIGHTSPACE_ISCC || path.join(root,'.cache/build-tools/inno/ISCC.exe');
   await lstat(compiler).catch(()=>{throw new Error('Inno Setup compiler not found. Set BRIGHTSPACE_ISCC to ISCC.exe. See docs/WINDOWS-INSTALLER.md.');});
   const npm=process.env.npm_execpath;
@@ -59,18 +61,20 @@ export async function buildWindows() {
   for(const name of ['node.exe','LICENSE']) await cp(path.join(nodeDirectory,name),path.join(payload,'runtime',name));
   const launcher=await readFile(path.join(root,'packaging/windows/Start Companion.cmd'),'utf8');
   await writeFile(path.join(payload,'Start Companion.cmd'),launcher.replace(/\r?\n/g,'\r\n'));
-  let guide=await readFile(path.join(root,'packaging/windows/SETUP.html'),'utf8');
+  // Windows checkouts may use CRLF. HTML parsing normalizes newlines before
+  // executing inline scripts, so hash and emit the same normalized source.
+  let guide=(await readFile(path.join(root,'packaging/windows/SETUP.html'),'utf8')).replace(/\r\n/g,'\n');
   const script=guide.match(/<script>\n([\s\S]*?)<\/script>/)?.[1];
   if(!script) throw new Error('Setup guide script is missing.');
   guide=guide.replace('sha256-PLACEHOLDER',`sha256-${createHash('sha256').update('\n'+script).digest('base64')}`);
   await writeFile(path.join(payload,'SETUP.html'),guide);
   const files=await inventory(payload);
-  await writeFile(path.join(payload,'PAYLOAD.json'),JSON.stringify({version,platform:'windows-x64',nodeVersion:config.nodeVersion,nodeArchiveSha256:config.nodeSha256,files},null,2)+'\n');
+  await writeFile(path.join(payload,'PAYLOAD.json'),JSON.stringify({version,extensionVersion,platform:'windows-x64',nodeVersion:config.nodeVersion,nodeArchiveSha256:config.nodeSha256,files},null,2)+'\n');
   run(compiler,['/Q',`/DPayloadDir=${payload}`,`/DReleaseDir=${release}`,`/DAppVersion=${version}`,path.join(root,'packaging/windows/installer.iss')]);
   const artifact=path.join(release,`BrightspaceContext-${version}-windows-x64-setup.exe`);
   const checksum=hash(await readFile(artifact));
   await writeFile(artifact+'.sha256',`${checksum}  ${path.basename(artifact)}\n`);
-  await writeFile(path.join(release,'latest-build.json'),JSON.stringify({version,artifact,payload,sha256:checksum},null,2)+'\n');
+  await writeFile(path.join(release,'latest-build.json'),JSON.stringify({version,extensionVersion,artifact,payload,sha256:checksum},null,2)+'\n');
   console.log(`Installer: ${artifact}\nSHA-256: ${checksum}\nPayload: ${payload}`);
   return {artifact,payload};
 }
