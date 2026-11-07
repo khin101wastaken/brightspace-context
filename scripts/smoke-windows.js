@@ -83,7 +83,7 @@ export async function smokeWindows(payload) {
       assert.equal(response.status,200);return response.json();
     };
     const {token}=await request('/v1/pair',{code:companion.code});
-    const bytes=Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF');
+    const bytes=await readFile(path.join(payload,'app/companion/demo-assets/field-guide.pdf'));
     const lookup=await request('/v1/cache/lookup',{courseId:'100',topicId:'1',title:'Installer smoke fixture',courseTitle:'Synthetic test course',modulePath:['Week 1'],sourceUrl:'https://brightspace.nyu.edu/content/enforced/100/smoke.pdf',lastModifiedAt:null},'POST',token);
     await request(`/v1/cache/uploads/${lookup.uploadId}`,bytes,'PUT',token);
     const office=[];
@@ -142,6 +142,20 @@ export async function smokeWindows(payload) {
     const prepared=await client.callTool({name:'get_cached_document',arguments:{id:pdf.id}});
     const resource=await client.readResource({uri:prepared.content[1].uri});
     assert.deepEqual(Buffer.from(resource.contents[0].blob,'base64'),bytes);
+    const hasTextReader=tools.tools.some(tool=>tool.name==='read_document_text');
+    const [major,minor]=manifest.version.split('.').map(Number);
+    if (major>0 || minor>=10) {
+      assert.ok(hasTextReader,'The beta payload must include the document text reader');
+    }
+    if (hasTextReader) {
+      const result=await client.callTool({name:'read_document_text',arguments:{id:pdf.id}});
+      assert.ok(!result.isError,result.content[0]?.text);
+      const page=JSON.parse(result.content[0].text);
+      assert.match(page.text,/CEDAR-42/);
+      assert.equal(page.nextOffset,null);
+      assert.equal(page.temporaryFileCreated,false);
+      console.log('PASS: packaged PDF text reader returned the demo fixture marker.');
+    }
     await client.close();client=null;
     await companion.stop();companion=null;
     companion=await startCompanion(node,payload,directory,0,true,true);
