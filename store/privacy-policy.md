@@ -2,7 +2,7 @@
 
 Publisher: Khin Aung
 Contact: khinaungwrk@gmail.com
-Last updated: November 5, 2026
+Last updated: November 7, 2026
 
 ## Purpose and data handled
 
@@ -16,7 +16,9 @@ The optional companion stores synced catalog metadata, pairing configuration, do
 
 The extension requests course metadata/files directly from NYU Brightspace using the browser's existing session. Passwords and cookie values are not read or sent to the companion. Login remains between the browser and NYU.
 
-The browser transfers catalog metadata and selected requested files to the paired companion on `127.0.0.1`. The publisher operates no hosted course-content service, advertising service or analytics endpoint for this product, and does not receive those catalogs or files through such a service.
+The browser transfers catalog metadata and selected requested files to the paired companion on `127.0.0.1`. Real NYU catalogs and files are handled directly between the browser, NYU Brightspace, the paired companion and any AI/MCP client you choose to connect.
+
+When you select Hosted demo, the extension requests public fictional course outlines, module notes and sample files from `brightspace-context.khin101.chatgpt.site`. Requests for these sample materials do not include your NYU credentials, real course data or companion pairing token. The hosted sample catalog is stored separately from the NYU and Local demo catalogs.
 
 When you connect and use an AI/MCP client, that client can receive catalog metadata and requested documents. Its own processing and retention practices, including any transmission to its AI provider, are governed by the provider and your settings. The extension's local storage architecture does not control the AI client's practices.
 
@@ -44,7 +46,7 @@ Disconnecting the browser stops its retrieval connection and forgets its extensi
 
 If you contact khinaungwrk@gmail.com, your email address, message and any information you choose to include are processed to respond to your request. This correspondence is handled through the email provider and may be retained for support follow-up. You can email the same address to request deletion of support correspondence, subject to applicable retention obligations.
 
-This website serves static privacy/setup information and companion installer downloads. It has no course-data upload, account-registration form, advertising or application analytics code. The hosting provider may process ordinary web-request information, such as IP address and browser information, to deliver and protect the page. Your Brightspace catalog and requested files are not sent to this website.
+This website serves privacy and setup information, companion installer downloads and public Hosted demo materials. It has no course-data upload, account-registration form, advertising or application analytics code. The hosting provider may process ordinary web-request information, such as IP address and browser information, to deliver and protect the site and its demo endpoints. Your real Brightspace catalog and requested files are not sent to this website.
 
 ## Contact and changes
 

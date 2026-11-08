@@ -1,6 +1,6 @@
 # Submit Brightspace Context 0.10.0 beta
 
-Use the [existing Chrome Web Store draft](https://chrome.google.com/webstore/devconsole/items/iadmhandkbomngnaplppiopojmfkcodi) for **Brightspace Catalog (NYU Prototype)**. The Windows companion is a separate download. The Chrome package is ready for manual upload.
+The publisher completed the dashboard submission for **Brightspace Catalog (NYU Prototype)** on November 7, 2026. Public install verification is pending. The steps below record the submission package and settings. [Chrome Web Store dashboard](https://chrome.google.com/webstore/devconsole/items/iadmhandkbomngnaplppiopojmfkcodi)
 
 ## Package
 

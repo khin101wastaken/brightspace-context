@@ -1,6 +1,6 @@
 # Pinned priority: Chrome Web Store submission
 
-Updated November 7, 2026. Objective: submit an unlisted local Windows/NYU pilot. The existing item is a draft; no review or approval is claimed.
+Updated November 7, 2026. The publisher completed the dashboard submission for the unlisted Windows/NYU pilot. The public listing did not yet show the extension title or an install button when checked.
 
 ## Next release target: 0.10.0 beta
 
@@ -16,7 +16,8 @@ The retrieval pipeline is accepted for the current MVP. The 0.10.0 beta companio
 - [x] Live NYU document retrieval and cache reuse on 0.10.0 confirmed by the publisher.
 - [x] Verify the extracted final Chrome ZIP in a clean profile without pairing. Hosted demo synced both courses, found the module note, and downloaded the original sample PDF.
 - [x] Publish the matching setup, reviewer and privacy pages. Retain the existing listing screenshots, including the actual Chrome popup.
-- [ ] Replace the package in existing draft `iadmhandkbomngnaplppiopojmfkcodi`, finish dashboard validation and submit the unlisted pilot. No approval is claimed.
+- [x] Submit 0.10.0 beta for the unlisted pilot on item `iadmhandkbomngnaplppiopojmfkcodi`.
+- [ ] Verify installation and Hosted demo from the live Chrome Web Store listing, then add the verified install link to the setup page.
 
 One-click MCP registration, tray/autostart, automatic updates, Claude, Firefox and indexing/RAG/OCR remain follow-ups. They are not added as beta blockers. Live tests and final packaging should not introduce another feature sweep.
 

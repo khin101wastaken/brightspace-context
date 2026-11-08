@@ -8,9 +8,9 @@ The Chrome extension uses the browser's existing Brightspace session. It keeps t
 
 ## Current status
 
-The setup page offers Windows companion and extension **0.10.0 beta** for Windows 10 and 11 x64. The preview uses Chrome's **Load unpacked** flow and manual MCP registration. Chrome Web Store submission is pending.
+The setup page offers Windows companion and extension **0.10.0 beta** for Windows 10 and 11 x64. The preview uses Chrome's **Load unpacked** flow and manual MCP registration. The publisher submitted the unlisted beta to the Chrome Web Store. Public install verification is pending.
 
-Run the current source to try paged PDF, DOCX and PPTX reading, expiring local download links and the updated demo controls. The next release target is **0.10.0 beta**.
+Run the current source to try paged PDF, DOCX and PPTX reading, expiring local download links and the updated demo controls.
 
 | Capability | Status |
 | --- | --- |
