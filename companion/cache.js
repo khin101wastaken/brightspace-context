@@ -61,6 +61,23 @@ export async function openCache(directory,{budgetBytes=DEFAULT_BUDGET,now=Date.n
   return {
     list:()=>serial(async()=>Object.values(entries).map(entry=>({...entry}))),
     stats:()=>serial(async()=>stats()),
+    remove:id=>serial(async()=>{
+      const selected=id===undefined?Object.values(entries):[entries[id]].filter(Boolean);
+      const next={...entries},removed=[];
+      try {
+        for(const entry of selected) {
+          await vault.remove(path.basename(blobPath(entry.id,entry)));
+          delete next[entry.id];
+          removed.push(entry.id);
+        }
+      } finally {
+        if(removed.length) {
+          entries=next;
+          await persist(next);
+        }
+      }
+      return removed;
+    }),
     lookup:metadata=>serial(async()=>{
       const meta=validateMetadata(metadata,{provider}),id=cacheId(meta),entry=entries[id];
       const fresh=entry && entry.sourceUrl===meta.sourceUrl && entry.lastModifiedAt===meta.lastModifiedAt && (meta.lastModifiedAt || now()-entry.fetchedAt<5*60*1000);

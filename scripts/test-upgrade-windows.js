@@ -1,5 +1,5 @@
 import {openVault} from '../companion/vault.js';
-import {readFile,writeFile,mkdir,mkdtemp,readdir,rm,stat} from 'node:fs/promises';
+import {readFile,writeFile,mkdir,mkdtemp,readdir,rename,rm,stat} from 'node:fs/promises';
 import {spawnSync} from 'node:child_process';
 import {randomUUID,createHash} from 'node:crypto';
 import path from 'node:path';
@@ -9,12 +9,13 @@ import assert from 'node:assert/strict';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
 import {WebSocket} from 'ws';
-import {verifyPayload,startCompanion} from './smoke-windows.js';
+import {verifyPayload,startCompanion,startTray} from './smoke-windows.js';
+import {compareWindowsVersions} from './build-windows.js';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
 function run(command,args,env={}) {
-  const result=spawnSync(command,args,{windowsHide:true,encoding:'utf8',env:{...process.env,...env},maxBuffer:8*1024*1024});
+  const result=spawnSync(command,args,{windowsHide:true,encoding:'utf8',env:{...process.env,...env},maxBuffer:8*1024*1024,timeout:180000});
   if(result.error) throw result.error;
   if(result.status!==0) throw new Error(`${path.basename(command)} failed (${result.status}): ${result.stderr || result.stdout}`);
   return result.stdout.trim();
@@ -26,11 +27,10 @@ async function baselinePayload(newVersion) {
     const payload=path.join(base,name,'payload');
     try {
       const manifest=JSON.parse(await readFile(path.join(payload,'PAYLOAD.json'),'utf8'));
-      const compare=(a,b)=>a.split('.').reduce((sum,n,i)=>sum+(Number(n)-Number(b.split('.')[i]))*1000**(2-i),0);
-      if(compare(manifest.version,newVersion)<0) candidates.push({payload,version:manifest.version,modified:(await stat(payload)).mtimeMs});
+      if(compareWindowsVersions(manifest.version,newVersion)<0) candidates.push({payload,version:manifest.version,modified:(await stat(payload)).mtimeMs});
     } catch {}
   }
-  candidates.sort((a,b)=>b.version.localeCompare(a.version,undefined,{numeric:true}) || b.modified-a.modified);
+  candidates.sort((a,b)=>compareWindowsVersions(b.version,a.version) || b.modified-a.modified);
   if(!candidates.length) throw new Error('No previous staged version found. Pass its payload directory as the first argument.');
   return candidates[0].payload;
 }
@@ -41,13 +41,15 @@ async function main() {
   const nextPayload=path.resolve(process.argv[3] || latest.payload),nextManifest=await verifyPayload(nextPayload);
   const oldPayload=path.resolve(process.argv[2] || await baselinePayload(nextManifest.version)),oldManifest=await verifyPayload(oldPayload);
   assert.notEqual(oldManifest.version,nextManifest.version);
+  const runtimeHash=manifest=>manifest.files.find(file=>file.path==='runtime/node.exe').sha256;
+  const sameRuntime=runtimeHash(oldManifest)===runtimeHash(nextManifest);
   const testRoot=path.join(root,'.cache/upgrade-tests');await mkdir(testRoot,{recursive:true});
   const work=await mkdtemp(path.join(testRoot,'upgrade ')),install=path.join(work,'Application With Spaces'),cache=path.join(work,'user data','cache');
   const identity='BrightspaceContext.UpgradeTest.'+randomUUID(),group=identity;
   const compiler=process.env.BRIGHTSPACE_ISCC || path.join(root,'.cache/build-tools/inno/ISCC.exe');
   const template=path.join(root,'packaging/windows/installer.iss');
   const report={from:oldManifest.version,to:nextManifest.version,checks:[]};
-  let companion,client,worker,uninstalled=false,passed=false;
+  let companion,client,worker,tray,uninstalled=false,passed=false;
   const request=async(endpoint,value,method='POST',headers)=>{
     const response=await fetch(companion.url+endpoint,{method,headers,body:value===undefined?undefined:Buffer.isBuffer(value)?value:JSON.stringify(value)});
     assert.equal(response.status,200,`HTTP ${endpoint}`);return response.json();
@@ -97,10 +99,34 @@ async function main() {
       assert.equal(JSON.parse((await call('list_courses',{})).content[0].text).courses.length,1);
       report.checks.push('previous companion rejects the demo API path without altering its real catalog');
     }
-    await client.close();client=null;await companion.stop();companion=null;
+    await companion.stop();companion=null;
+    if(!sameRuntime) {await client.close();client=null;}
+    if(oldManifest.files.some(file=>file.path==='Brightspace Context.exe')) {
+      console.log('Starting the previous tray companion and leaving it running for setup…');
+      const trayPath=path.join(install,'Brightspace Context.exe');
+      await rename(trayPath,path.join(work,'PreviousTray.exe'));
+      const csc=path.join(process.env.WINDIR,'Microsoft.NET/Framework64/v4.0.30319/csc.exe');
+      run(csc,['/nologo','/target:winexe','/reference:System.Windows.Forms.dll',`/out:${trayPath}`,path.join(root,'tests/windows-tray-fixture.cs')]);
+      tray=await startTray(install,cache);
+    }
     // No /DIR on upgrade: the same isolated AppId must resolve its saved path.
     console.log('Upgrading without specifying the previous directory…');
-    run(installer(nextManifest.version),[...flags,`/LOG=${path.join(work,'install-upgrade.log')}`]);
+    const upgradeLog=path.join(work,'install-upgrade.log');
+    run(installer(nextManifest.version),[...flags,`/LOG=${upgradeLog}`]);
+    const log=await readFile(upgradeLog,'utf8');
+    if(sameRuntime) {
+      assert.match(log,/Keeping the installed Node runtime because it matches the bundled checksum/);
+      await client.ping();
+      await client.close();client=null;
+      report.checks.push('setup kept the identical Node runtime while the existing MCP process continued running');
+    }
+    if(tray) {
+      await tray.waitForStop();tray=null;
+      assert.match(log,/Stopped the installed companion tray and waited for its worker/);
+      assert.match(log,/Companion tray shutdown check completed before Restart Manager/);
+      assert.doesNotMatch(log,/RestartManager found an application using one of our files/);
+      report.checks.push('setup stopped the running tray and its worker before replacing the payload');
+    }
     assert.equal((await verifyPayload(install)).version,nextManifest.version);
     report.checks.push('upgrade reused the previous directory without /DIR and replaced every inventoried payload file');
     assert.equal(digest(await readFile(pairingFile)),pairingHash);
@@ -157,7 +183,7 @@ async function main() {
     passed=true;
     console.log(JSON.stringify({...report,passed:true},null,2));
   } finally {
-    worker?.stop();await client?.close();await companion?.stop();
+    worker?.stop();await client?.close();await companion?.stop();await tray?.stop();
     if(!uninstalled) {
       try {await stat(path.join(install,'unins000.exe'));run(path.join(install,'unins000.exe'),['/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART']);uninstalled=true;} catch {}
     }

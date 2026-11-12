@@ -10,6 +10,7 @@ import {openRequests} from './requests.js';
 import {createWorkerChannel} from './worker-channel.js';
 import {safeLogger} from './logging.js';
 import {createDocumentLinks} from './document-links.js';
+import {createManagement} from './manage.js';
 
 const same=(a,b)=>typeof a==='string' && typeof b==='string' && Buffer.byteLength(a)===Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a),Buffer.from(b));
 async function body(req,limit) {
@@ -17,7 +18,7 @@ async function body(req,limit) {
   for await(const chunk of req) {length+=chunk.length;if(length>limit) throw new Error('Request exceeds the size limit.');chunks.push(chunk);}
   return Buffer.concat(chunks);
 }
-export async function createCompanion({directory,port=47653,budgetBytes,pairingCode=randomBytes(5).toString('hex'),log=()=>{},vault}={}) {
+export async function createCompanion({directory,port=47653,budgetBytes,pairingCode=randomBytes(5).toString('hex'),log=()=>{},vault,managementToken}={}) {
   if(!directory) throw new Error('Cache directory is required.');
   const emit=safeLogger(log);
   let cache,catalog,requests,demo;
@@ -26,6 +27,9 @@ export async function createCompanion({directory,port=47653,budgetBytes,pairingC
   const session=()=>({token:client.token,credential:vault.credential(client.origin,client.token),storageKey:vault.browserKey(client.origin),storageVersion:1});
   const tickets=new Map();let failedPairings=0,windowStart=Date.now();
   const documentLinks=createDocumentLinks();
+  const manage=managementToken && createManagement({token:managementToken,directory,pairingCode,
+    getScope:provider=>provider==='demo'?demo:{cache,requests},connected:provider=>workerChannel.connected(provider),
+    revoke:documentLinks.revoke,port:()=>server.address().port});
   const send=(res,status,value)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(value));};
   const server=http.createServer(async(req,res)=>{
     const started=Date.now();let route='unknown';
@@ -35,6 +39,9 @@ export async function createCompanion({directory,port=47653,budgetBytes,pairingC
       if(req.headers.host!==expectedHost) return send(res,403,{error:'Invalid local host.'});
       if(!requests || !demo) return send(res,503,{error:'Companion is starting. Try again in a moment.'});
       const url=new URL(req.url,`http://${expectedHost}`);
+      if(manage && url.pathname.startsWith('/manage/')) {
+        route='manage';return await manage(req,res,url);
+      }
       if(url.pathname.startsWith('/local-files/')) {
         route='document-link';
         res.setHeader('Cache-Control','no-store');res.setHeader('Referrer-Policy','no-referrer');

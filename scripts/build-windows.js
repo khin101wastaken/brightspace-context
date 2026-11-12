@@ -8,6 +8,16 @@ import {COMPANION_VERSION} from '../companion/version.js';
 export const PAYLOAD_SOURCES=['extension','companion','mcp','package.json','package-lock.json','LICENSE'];
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
+const windowsVersion=/^\d+\.\d+\.\d+(?:\.\d+)?$/;
+export function compareWindowsVersions(a,b) {
+  if(!windowsVersion.test(a) || !windowsVersion.test(b)) throw new Error('Invalid companion version.');
+  const left=a.split('.').map(Number),right=b.split('.').map(Number);
+  for(let i=0;i<4;i++) {
+    const difference=(left[i]??0)-(right[i]??0);
+    if(difference) return Math.sign(difference);
+  }
+  return 0;
+}
 export function verifyChecksum(bytes,expected) {
   if(!/^[a-f0-9]{64}$/.test(expected) || hash(bytes)!==expected) throw new Error('Download checksum mismatch. Refusing to package the runtime.');
 }
@@ -42,7 +52,7 @@ export async function buildWindows() {
   const config=JSON.parse(await readFile(path.join(root,'packaging/windows/build-config.json')));
   const {version:extensionVersion}=JSON.parse(await readFile(path.join(root,'extension/manifest.json')));
   const version=COMPANION_VERSION;
-  if(!/^\d+\.\d+\.\d+$/.test(version) || !/^\d+\.\d+\.\d+$/.test(extensionVersion)) throw new Error('Invalid application version.');
+  if(!windowsVersion.test(version) || !/^\d+\.\d+\.\d+$/.test(extensionVersion)) throw new Error('Invalid application version.');
   const compiler=process.env.BRIGHTSPACE_ISCC || path.join(root,'.cache/build-tools/inno/ISCC.exe');
   await lstat(compiler).catch(()=>{throw new Error('Inno Setup compiler not found. Set BRIGHTSPACE_ISCC to ISCC.exe. See docs/WINDOWS-INSTALLER.md.');});
   const npm=process.env.npm_execpath;
@@ -61,6 +71,18 @@ export async function buildWindows() {
   for(const name of ['node.exe','LICENSE']) await cp(path.join(nodeDirectory,name),path.join(payload,'runtime',name));
   const launcher=await readFile(path.join(root,'packaging/windows/Start Companion.cmd'),'utf8');
   await writeFile(path.join(payload,'Start Companion.cmd'),launcher.replace(/\r?\n/g,'\r\n'));
+  const csc=path.join(process.env.WINDIR,'Microsoft.NET/Framework64/v4.0.30319/csc.exe');
+  const tray=path.join(payload,'Brightspace Context.exe');
+  const icon=path.join(work,'tray.ico'),png=await readFile(path.join(root,'extension/icons/icon-32.png'));
+  const iconHeader=Buffer.from([0,0,1,0,1,0,32,32,0,0,1,0,32,0,0,0,0,0,22,0,0,0]);
+  iconHeader.writeUInt32LE(png.length,14);
+  await writeFile(icon,Buffer.concat([iconHeader,png]));
+  const assemblyVersion=path.join(work,'AssemblyVersion.cs');
+  await writeFile(assemblyVersion,`[assembly: System.Reflection.AssemblyInformationalVersion("${version}")]\n`);
+  run(csc,['/nologo','/target:winexe','/optimize+','/reference:System.Windows.Forms.dll','/reference:System.Drawing.dll',
+    `/win32icon:${icon}`,`/win32manifest:${path.join(root,'packaging/windows/CompanionTray.manifest')}`,
+    `/out:${tray}`,path.join(root,'packaging/windows/CompanionTray.cs'),assemblyVersion]);
+  await cp(path.join(root,'packaging/windows/CompanionTray.exe.config'),tray+'.config');
   // Windows checkouts may use CRLF. HTML parsing normalizes newlines before
   // executing inline scripts, so hash and emit the same normalized source.
   let guide=(await readFile(path.join(root,'packaging/windows/SETUP.html'),'utf8')).replace(/\r\n/g,'\n');

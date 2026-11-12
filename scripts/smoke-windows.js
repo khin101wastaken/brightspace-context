@@ -1,7 +1,9 @@
 import {readFile,mkdir,mkdtemp,rm} from 'node:fs/promises';
 import {spawn,execFileSync} from 'node:child_process';
-import {createHash} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import {once} from 'node:events';
+import {createServer} from 'node:net';
+import {setTimeout as delay} from 'node:timers/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import assert from 'node:assert/strict';
@@ -66,6 +68,62 @@ export async function startCompanion(node,payload,directory,port=0,launcher=fals
       });
     }};
   } catch(error) {await stop().catch(()=>{});throw error;}
+}
+export async function startTray(payload,directory,fixtureExecutable=null) {
+  const socket=createServer();
+  socket.listen(0,'127.0.0.1');
+  await once(socket,'listening');
+  const {port}=socket.address();
+  await new Promise(resolve=>socket.close(resolve));
+  const url=`http://127.0.0.1:${port}/manage/api/status`;
+  const trayPath=path.join(payload,'Brightspace Context.exe');
+  const child=spawn(fixtureExecutable || trayPath,['--background'],{
+    env:{...process.env,BRIGHTSPACE_CACHE_DIR:directory,BRIGHTSPACE_COMPANION_PORT:String(port),...(fixtureExecutable?{BRIGHTSPACE_TEST_TRAY_ASSEMBLY:trayPath}:{})},
+    stdio:'ignore',windowsHide:true,
+  });
+  const exited=once(child,'exit');
+  // Attach an error handler before making any network requests.
+  exited.catch(()=>{});
+  const request=()=>fetch(url,{signal:AbortSignal.timeout(600)}).catch(()=>null);
+  const waitForStop=async()=>{
+    const deadline=Date.now()+10000;
+    while((child.exitCode===null && child.signalCode===null) || await request()) {
+      if(Date.now()>deadline) throw new Error('Packaged tray or its background companion did not stop.');
+      await delay(150);
+    }
+    await exited;
+  };
+  const stop=async()=>{
+    // A launcher exit closes its child stdin and must also release the port.
+    child.kill();
+    await waitForStop();
+  };
+  try {
+    const deadline=Date.now()+20000;
+    for(;;) {
+      if((await request())?.status===401) break;
+      if(child.exitCode!==null || child.signalCode!==null || Date.now()>deadline) throw new Error('Packaged tray failed to start its protected local controls.');
+      await delay(150);
+    }
+    return {waitForStop,stop};
+  } catch(error) {
+    await stop().catch(()=>{});
+    throw error;
+  }
+}
+async function smokeTray(payload,directory) {
+  // The production per-user mutex belongs to the user's running companion.
+  // Invoke the packaged tray class through the same isolated upgrade fixture.
+  const fixture=path.join(payload,`tray-smoke-${randomUUID()}.exe`);
+  const compiler=path.join(process.env.WINDIR,'Microsoft.NET/Framework64/v4.0.30319/csc.exe');
+  try {
+    execFileSync(compiler,['/nologo','/target:winexe','/reference:System.Windows.Forms.dll',`/out:${fixture}`,path.join(root,'tests/windows-tray-fixture.cs')],{windowsHide:true,stdio:'pipe'});
+    const tray=await startTray(payload,directory,fixture);
+    await tray.stop();
+  } finally {
+    await rm(fixture,{force:true,maxRetries:10,retryDelay:100});
+  }
+  console.log('PASS: packaged tray starts the background companion and releases its port on exit.');
 }
 export async function smokeWindows(payload) {
   if(process.platform!=='win32') throw new Error('The packaged Windows runtime must be smoke-tested on Windows.');
@@ -169,6 +227,11 @@ export async function smokeWindows(payload) {
     assert.equal(repeated.documents[0].id,listed.documents[0].id);
     await companion.waitForOutput(/DEBUG http\.request/);
     console.log(`PASS: payload inventory, bundled Node ${manifest.nodeVersion}, normal/verbose launchers with spaces, fresh-cache startup, pairing, PDF/PPTX/DOCX bytes and module notes through packaged MCP, isolated demo website/documents/discovery queue, catalog-sync tools, restart persistence.`);
+    if(manifest.files.some(file=>file.path==='Brightspace Context.exe')) {
+      await client.close();client=null;
+      await companion.stop();companion=null;
+      await smokeTray(payload,directory);
+    }
   } finally {
     await client?.close();await companion?.stop();
     const resolved=path.resolve(directory);

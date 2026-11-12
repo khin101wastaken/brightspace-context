@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Brightspace Context Companion</title>
+  <script src="appearance.js"></script>
+  <link rel="stylesheet" href="manage.css">
+  <script src="manage.js" defer></script>
+</head>
+<body>
+  <main>
+    <header class="page-header">
+      <div class="header-tools">
+        <div class="brand"><img src="icon.png" alt="" width="24" height="24"><span>Brightspace Context</span></div>
+        <button id="appearance-toggle" class="appearance-toggle" type="button" role="switch" aria-label="Dark mode" aria-checked="false">
+          <svg class="theme-sun" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="3"/><path d="M8 1v1m0 12v1M1 8h1m12 0h1M3 3l1 1m8 8 1 1M3 13l1-1m8-8 1-1"/></svg>
+          <span class="theme-track" aria-hidden="true"><span class="theme-thumb"></span></span>
+          <svg class="theme-moon" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M13.5 10.5A6 6 0 0 1 5.5 2.5a6 6 0 1 0 8 8Z"/></svg>
+        </button>
+      </div>
+      <h1>Companion</h1>
+      <p id="companion-version" class="companion-version" hidden></p>
+      <p>Pair Chrome, connect to Codex, and manage course files on this computer.</p>
+      <p><a class="setup-link" href="https://brightspace-context.khin101.chatgpt.site/setup/" target="_blank" rel="noopener noreferrer">Setup guide</a></p>
+    </header>
+    <p id="notice" class="notice" role="status">Loading companion controls…</p>
+    <div id="controls" class="workspace" hidden>
+      <section class="connection panel" aria-labelledby="connection">
+        <h2 id="connection">Connect</h2>
+        <div class="connection-step">
+          <h3>Pair Chrome</h3>
+          <p>Open the extension and enter this pairing code.</p>
+          <div class="pairing-control">
+            <code id="pairing" aria-label="Pairing code"></code>
+            <button id="copy-code" class="secondary" type="button">Copy code</button>
+          </div>
+        </div>
+        <div class="connection-step">
+          <h3>Set up Codex</h3>
+          <p>Register Brightspace, then quit and reopen Codex to load the connection.</p>
+          <button id="codex" class="primary" type="button">Connect to Codex</button>
+          <details>
+            <summary>Manual setup</summary>
+            <p>In Codex, open Settings → MCP servers → Add server. Choose STDIO and use the command and argument in the installed Setup guide.</p>
+          </details>
+        </div>
+      </section>
+      <section class="library panel" aria-labelledby="library-heading">
+        <header class="library-header">
+          <div class="section-heading">
+            <h2 id="library-heading">Course library</h2>
+            <p id="connection-status" class="connection-status" role="status"></p>
+          </div>
+          <div class="library-controls">
+            <div class="library-field">
+              <label for="library">Library</label>
+              <select id="library"><option value="nyu">NYU Brightspace</option><option value="demo">Local demo</option></select>
+            </div>
+            <button id="refresh" type="button">Refresh</button>
+          </div>
+        </header>
+        <section class="library-section" aria-labelledby="queue-heading">
+          <div class="section-heading"><h3 id="queue-heading">Retrieval queue</h3><span id="queue-count" class="count"></span></div>
+          <p class="hint">Cancel requests waiting for Chrome or for sign-in.</p>
+          <ul id="queue" class="rows"></ul>
+        </section>
+        <section class="library-section" aria-labelledby="cache-heading">
+          <div class="section-heading">
+            <h3 id="cache-heading">Cached files</h3>
+            <button id="clear" class="danger" type="button">Clear cache</button>
+          </div>
+          <div class="storage">
+            <p id="usage" class="hint"></p>
+            <meter id="capacity" min="0" max="1" value="0" aria-label="Cache storage used" aria-describedby="usage"></meter>
+          </div>
+          <ul id="files" class="rows"></ul>
+          <p class="hint cache-note">Clearing the cache removes saved originals for this library. Course outlines, browser downloads, and temporary exports are stored separately.</p>
+        </section>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

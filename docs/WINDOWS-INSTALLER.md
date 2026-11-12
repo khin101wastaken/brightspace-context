@@ -1,6 +1,6 @@
 # Windows installer preview
 
-This first packaging slice produces an offline Windows 10/11 x64 installer. End users need neither Node, npm, a source checkout nor shell commands. Installation is per-user with no administrator prompt. Mac/Linux packages, signing, tray controls, automatic startup, automatic updates, and guided verification remain unfinished milestones.
+This first packaging slice produces an offline Windows 10/11 x64 installer. End users need neither Node, npm, a source checkout nor shell commands. Installation is per-user with no administrator prompt. Companion 0.10.1 includes tray controls, optional launch at sign-in, a local dashboard and guided Codex registration. Mac/Linux packages, signing and automatic updates remain future milestones.
 
 ## Build
 
@@ -36,19 +36,21 @@ The installer is an unsigned preview. Do not describe it as reviewed or producti
 
 1. Run the installer. It installs under `%LOCALAPPDATA%\Programs\Brightspace Context` and adds Start menu shortcuts. The optional desktop shortcut is unchecked by default.
 2. Open the bundled **Setup guide**. It derives the correct installed paths and displays the extension directory and desktop MCP command/argument, including a JSON example.
-3. Start **Brightspace Context Companion** from the Start menu. Its window shows the pairing code. Keep it open; close it to stop. A second instance cannot bind the same companion port.
-4. Manually load the installed `app\extension` directory in Chrome Developer mode, sign into Brightspace, and pair normally. The installer does not force-install extensions or change browser policy.
-5. Add the installed STDIO command to a supported local MCP client. The installer does not edit client settings. Sync a semester and verify one PDF retrieval/read.
+3. Start **Brightspace Context Companion** from the Start menu. The pairing code appears above the taskbar, pauses for three seconds, then fades over ten seconds. Hovering over it keeps it visible. Use the tray menu to show the code again, open the controls, enable **Launch at sign-in**, or exit.
+4. Install the published extension from the hosted setup guide’s Chrome Web Store link, sign into Brightspace, and pair normally. The installed `app\extension` directory is also available for development.
+5. Click **Connect to Codex** in the controls, then quit and reopen Codex to load the Brightspace connection. The button adds the installed STDIO command to your user config and preserves existing Brightspace entries. The installed guide has manual settings for other desktop clients. Sync a semester and verify one PDF retrieval and read.
 
 The launcher uses its own relative paths and bundled runtime, so it works from installation paths containing spaces and does not depend on `node` being on PATH. Source-based development remains supported separately.
 
-Version 0.8.4 adds timestamped [terminal diagnostics](COMPANION-LOGGING.md) and a **Troubleshooting → Companion (verbose logs)** Start menu shortcut. Stop the normal instance before using the verbose shortcut. A store-based extension onboarding flow is described in [Extension distribution](EXTENSION-DISTRIBUTION.md); the preview still requires manual loading until a listing is published.
+The controls list cached documents and pending file requests separately for NYU and Local demo. You can remove one cached file or clear the selected library's cache. The **Cancel** button is available for queued file requests and requests waiting for sign-in. After Chrome claims a request, the controls show it as fetching.
+
+Version 0.8.4 adds timestamped [terminal diagnostics](COMPANION-LOGGING.md) and a **Troubleshooting → Companion (verbose logs)** Start menu shortcut. Stop the normal instance before using the verbose shortcut. The published extension and developer installation paths are described in [Extension distribution](EXTENSION-DISTRIBUTION.md).
 
 ## Update and removal
 
 Close the companion and stop its MCP connection before running a newer installer, so neither process holds the bundled runtime open. The stable application ID and default installation directory allow in-place replacement. Windows Restart Manager can identify installed application files that are still in use; automatic restart is disabled. Reload the Chrome extension and restart the desktop MCP connection after updating. Dependency-set changes, interrupted installs, rollback and data-schema migrations still need additional release acceptance testing.
 
-Uninstall removes installed application files and shortcuts. It preserves `%USERPROFILE%\BrightspaceContext\cache`, which contains pairing, catalog, queue and PDF data. No deletion rule targets that directory. Remove the Chrome extension and desktop MCP registration separately. For explicit data erasure, stop the companion, then delete the cache directory. No automatic startup registration is created.
+Uninstall removes installed application files and shortcuts, including the sign-in startup entry if it points to this installation. It preserves `%USERPROFILE%\BrightspaceContext\cache`, which contains pairing, catalog, queue and cached files. Remove the Chrome extension and desktop MCP registration separately. For explicit data erasure, stop the companion, then delete the cache directory.
 
 Version 0.8.3 changes the Windows cache default from `%LOCALAPPDATA%\BrightspaceContext\cache` to `%USERPROFILE%\BrightspaceContext\cache`. Desktop tool runtimes can see redirected AppData directories, causing the companion and MCP to read different pairings and indexes despite apparently identical displayed paths. The home-relative default avoids reliance on AppData. `BRIGHTSPACE_CACHE_DIR` can explicitly select the same absolute folder for both processes. Older cache directories are not automatically deleted, merged or overwritten. For an existing installation, stop both clients, back up the old cache, copy it into an empty destination, update both processes' path settings and restart them. Re-pair once if the browser's saved credentials differ. Do not copy over a running or populated destination.
 
@@ -92,4 +94,10 @@ The Node companion, extension and MCP server remain portable JavaScript. Packagi
 
 ## Independent companion releases
 
-The installer version comes from `companion/version.js` (`COMPANION_VERSION`); the bundled Chrome extension retains its own `extension/manifest.json` version. The payload inventory records both. Companion 0.9.4 ships concise terminal logging with the unchanged extension 0.9.3. This allows companion-only fixes to ship without replacing a frozen Chrome upload ZIP. Older versioned installer files/checksums remain immutable; the public setup page points at the latest companion.
+The installer version comes from `companion/version.js` (`COMPANION_VERSION`). The bundled Chrome extension keeps its own version in `extension/manifest.json`. The payload inventory records both.
+
+Public releases use `major.beta.release`. Local Windows builds append a fourth number for the local revision. For example, `0.10.0.4` is revision 4 of beta release `0.10.0`. The next public release in that beta series is `0.10.1`. A major beta milestone can start a new series at `0.11.0`, and the first stable release starts at `1.0.0`.
+
+Local revisions use their full version in the installer filename, Windows metadata and staging folder. Use the three-part public version for downloads on the public setup page. Keep published artifacts and checksums at their original URLs. Local builds from before this convention are archived with their original embedded versions.
+
+Release 0.10.1 verification on November 12, 2026: all 144 automated tests and JavaScript syntax checks passed. The packaged-runtime smoke verified PDF, DOCX and PPTX retrieval, catalog sync, restart persistence and tray startup/shutdown with synthetic data. The isolated 0.10.0.18 to 0.10.1 installer upgrade passed all eight checks, including stopping the running tray, preserving pairing and encrypted files, retaining the queued request and keeping an identical Node runtime available to an existing MCP process. The tray smoke invokes the packaged tray class through an isolated fixture so the user's running companion can remain open. Public download parts were reassembled and matched the installer SHA-256; modified bytes were rejected before saving.

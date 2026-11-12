@@ -114,6 +114,26 @@ test('queue leases recover after interruption and reject forged or unverified co
   assert.equal((await requests.request({courseId:'200',key:'document:20'})).source,'cache');
 });
 
+test('cancellation survives restart, respects the active lease and requires an explicit retry',async t=>{
+  const directory=await temporary(t),cache=await openCache(directory),catalog={read:async()=>({semesters:[snapshot()]})};
+  const options={catalog,cache};
+  let requests=await openRequests(directory,options);
+  const args={courseId:'200',key:'document:20'};
+  const pending=await requests.request(args);
+  assert.equal((await requests.pendingDocuments())[0].requestId,pending.requestId);
+  const {job}=await requests.claim();
+  assert.equal(await requests.cancelDocument(job.requestId),false);
+  await requests.finish({...job,code:'NEEDS_LOGIN'});
+  assert.equal(await requests.cancelDocument(job.requestId),true);
+  requests=await openRequests(directory,options);
+  assert.equal((await requests.get(job.requestId)).code,'CANCELLED');
+  assert.deepEqual(await requests.pendingDocuments(),[]);
+  assert.equal((await requests.retryLogin()).retried,0);
+  assert.equal((await requests.claim()).job,null);
+  assert.equal((await requests.request(args)).code,'CANCELLED');
+  assert.notEqual((await requests.request({...args,retry:true})).requestId,pending.requestId);
+});
+
 test('worker WebSocket refuses ordinary website origins and invalid authentication',async t=>{
   const f=await fixture(t);
   const refused=new WebSocket(f.app.url.replace('http:','ws:')+'/v1/worker',{origin:'https://evil.example'});

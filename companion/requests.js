@@ -47,7 +47,7 @@ export async function openRequests(directory,{catalog,cache,notify=()=>{},worker
   const present=job=>isSync(job)?({requestId:job.requestId,kind:'catalog-sync',scope:job.sync.semesterId?'semester':'discovery',...job.sync,state:job.state,createdAt:job.createdAt,updatedAt:job.updatedAt,progress:job.progress || null,result:job.result || null,code:job.code || null,error:job.error || null,workerConnected:syncWorkerConnected(),
     nextAction:job.state==='ready'?(job.sync.semesterId?'Use list_courses or search_catalog to inspect the refreshed catalog.':'Choose a returned semesterId and call request_catalog_sync to refresh its courses.'):
     job.state==='needs_login'?loginMessage:job.state==='failed'?'Address the error, then call request_catalog_sync with retry:true.':jobs.some(j=>j.state==='needs_login')?loginMessage:syncWorkerConnected()?'Catalog sync is queued or running. Check get_catalog_sync shortly.':'Open Chrome with the updated paired extension enabled and model requests allowed. This request is saved.'}):({requestId:job.requestId,state:job.state,documentId:job.state==='ready'?job.documentId:null,courseId:job.metadata.courseId,title:job.metadata.title,createdAt:job.createdAt,updatedAt:job.updatedAt,source:job.source || null,error:job.error || null,code:job.code || null,workerConnected:workerConnected(),
-    nextAction:job.state==='ready'?'Read the verified document before answering.':job.state==='needs_login'?loginMessage:job.state==='failed'?'Retry request_document with retry: true after resolving the error.':jobs.some(j=>j.state==='needs_login')?loginMessage:workerConnected()?'The extension is fetching requested documents. Check this request again shortly.':'Open Chrome with the paired extension enabled and automatic retrieval allowed. The request is saved.'});
+    nextAction:job.code==='CANCELLED'?'The user cancelled this retrieval. Retry only if the user asks again.':job.state==='ready'?'Read the verified document before answering.':job.state==='needs_login'?loginMessage:job.state==='failed'?'Retry request_document with retry: true after resolving the error.':jobs.some(j=>j.state==='needs_login')?loginMessage:workerConnected()?'The extension is fetching requested documents. Check this request again shortly.':'Open Chrome with the paired extension enabled and automatic retrieval allowed. The request is saved.'});
   async function resolveMetadata(courseId,key) {
     if(typeof courseId!=='string' || !/^\d+$/.test(courseId) || typeof key!=='string' || !/^document:\d+$/.test(key)) throw new Error('Use courseId and a document key returned by search_catalog.');
     const {semesters}=await catalog.read();
@@ -58,6 +58,21 @@ export async function openRequests(directory,{catalog,cache,notify=()=>{},worker
     return validateMetadata(documentMetadata(course,key),{provider});
   }
   return {
+    pendingDocuments:()=>serial(async()=>{
+      prune();
+      return jobs.filter(job=>!isSync(job) && (active(job) || job.state==='needs_login')).map(present);
+    }),
+    cancelDocument:requestId=>serial(async()=>{
+      prune();
+      const job=jobs.find(item=>item.requestId===requestId && !isSync(item));
+      if(job?.code==='CANCELLED') return true;
+      if(!job || !['queued','needs_login'].includes(job.state)) return false;
+      const previous={...job};
+      Object.assign(job,{state:'failed',code:'CANCELLED',error:'Retrieval cancelled by the user.',updatedAt:now(),leaseId:null,leaseUntil:null});
+      try {await save();} catch(error) {Object.assign(job,previous);throw error;}
+      notify();
+      return true;
+    }),
     syncRequest:args=>serial(async()=>{
       if(!args || Object.keys(args).some(key=>!['semesterId','retry'].includes(key)) || (args.retry!==undefined && typeof args.retry!=='boolean')) throw new Error('Invalid catalog sync parameters.');
       const sync=validateSyncSpec(args.semesterId==null?{}:{semesterId:args.semesterId});prune();

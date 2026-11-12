@@ -1,8 +1,8 @@
 # Brightspace Context - Development Roadmap
 
-Local Windows/NYU retrieval is accepted as the current MVP baseline on November 6, 2026: semester hierarchies, module notes, on-demand original files, encrypted bounded caches and paged PDF/DOCX/PPTX text reading. The actual desktop connector read all 10 pages of a real PDF in two bounded responses; remaining client/format and live refresh checks are tracked explicitly. Public artifacts remain companion 0.9.4 and extension 0.9.3; installed working-copy repairs are not a frozen release. Next: prepare and validate the requested 0.10.0 beta, then finish the existing Chrome Web Store submission. Simpler MCP installation, tray/startup, client/platform expansion and a student pilot follow; hosted course-data deployment, indexing/RAG and OCR remain deferred.
+The unlisted Chrome extension 0.10.0 beta is live, and the public setup guide links to the Chrome Web Store. The extension supports standalone browsing and downloads for NYU and Hosted demo. A paired Windows companion adds encrypted caching and on-demand PDF, Word and PowerPoint retrieval and text reading in Codex. Windows companion 0.10.1 beta adds tray controls, a dashboard, guided Codex registration and cache/queue controls. Before the small NYU pilot, verify the store-installed Hosted demo in a clean Chrome profile and run the full Windows setup through a real course-file read. Hosted course-data access, indexing and OCR remain deferred.
 
-**13 done | 6 in_progress | 1 next | 3 planned | 0 research | 7 deferred**
+**16 done | 3 in_progress | 2 next | 3 planned | 0 research | 9 deferred**
 
 > Editable source: [roadmap.json](roadmap.json). Reusable structure: [roadmap.schema.json](roadmap.schema.json). Regenerate with `npm run roadmap`.
 
@@ -25,11 +25,10 @@ flowchart TB
   subgraph p_readiness["02 / Ready for classmates"]
     direction LR
     m_lifecycle["IN PROGRESS<br/>Companion lifecycle"]:::in_progress
-    m_onboarding["IN PROGRESS<br/>Installer + guided connection"]:::in_progress
-    m_controls["IN PROGRESS<br/>User controls + account boundaries"]:::in_progress
+    m_onboarding["NEXT<br/>Verify fresh Windows setup and Codex"]:::next
+    m_controls["DONE<br/>Retrieval and cache controls"]:::done
     m_hardening["IN PROGRESS<br/>Release reliability checks"]:::in_progress
     m_installer["DONE<br/>Windows installer preview"]:::done
-    m_mcp_install["PLANNED<br/>Simpler ChatGPT MCP installation"]:::planned
     m_file_readers["DONE<br/>Real client file-reading checks"]:::done
     m_terminal_readability["DONE<br/>Readable companion terminal output"]:::done
     m_encrypted_storage["DONE<br/>Encrypted storage + explicit document handoff"]:::done
@@ -39,9 +38,10 @@ flowchart TB
     m_pilot["PLANNED<br/>Small NYU student pilot"]:::planned
     m_desktop_release["IN PROGRESS<br/>Accessible desktop release"]:::in_progress
     m_store_assets["DONE<br/>Store ZIP + public privacy policy"]:::done
-    m_beta_bundle["NEXT<br/>0.10.0 beta: freeze, bundle + acceptance"]:::next
-    m_store_listing["IN PROGRESS<br/>Chrome Web Store submission — pinned priority"]:::in_progress
-    m_review_demo["DONE<br/>Local mock LMS for reviewer testing"]:::done
+    m_beta_bundle["DONE<br/>0.10.0 beta: freeze, bundle + acceptance"]:::done
+    m_store_listing["DONE<br/>Chrome Web Store listing published"]:::done
+    m_store_install["NEXT<br/>Verify Chrome Web Store installation"]:::next
+    m_review_demo["DONE<br/>Fictional LMS for reviewer testing"]:::done
   end
   subgraph p_web["Deferred / Hosted course-data access"]
     direction LR
@@ -55,7 +55,10 @@ flowchart TB
     m_platforms["DEFERRED<br/>More platforms + Brightspace tenants"]:::deferred
     m_indexing["DEFERRED<br/>Optional full-text search / RAG"]:::deferred
     m_ocr["DEFERRED<br/>OCR only if justified"]:::deferred
+    m_mcp_install["PLANNED<br/>Local ChatGPT plugin package"]:::planned
+    m_account_switching["DEFERRED<br/>Brightspace account switching"]:::deferred
     m_claude["PLANNED<br/>Claude Desktop package"]:::planned
+    m_download_banner["DEFERRED<br/>Auto-dismiss the download banner"]:::deferred
   end
   m_catalog --> m_cache
   m_cache --> m_retrieval
@@ -64,6 +67,7 @@ flowchart TB
   m_retrieval --> m_hardening
   m_onboarding --> m_pilot
   m_controls --> m_pilot
+  m_controls -.-> m_account_switching
   m_hardening --> m_pilot
   m_pilot --> m_desktop_release
   m_desktop_release -.-> m_web_handoff
@@ -78,14 +82,15 @@ flowchart TB
   m_retrieval --> m_installer
   m_installer --> m_mcp_install
   m_installer --> m_onboarding
-  m_mcp_install -.-> m_onboarding
+  m_desktop_release -.-> m_mcp_install
   m_lifecycle -.-> m_onboarding
   m_formats --> m_file_readers
-  m_mcp_install -.-> m_file_readers
   m_file_readers --> m_pilot
   m_installer --> m_store_assets
   m_store_assets --> m_store_listing
-  m_store_listing --> m_pilot
+  m_store_listing --> m_store_install
+  m_store_listing --> m_onboarding
+  m_store_install --> m_pilot
   m_installer -.-> m_claude
   m_catalog --> m_catalog_sync
   m_retrieval --> m_catalog_sync
@@ -249,41 +254,41 @@ Acceptance:
 
 Evidence:
 
-- Installed Start menu launcher, timestamped diagnostics, verbose mode and browser reconnect/recovery are implemented.
-- Tray controls, optional startup on sign-in and full reboot acceptance remain pending.
+- Companion 0.10.1 includes a tray menu, optional launch at Windows sign-in, a pairing-code popup, and a browser dashboard with connection status.
+- The dashboard retains authorization on refresh in the same tab. The tray and dashboard link to the hosted setup guide.
+- A full reboot test on a clean Windows setup still needs to verify launch at sign-in, pairing retention and retrieval recovery.
 
 Prerequisites: On-demand desktop MCP retrieval.
 
-### Installer + guided connection - IN PROGRESS
+### Verify fresh Windows setup and Codex - NEXT
 
-Guide companion installation, browser installation/pairing and desktop MCP setup, with an end-to-end verification step and supported update/uninstall instructions.
-
-Acceptance:
-
-- A classmate installs on a fresh Windows account without Node, source checkout or shell commands.
-- The setup flow verifies browser sign-in, companion connection and one retrieved PDF.
-
-Evidence:
-
-- Versioned Windows installers, Start menu launcher, pairing code, guided setup and update/uninstall instructions are implemented.
-- Fresh-install testing exposed confusing extension identities and stale MCP processes. Browser-store installation and manual MCP setup must be checked against the final beta.
-- Chrome loading and MCP registration are still manual before distribution improvements. Fresh-account/classmate onboarding remains unverified.
-
-Prerequisites: Windows installer preview.
-
-### User controls + account boundaries - IN PROGRESS
-
-Add course selection, cache inspection/deletion, disconnect controls and cancellation; define browser-profile and Brightspace-account isolation.
+Follow the public setup guide from a clean Windows setup using the store extension and the current companion candidate. Check pairing, Codex registration and a real NYU file read before choosing the installer for the pilot.
 
 Acceptance:
 
-- A user can inspect and remove stored course data, pause retrieval, cancel queued work and revoke pairing.
-- Changing school accounts does not silently reuse another account's catalog or documents.
+- A fresh Windows account can install and connect without separately installing Node, cloning source or entering shell commands.
+- The store extension pairs with the companion, Codex discovers the registered MCP connection after restart, and a real NYU file is retrieved and read.
 
 Evidence:
 
-- Course browsing/selection, automatic-retrieval pause/resume, browser disconnect and pairing reset are implemented.
-- Cache inspection/deletion, queued-request cancellation and explicit Brightspace-account isolation remain incomplete.
+- The public guide starts with Chrome Web Store installation and includes Hosted demo instructions.
+- Companion 0.10.1 offers Connect to Codex in its dashboard, with manual setup available for other local MCP clients.
+- The full first-time path with the store extension and local candidate is pending.
+
+Prerequisites: Windows installer preview; Chrome Web Store listing published.
+
+### Retrieval and cache controls - DONE
+
+Provide course selection, retrieval pause and resume, browser disconnect, cached-file inspection and removal, and cancellation for queued retrievals.
+
+Acceptance:
+
+- A user can inspect and remove cached originals, pause retrieval, disconnect the browser and cancel requests that are still waiting.
+
+Evidence:
+
+- The extension supports course selection, retrieval pause and resume, browser disconnect and pairing reset.
+- The local companion dashboard shows cached files and queued requests. It supports individual removal, clearing the selected library and cancelling requests that are still waiting. Management API and queue cancellation tests passed.
 
 Prerequisites: On-demand desktop MCP retrieval.
 
@@ -299,8 +304,9 @@ Acceptance:
 Evidence:
 
 - 140 source tests cover existing retrieval, PDF/Office text reading, byte integrity, paging, parser limits, demo isolation, pairing, queue recovery and encrypted-storage behavior.
-- Published 0.9.4 passed packaged-runtime smoke and an isolated upgrade from 0.9.3. The final 0.10.0 bundle still needs its own smoke/upgrade checks.
-- Live PowerPoint reading and MCP semester refresh with Resources closed are user-confirmed. Final beta fresh-install, reboot and multi-profile checks remain separate release acceptance work.
+- The frozen 0.10.0 beta passed packaged-runtime smoke and an isolated upgrade from 0.9.4. The publisher confirmed live NYU retrieval and cache reuse.
+- The isolated 0.10.0.10 to 0.10.0.11 upgrade passed with the tray and an MCP connection running. Pairing, encrypted cache and queued requests survived.
+- The dashboard refresh fix passed in Chrome. Fresh setup, full reboot, and live sign-in and profile recovery checks remain open.
 
 Prerequisites: On-demand desktop MCP retrieval.
 
@@ -316,26 +322,10 @@ Evidence:
 
 - Published Windows companion 0.9.4 bundles its pinned Node runtime, production dependencies, MCP, companion and unpacked extension.
 - Packaged-runtime smoke and isolated 0.9.3-to-0.9.4 upgrade checks passed; installer hashes and immutable release records are retained.
-- Installed UI and document-reading working copies were patched with rollback records. The 0.10.0 beta installer is not built yet.
+- The 0.10.0 beta installer is built and checksum-verified. Its packaged runtime and an isolated upgrade from 0.9.4 passed.
+- Companion 0.10.1 adds hosted setup links in the tray menu and dashboard.
 
 Prerequisites: On-demand desktop MCP retrieval.
-
-### Simpler ChatGPT MCP installation - PLANNED
-
-Package the existing MCP server for supported local ChatGPT plugin installation and guide users through installation and connection.
-
-Acceptance:
-
-- A fresh installation can register the local MCP without manually entering executable paths.
-- ChatGPT discovers tools and retrieves a file using the existing paired browser and shared companion.
-
-Evidence:
-
-- Supported local-plugin installation was researched; the package and installer integration are not implemented yet.
-- Public ChatGPT local-plugin distribution has separate eligibility/review requirements; local packaging is not public directory approval.
-- Chrome Web Store submission is the pinned priority. Automatic MCP setup is a follow-up improvement; document the working manual setup for the initial release.
-
-Prerequisites: Windows installer preview.
 
 ### Real client file-reading checks - DONE
 
@@ -390,14 +380,14 @@ Evidence:
 
 ### Small NYU student pilot - PLANNED
 
-Invite 3-5 classmates with different courses and observe installation and document retrieval; collect consented, redacted bug reports.
+Invite 3-5 classmates with different courses to try the single-account Windows and Chrome workflow. Observe setup and retrieval and collect consented, redacted bug reports.
 
 Acceptance:
 
 - Participants complete setup and retrieve/read their own supported course files without developer assistance.
 - Pilot failures are recorded and resolved before broad distribution.
 
-Prerequisites: Installer + guided connection; User controls + account boundaries; Release reliability checks; Real client file-reading checks; Chrome Web Store submission — pinned priority.
+Prerequisites: Verify fresh Windows setup and Codex; Retrieval and cache controls; Release reliability checks; Real client file-reading checks; Verify Chrome Web Store installation.
 
 ### Accessible desktop release - IN PROGRESS
 
@@ -410,8 +400,8 @@ Acceptance:
 
 Evidence:
 
-- Versioned Windows preview installers, a validated Chrome Web Store ZIP, icons, listing drafts and a public privacy policy are prepared.
-- Public setup and checksum-verified installer downloads are available. Store upload/approval and the classmate pilot remain pending.
+- The unlisted 0.10.0 Chrome extension, the public setup guide and the public 0.10.1 Windows companion are available.
+- Companion 0.10.1 packages the completed Windows changes. Store and fresh Windows acceptance precede the student pilot.
 
 Prerequisites: Small NYU student pilot.
 
@@ -426,64 +416,74 @@ Acceptance:
 
 Evidence:
 
-- A validated 34-entry extension 0.9.3 ZIP, icons, synthetic screenshots, publisher/support details, permission answers and public privacy/setup/reviewer pages exist.
-- Public companion 0.9.4 downloads are checksum-verified. Public source is MIT-licensed.
-- Final beta assets, text-reading/download-link disclosures, demo navigation instructions and download URLs must match the frozen 0.10.0 candidate before upload.
+- The final 0.10.0 Chrome ZIP, icons, listing material and screenshots, including the actual Chrome popup, were prepared for submission.
+- Public setup, reviewer and privacy pages match the beta. Public source is MIT-licensed.
 
 Prerequisites: Windows installer preview.
 
-### 0.10.0 beta: freeze, bundle + acceptance - NEXT
+### 0.10.0 beta: freeze, bundle + acceptance - DONE
 
 Freeze current UI, demo, encrypted storage, logging and paged document-reading changes into matching 0.10.0 beta artifacts; verify the actual release build before publishing it.
 
 Acceptance:
 
-- Version metadata, source checkpoint, extension ZIP, Windows installer and artifact hashes all identify the final candidate.
-- Isolated packaged-runtime smoke and 0.9.4-to-beta upgrade preserve encrypted data and verify text reading through bundled production dependencies.
-- Fresh-install Chrome/desktop checks cover pairing, demo and NYU sync/search, supported file reading/downloads, cache hits and restart. Supported-format reading and live MCP semester refresh are already verified in the current setup.
-- Public setup/reviewer/privacy material and store screenshots match the final build; reviewers can test the local demo without institutional credentials.
+- Version metadata, source checkpoint, extension ZIP, Windows installer and artifact hashes identify the final candidate.
+- Packaged-runtime smoke and isolated 0.9.4-to-beta upgrade checks pass against the frozen installer.
+- Live NYU retrieval and cache reuse work on the beta. The final Chrome ZIP can sync, search and download fictional resources in a clean profile without pairing.
+- Setup, reviewer and privacy materials match the beta.
 
 Evidence:
 
-- Requested public milestone: 0.10.0 beta, replacing alpha/preview status after fresh-install acceptance. No version bump or new public artifact is claimed yet.
-- Current public artifacts are companion 0.9.4 and extension 0.9.3. Installed working copies include newer review patches; rebuilding published versioned artifacts in place would not produce an auditable beta.
-- PDF, DOCX and user-confirmed PPTX reading are accepted in the current desktop setup. The frozen beta will still receive its own installation and upgrade checks.
-- November 6: user confirmed live semester refresh with Resources closed and a successful companion-terminal result. The remaining next step is freezing and validating the beta artifacts.
+- The frozen 0.10.0 beta was built with recorded hashes. Packaged-runtime smoke and isolated 0.9.4-to-beta upgrade checks passed.
+- The publisher confirmed live NYU retrieval and cache reuse on 0.10.0.
+- Hosted demo in the extracted final Chrome ZIP synced both courses, found a module note, and downloaded the original sample PDF in a clean profile without the companion.
 
-Prerequisites: Paged document text + cache links; Windows installer preview; Local mock LMS for reviewer testing; Readable companion terminal output; Store ZIP + public privacy policy; Real client file-reading checks.
+Prerequisites: Paged document text + cache links; Windows installer preview; Fictional LMS for reviewer testing; Readable companion terminal output; Store ZIP + public privacy policy; Real client file-reading checks.
 
-### Chrome Web Store submission — pinned priority - IN PROGRESS
+### Chrome Web Store listing published - DONE
 
-Complete final live acceptance and dashboard fields, disclose the NYU access limitation, and submit an unlisted pilot listing.
+Publish the 0.10.0 beta as an unlisted Chrome Web Store item and link to it from the public setup guide.
 
 Acceptance:
 
-- All required listing/privacy/reviewer fields and assets are complete.
-- A real listing URL is approved and used by onboarding, allowing Chrome installation without Developer mode.
+- The store listing offers Add to Chrome and is linked from the public setup guide.
 
 Evidence:
 
-- Chrome developer registration is confirmed. Existing draft item: iadmhandkbomngnaplppiopojmfkcodi; last recorded upload was 0.9.1. No submission or approval is claimed.
-- The local reviewer demo and encrypted storage are implemented. Final beta packaging, live acceptance, matching listing material and dashboard validation remain before submission.
-- Chrome publishing remains pinned. Submit the final candidate to the existing draft; optional tray, automated MCP setup, Claude, Firefox and indexing must not delay it.
+- The publisher completed submission on November 7, 2026. The published [Chrome Web Store listing](https://chromewebstore.google.com/detail/brightspace-context/iadmhandkbomngnaplppiopojmfkcodi) showed Add to Chrome.
+- The deployed [public setup guide](https://brightspace-context.khin101.chatgpt.site/setup/) leads with the verified store link.
 
-Prerequisites: Store ZIP + public privacy policy; Encrypted storage + explicit document handoff; Local mock LMS for reviewer testing; 0.10.0 beta: freeze, bundle + acceptance.
+Prerequisites: Store ZIP + public privacy policy; Encrypted storage + explicit document handoff; Fictional LMS for reviewer testing; 0.10.0 beta: freeze, bundle + acceptance.
 
-### Local mock LMS for reviewer testing - DONE
+### Verify Chrome Web Store installation - NEXT
 
-Serve fictional semester/course/module metadata and sample PDF/PPTX/DOCX files from the companion; exercise the production parsing, sync and MCP pipeline through a clearly labelled demo source.
+Install from the published listing in a clean Chrome profile and verify Hosted demo using that installed copy.
 
 Acceptance:
 
-- Reviewers can sync, search, download, resync and retrieve sample documents without NYU credentials.
-- Demo and NYU catalog/cache identities remain separate, with fixed source validation.
-- Instructions state that demo testing does not verify real NYU authentication.
+- The listing installs 0.10.0 without Developer mode.
+- Hosted demo opens, syncs, searches and downloads from the store-installed extension without the companion.
 
 Evidence:
 
-- Published companion 0.9.3/0.9.4 serves the fictional LMS and original PDF/PPTX/DOCX fixtures locally, with nested modules, module notes, resync changes and simulated session expiry.
-- Production HTTP/background/MCP integration tests verify demo versus NYU isolation, including colliding numeric IDs and cached reads while offline. Public reviewer instructions disclose the limits.
-- Demo selection is tucked into Resources > Advanced > Demo and testing in the source and installed working copy. Final 0.10.0 fresh-install acceptance remains part of the beta release milestone.
+- Hosted demo passed with the final extracted extension ZIP. A clean install and demo run using the actual store listing remain pending.
+
+Prerequisites: Chrome Web Store listing published.
+
+### Fictional LMS for reviewer testing - DONE
+
+Offer Hosted demo for companion-free extension testing and Local demo for testing the companion and MCP with fictional courses.
+
+Acceptance:
+
+- Reviewers can sync, search and download sample documents using Hosted demo without NYU credentials or the companion.
+- Local demo exercises the companion and MCP pipeline with fictional files. Demo and NYU catalog and cache identities remain separate.
+- Reviewer instructions distinguish hosted extension checks from local companion and real NYU checks.
+
+Evidence:
+
+- Hosted demo is in the final 0.10.0 Chrome ZIP. Resources > Advanced > Demo and testing provides an Open demo LMS link.
+- The companion serves fictional LMS metadata and original PDF/PPTX/DOCX fixtures locally. Integration tests verify demo and NYU isolation, including colliding IDs and offline cached reads.
 
 ## Deferred / Hosted course-data access
 
@@ -564,6 +564,35 @@ Acceptance:
 
 - Measured accuracy, latency, storage and compute costs justify the feature; OCR is not required for the core PDF handoff.
 
+### Local ChatGPT plugin package - PLANNED
+
+Package the existing MCP server for supported local ChatGPT plugin installation and guide users through installation and connection.
+
+Acceptance:
+
+- A fresh installation can register the local MCP without manually entering executable paths.
+- ChatGPT discovers tools and retrieves a file using the existing paired browser and shared companion.
+
+Evidence:
+
+- Supported local-plugin installation was researched; the package and installer integration are not implemented yet.
+- Public ChatGPT local-plugin distribution has separate eligibility/review requirements; local packaging is not public directory approval.
+- The local Windows candidate can register the existing MCP server in Codex from its dashboard. The separate ChatGPT plugin package remains planned.
+
+Prerequisites: Windows installer preview.
+
+### Brightspace account switching - DEFERRED
+
+Define how separate Brightspace accounts and browser profiles share a Windows device and its companion.
+
+Acceptance:
+
+- Switching school accounts on the same device cannot expose another account's catalog or cached files.
+
+Evidence:
+
+- The pilot is scoped to one Brightspace account per participant. NYU and demo isolation are already tested.
+
 ### Claude Desktop package - PLANNED
 
 Bundle the existing MCP as a Claude Desktop MCPB and reuse the paired Chrome extension, companion and cache.
@@ -577,3 +606,11 @@ Evidence:
 
 - The MCPB installation route was researched; no Claude package or live Claude test has been completed.
 - This is an optional client expansion, not a prerequisite for the first ChatGPT pilot.
+
+### Auto-dismiss the download banner - DEFERRED
+
+Dismiss the Resources “Download started” banner after a short delay.
+
+Acceptance:
+
+- Download errors and per-file status remain visible.

@@ -1,2 +1,2 @@
-// The companion can ship fixes without changing the Chrome Web Store package.
-export const COMPANION_VERSION='0.10.0';
+// Public releases use major.beta.release. Local builds append a revision.
+export const COMPANION_VERSION='0.10.1';

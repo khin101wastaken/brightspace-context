@@ -8,9 +8,9 @@ The Chrome extension uses the browser's existing Brightspace session. It keeps t
 
 ## Current status
 
-The setup page offers Windows companion and extension **0.10.0 beta** for Windows 10 and 11 x64. The preview uses Chrome's **Load unpacked** flow and manual MCP registration. The publisher submitted the unlisted beta to the Chrome Web Store. Public install verification is pending.
+The setup page offers Windows companion **0.10.1 beta** for Windows 10 and 11 x64 and links to Chrome extension **0.10.0** in the Chrome Web Store. The companion runs in the taskbar tray and provides a dashboard, guided Codex registration, optional launch at sign-in, and cache and retrieval controls.
 
-Run the current source to try paged PDF, DOCX and PPTX reading, expiring local download links and the updated demo controls.
+The companion supports paged PDF, DOCX and PPTX reading, expiring local download links and isolated demo controls.
 
 | Capability | Status |
 | --- | --- |
@@ -22,19 +22,19 @@ Run the current source to try paged PDF, DOCX and PPTX reading, expiring local d
 | PDF text reading | The live desktop connector read a complete 10-page PDF in two bounded responses |
 | PPTX/DOCX text reading | Confirmed in the current desktop setup; original-byte integrity and format checks also pass automatically |
 
-Account-switch isolation, queued-request cancellation and in-app cache deletion remain unfinished. This is a single-account local preview. Closing or disconnecting the browser does not erase saved companion data.
+The companion dashboard can remove cached files and cancel queued retrievals. Account-switch isolation remains unfinished. This is a single-account local beta. Closing or disconnecting the browser does not erase saved companion data.
 
 ## Install the Windows preview
 
 Follow the [public setup guide](https://brightspace-context.khin101.chatgpt.site/setup/). It provides the installer and SHA-256 checksum. The installer includes Node, the companion, the MCP server and an extension copy.
 
-1. Install and start **Brightspace Context Companion** from the Start menu. Keep its window open.
-2. Open the installed **Setup guide** for the extension folder, then load it in Chrome at `chrome://extensions`. Keep one extension copy active.
+1. Install and start **Brightspace Context Companion** from the Start menu. It runs in the taskbar tray.
+2. Install the Chrome extension from the setup guide's Chrome Web Store link. Keep one extension copy active.
 3. Sign into NYU Brightspace in that Chrome profile and pair the extension with the companion's code.
 4. Open **Browse resources**, select a semester and choose **Sync semester**.
-5. Add the local STDIO MCP server to a supported desktop client using the installed guide's exact Command and Argument, then restart that connection.
+5. Open **Open controls** from the tray menu, click **Connect to Codex**, then quit and reopen Codex. Other supported local MCP clients can use the installed guide's exact Command and Argument.
 
-Ask the connected client to find a resource, retrieve it and read the actual file before answering. A successful download or a resource title does not establish that the client has read its contents. The published preview depends on host file-reading tools; the updated source provides its own bounded PDF/Office text reader.
+Ask the connected client to find a resource, retrieve it and read the actual file before answering. The companion provides a bounded PDF/Office text reader through MCP.
 
 ## Run from source
 

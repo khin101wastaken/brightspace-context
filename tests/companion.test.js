@@ -5,6 +5,7 @@ import {mkdtemp,rm,readFile,mkdir,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {openCache} from '../companion/cache.js';
 import {createCompanion} from '../companion/server.js';
+import {COMPANION_VERSION} from '../companion/version.js';
 import {pairCompanion,cacheDocument,companionStatus,COMPANION_URL} from '../extension/companion-client.js';
 
 const origin=`chrome-extension://${'a'.repeat(32)}`;
@@ -63,6 +64,36 @@ test('missing version dates get only a short cache freshness window',async t=>{
   const meta={...metadata(1),lastModifiedAt:null};await cache.put(meta,pdf);
   assert.equal((await cache.lookup(meta)).hit,true);
   time=300001;assert.equal((await cache.lookup(meta)).hit,false);
+});
+
+test('tray controls require their own credential and clear only selected cache files',async t=>{
+  const directory=await temporary(t),managementToken='f'.repeat(64);
+  const app=await createCompanion({directory,port:0,managementToken});
+  try {
+    const {id}=await app.cache.put(metadata(1),pdf);
+    await app.cache.put(metadata(2),pdf);
+    const demoMeta={...metadata(1),provider:'demo',sourceUrl:'http://127.0.0.1:47653/demo/content/enforced/100/demo.pdf'};
+    // The two providers can contain the same document key.
+    const demoSource=app.demo.cache;
+    assert.equal((await demoSource.put(demoMeta,pdf)).id,id);
+    const before=await demoSource.stats();
+    const headers={Authorization:`Bearer ${managementToken}`,Origin:app.url};
+    const status=await fetch(app.url+'/manage/api/status',{headers});
+    assert.equal(status.status,200);
+    const dashboard=await status.json();
+    assert.equal(dashboard.version,COMPANION_VERSION);
+    assert.equal(dashboard.documents.length,2);
+    assert.equal((await fetch(app.url+'/manage/api/status')).status,401);
+    assert.equal((await fetch(app.url+'/manage/api/cache',{method:'POST',headers:{...headers,Origin:'https://example.com'}})).status,403);
+    const remove=endpoint=>fetch(app.url+'/manage/api/'+endpoint,{method:'POST',headers}).then(response=>response.json());
+    assert.deepEqual(await remove('cache/'+id),{removed:1});
+    assert.equal(await app.cache.read(id),null);
+    assert.deepEqual(await remove('cache'),{removed:1});
+    assert.equal((await app.cache.stats()).files,0);
+    assert.deepEqual(await demoSource.stats(),before);
+    await assert.rejects(readFile(path.join(directory,id+'.pdf.vault')),{code:'ENOENT'});
+    assert.deepEqual(await (await openVault(directory)).readJson('index.json'),{version:1,entries:{}});
+  } finally {await app.close();}
 });
 
 test('paired HTTP flow: first PDF request fetches, second is a cache hit, and stored bytes match',async t=>{

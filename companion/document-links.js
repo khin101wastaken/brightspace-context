@@ -13,6 +13,7 @@ export function createDocumentLinks({now=Date.now,ttlMs=5*60*1000,maxLinks=100}=
       return {path:`/local-files/${token}`,expiresAt:new Date(expires).toISOString()};
     },
     get(token,client) {prune();const link=links.get(token);return link && link.client===client?link:null;},
+    revoke(provider,ids) {for(const [token,link] of links)if(link.provider===provider && ids.includes(link.id))links.delete(token);},
     clear(){links.clear();},
   };
 }

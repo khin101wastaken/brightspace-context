@@ -14,11 +14,10 @@ flowchart TB
   subgraph p_readiness["02 / Ready for classmates"]
     direction LR
     m_lifecycle["IN PROGRESS<br/>Companion lifecycle"]:::in_progress
-    m_onboarding["IN PROGRESS<br/>Installer + guided connection"]:::in_progress
-    m_controls["IN PROGRESS<br/>User controls + account boundaries"]:::in_progress
+    m_onboarding["NEXT<br/>Verify fresh Windows setup and Codex"]:::next
+    m_controls["DONE<br/>Retrieval and cache controls"]:::done
     m_hardening["IN PROGRESS<br/>Release reliability checks"]:::in_progress
     m_installer["DONE<br/>Windows installer preview"]:::done
-    m_mcp_install["PLANNED<br/>Simpler ChatGPT MCP installation"]:::planned
     m_file_readers["DONE<br/>Real client file-reading checks"]:::done
     m_terminal_readability["DONE<br/>Readable companion terminal output"]:::done
     m_encrypted_storage["DONE<br/>Encrypted storage + explicit document handoff"]:::done
@@ -28,9 +27,10 @@ flowchart TB
     m_pilot["PLANNED<br/>Small NYU student pilot"]:::planned
     m_desktop_release["IN PROGRESS<br/>Accessible desktop release"]:::in_progress
     m_store_assets["DONE<br/>Store ZIP + public privacy policy"]:::done
-    m_beta_bundle["NEXT<br/>0.10.0 beta: freeze, bundle + acceptance"]:::next
-    m_store_listing["IN PROGRESS<br/>Chrome Web Store submission — pinned priority"]:::in_progress
-    m_review_demo["DONE<br/>Local mock LMS for reviewer testing"]:::done
+    m_beta_bundle["DONE<br/>0.10.0 beta: freeze, bundle + acceptance"]:::done
+    m_store_listing["DONE<br/>Chrome Web Store listing published"]:::done
+    m_store_install["NEXT<br/>Verify Chrome Web Store installation"]:::next
+    m_review_demo["DONE<br/>Fictional LMS for reviewer testing"]:::done
   end
   subgraph p_web["Deferred / Hosted course-data access"]
     direction LR
@@ -44,7 +44,10 @@ flowchart TB
     m_platforms["DEFERRED<br/>More platforms + Brightspace tenants"]:::deferred
     m_indexing["DEFERRED<br/>Optional full-text search / RAG"]:::deferred
     m_ocr["DEFERRED<br/>OCR only if justified"]:::deferred
+    m_mcp_install["PLANNED<br/>Local ChatGPT plugin package"]:::planned
+    m_account_switching["DEFERRED<br/>Brightspace account switching"]:::deferred
     m_claude["PLANNED<br/>Claude Desktop package"]:::planned
+    m_download_banner["DEFERRED<br/>Auto-dismiss the download banner"]:::deferred
   end
   m_catalog --> m_cache
   m_cache --> m_retrieval
@@ -53,6 +56,7 @@ flowchart TB
   m_retrieval --> m_hardening
   m_onboarding --> m_pilot
   m_controls --> m_pilot
+  m_controls -.-> m_account_switching
   m_hardening --> m_pilot
   m_pilot --> m_desktop_release
   m_desktop_release -.-> m_web_handoff
@@ -67,14 +71,15 @@ flowchart TB
   m_retrieval --> m_installer
   m_installer --> m_mcp_install
   m_installer --> m_onboarding
-  m_mcp_install -.-> m_onboarding
+  m_desktop_release -.-> m_mcp_install
   m_lifecycle -.-> m_onboarding
   m_formats --> m_file_readers
-  m_mcp_install -.-> m_file_readers
   m_file_readers --> m_pilot
   m_installer --> m_store_assets
   m_store_assets --> m_store_listing
-  m_store_listing --> m_pilot
+  m_store_listing --> m_store_install
+  m_store_listing --> m_onboarding
+  m_store_install --> m_pilot
   m_installer -.-> m_claude
   m_catalog --> m_catalog_sync
   m_retrieval --> m_catalog_sync
