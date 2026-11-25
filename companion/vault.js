@@ -3,7 +3,7 @@ import {randomBytes,createCipheriv,createDecipheriv,hkdfSync,timingSafeEqual} fr
 import path from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {atomicWrite} from './files.js';
-import {windowsKeyProtection} from './key-protection.js';
+import {platformKeyProtection} from './key-protection.js';
 
 const MAGIC=Buffer.from('BSCV1'),OVERHEAD=MAGIC.length+12+16;
 export const VAULT_OVERHEAD=OVERHEAD;
@@ -20,12 +20,13 @@ export function unseal(key,bytes,context) {
     return Buffer.concat([decipher.update(bytes.subarray(33)),decipher.final()]);
   }catch{throw invalid();}
 }
-export async function openVault(directory,{protection=windowsKeyProtection}={}) {
-  directory=path.resolve(directory);await mkdir(directory,{recursive:true});
+export async function openVault(directory,{protection=platformKeyProtection}={}) {
+  directory=path.resolve(directory);await mkdir(directory,{recursive:true,mode:0o700});
+  const protectionId=protection.id ?? platformKeyProtection.id;
   const keyFile=path.join(directory,'.vault-key.json'),lockFile=path.join(directory,'.vault-key.lock');
   const load=async()=>{
     const raw=await readFile(keyFile,'utf8');if(raw.length>65536)throw invalid();const record=JSON.parse(raw);
-    if(record.version!==1 || record.protection!=='windows-current-user' || typeof record.wrapped!=='string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(record.wrapped))throw invalid();
+    if(record.version!==1 || record.protection!==protectionId || typeof record.wrapped!=='string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(record.wrapped))throw invalid();
     const key=await protection.unprotect(Buffer.from(record.wrapped,'base64'));if(key.length!==32)throw invalid();return key;
   };
   let key;
@@ -38,10 +39,10 @@ export async function openVault(directory,{protection=windowsKeyProtection}={}) 
     try {
       try {key=await load();}catch(error){
         if(error.code!=='ENOENT')throw error;
-        if((await readdir(directory)).some(name=>name.endsWith('.vault')))throw Object.assign(new Error('The protected key is missing from an existing encrypted vault. Restore its original key file and Windows profile; no new key was created.'),{code:'VAULT_KEY_MISSING'});
+        if((await readdir(directory)).some(name=>name.endsWith('.vault')))throw Object.assign(new Error('The protected key is missing from an existing encrypted vault. Restore its original key file and user account; no new key was created.'),{code:'VAULT_KEY_MISSING'});
         key=randomBytes(32);const wrapped=await protection.protect(key),verified=await protection.unprotect(wrapped);
         if(verified.length!==key.length || !timingSafeEqual(verified,key))throw invalid();
-        await atomicWrite(keyFile,JSON.stringify({version:1,protection:'windows-current-user',wrapped:wrapped.toString('base64')}),{mode:0o600});
+        await atomicWrite(keyFile,JSON.stringify({version:1,protection:protectionId,wrapped:wrapped.toString('base64')}),{mode:0o600});
       }
     }finally{await lock.close();await unlink(lockFile);}
   }

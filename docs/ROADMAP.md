@@ -1,8 +1,8 @@
 # Brightspace Context - Development Roadmap
 
-The unlisted Chrome extension 0.10.0 beta and Windows companion 0.10.1 beta are available from the public setup guide. The companion adds encrypted file retrieval and reading in Codex, tray controls and guided setup. The publisher reports successful runs on two additional Windows computers. Read-only announcements and assignments passed signed-in NYU testing in the local Windows beta. The next implementation milestone is an Apple silicon macOS companion. Grades are outside this scope. Calendar, Linux and additional schools remain later work.
+The unlisted Chrome extension 0.10.0 beta and Windows companion 0.10.1 beta are available from the public setup guide. The companion adds encrypted file retrieval and reading in Codex, tray controls and guided setup. The publisher reports successful runs on two additional Windows computers. Read-only announcements and assignments passed signed-in NYU testing in the local Windows beta. The Apple silicon macOS companion is in development. Grades are outside this scope. Calendar, Linux and additional schools remain later work.
 
-**18 done | 4 in_progress | 2 next | 3 planned | 0 research | 9 deferred**
+**18 done | 5 in_progress | 1 next | 3 planned | 0 research | 9 deferred**
 
 > Editable source: [roadmap.json](roadmap.json). Reusable structure: [roadmap.schema.json](roadmap.schema.json). Regenerate with `npm run roadmap`.
 
@@ -47,7 +47,7 @@ flowchart TB
     direction LR
     m_announcements["DONE<br/>Read course announcements in MCP"]:::done
     m_assignments["DONE<br/>Read assignment instructions and attachments in MCP"]:::done
-    m_macos["NEXT<br/>macOS companion for NYU students"]:::next
+    m_macos["IN PROGRESS<br/>macOS companion for NYU students"]:::in_progress
   end
   subgraph p_web["Deferred / Hosted course-data access"]
     direction LR
@@ -527,7 +527,7 @@ Evidence:
 
 Prerequisites: On-demand desktop MCP retrieval.
 
-### macOS companion for NYU students - NEXT
+### macOS companion for NYU students - IN PROGRESS
 
 Package an Apple silicon pilot with the shared Node.js companion and MCP server, macOS Keychain protection, a native menu bar launcher and a pairing-code popup.
 

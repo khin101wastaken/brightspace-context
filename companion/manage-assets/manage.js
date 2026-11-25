@@ -128,4 +128,4 @@ element('codex').onclick=()=>perform(async()=>{
 },{reload:false});
 
 if(credentialPattern.test(token)) void perform(refresh,{reload:false});
-else notice.textContent='Open the controls from the Brightspace Context tray icon.';
+else notice.textContent='Open the dashboard from the Brightspace Context menu.';

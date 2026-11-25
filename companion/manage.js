@@ -29,7 +29,7 @@ export function createManagement({token,directory,pairingCode,getScope,connected
       return res.end(await readFile(new URL('./manage-assets/'+asset[0],import.meta.url)));
     }
     const supplied=Buffer.from(req.headers.authorization || '');
-    if(supplied.length!==expected.length || !timingSafeEqual(supplied,expected)) return send(401,{error:'Open the controls from the Brightspace Context tray icon.'});
+    if(supplied.length!==expected.length || !timingSafeEqual(supplied,expected)) return send(401,{error:'Open the dashboard from the Brightspace Context menu.'});
     if(req.method==='POST' && req.headers.origin!==url.origin) return send(403,{error:'Open the local companion controls to make changes.'});
     const provider=url.searchParams.get('library') || 'nyu';
     if(!['nyu','demo'].includes(provider)) return send(400,{error:'Unknown library.'});

@@ -36,6 +36,10 @@ Follow the [public setup guide](https://brightspace-context.khin101.chatgpt.site
 
 Ask the connected client to find a resource, retrieve it and read the actual file before answering. The companion provides a bounded PDF/Office text reader through MCP.
 
+## macOS preview
+
+The Apple silicon preview is built as a drag-to-Applications disk image with Node bundled. It runs in the menu bar and reuses the Chrome extension and Codex registration flow. See the [macOS build and test guide](docs/MACOS-INSTALLER.md).
+
 ## Run from source
 
 On Windows, use Node.js 22.13 or later and Chrome 116 or later.

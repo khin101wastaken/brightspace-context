@@ -15,3 +15,9 @@ test('explicit cache overrides and Unix cache locations remain supported',()=>{
   assert.equal(cacheDirectory({platform:'linux',home:'/home/student',env:{XDG_CACHE_HOME:'/local/cache'}}),'/local/cache/brightspace-context');
   assert.equal(cacheDirectory({platform:'darwin',home:'/Users/student',env:{BRIGHTSPACE_CACHE_DIR:'/local/course-cache'}}),'/local/course-cache');
 });
+test('macOS stores persistent companion data under the current home directory',()=>{
+  const home='/Users/student';
+  const expected='/Users/student/Library/Application Support/Brightspace Context/cache';
+  assert.equal(cacheDirectory({platform:'darwin',home,env:{}}),expected);
+  assert.equal(cacheDirectory({platform:'darwin',home,env:{XDG_CACHE_HOME:'/tmp/cache'}}),expected);
+});

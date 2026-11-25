@@ -9,6 +9,8 @@
     "build:rich-text": "node scripts/build-rich-text.js",
     "package:extension": "node scripts/package-extension.js",
     "build:windows": "node scripts/build-windows.js",
+    "build:macos": "node scripts/build-macos.js",
+    "test:macos": "node scripts/smoke-macos.js",
     "test:installer": "node scripts/smoke-windows.js",
     "test:upgrade": "node scripts/test-upgrade-windows.js",
     "companion": "node companion/start.js",

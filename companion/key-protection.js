@@ -1,5 +1,7 @@
 import {spawn} from 'node:child_process';
+import {chmod} from 'node:fs/promises';
 import path from 'node:path';
+import {fileURLToPath} from 'node:url';
 
 // Only a small key crosses this bridge, through anonymous pipes. No secrets in
 // arguments, environment variables, scripts on disk, or diagnostic output.
@@ -32,19 +34,37 @@ try {
   [Console]::Out.Write([Convert]::ToBase64String($out))
   exit 0
 } catch { [Console]::Error.Write('Windows account key protection failed.'); exit 1 }`;
-async function call(operation,bytes) {
-  if(process.platform!=='win32') throw Object.assign(new Error('Encrypted storage currently requires Windows account key protection. No plaintext fallback is available.'),{code:'KEY_PROTECTION_UNAVAILABLE'});
+function protectedKeyError(message,code='KEY_PROTECTION_UNAVAILABLE') {return Object.assign(new Error(message),{code});}
+
+function callPipe(executable,args,operation,bytes,errorMessage,timeoutMs=15000) {
   return new Promise((resolve,reject)=>{
-    const executable=path.join(process.env.SystemRoot || 'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe');
-    const child=spawn(executable,['-NoLogo','-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(script,'utf16le').toString('base64')],{windowsHide:true,stdio:['pipe','pipe','pipe']});
+    const child=spawn(executable,args,{windowsHide:true,stdio:['pipe','pipe','pipe']});
     let output='',failed=false;
-    const fail=()=>{if(failed)return;failed=true;clearTimeout(timeout);child.kill();reject(Object.assign(new Error('Cannot unlock encrypted storage with this Windows account. Keep the existing vault and key files; do not reset them.'),{code:'KEY_PROTECTION_FAILED'}));};
-    const timeout=setTimeout(fail,15000);
+    const fail=()=>{if(failed)return;failed=true;clearTimeout(timeout);child.kill();reject(protectedKeyError(errorMessage,'KEY_PROTECTION_FAILED'));};
+    const timeout=setTimeout(fail,timeoutMs);
     child.on('error',fail);child.stdin.on('error',fail);child.stderr.on('data',()=>{});
     child.stdout.on('data',chunk=>{output+=chunk.toString('ascii');if(output.length>65536)fail();});
     child.on('close',code=>{if(failed)return;clearTimeout(timeout);if(code!==0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(output.trim()))return fail();resolve(Buffer.from(output.trim(),'base64'));});
     child.stdin.end(operation+'\n'+Buffer.from(bytes).toString('base64'));
   });
 }
-export const windowsKeyProtection={protect:bytes=>call('protect',bytes),unprotect:bytes=>call('unprotect',bytes)};
-export const restrictDirectory=directory=>call('directory',Buffer.from(directory));
+
+async function callWindows(operation,bytes) {
+  if(process.platform!=='win32') throw protectedKeyError('Windows account key protection is unavailable on this platform.');
+  const executable=path.join(process.env.SystemRoot || 'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe');
+  const args=['-NoLogo','-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(script,'utf16le').toString('base64')];
+  return callPipe(executable,args,operation,bytes,'Cannot unlock encrypted storage with this Windows account. Keep the existing vault and key files; do not reset them.');
+}
+
+async function callKeychain(operation,bytes) {
+  if(process.platform!=='darwin') throw protectedKeyError('macOS Keychain is unavailable on this platform.');
+  const helper=process.env.BRIGHTSPACE_KEYCHAIN_HELPER || fileURLToPath(new URL('../../../MacOS/BrightspaceKeychain',import.meta.url));
+  if(!path.isAbsolute(helper)) throw protectedKeyError('The Keychain helper must have an absolute path.');
+  const timeoutMs=process.env.BRIGHTSPACE_KEYCHAIN_INTERACTIVE==='1'?90000:15000;
+  return callPipe(helper,[],operation,bytes,'Cannot unlock encrypted storage with this macOS Keychain. Keep the existing cache and Keychain item.',timeoutMs);
+}
+
+export const windowsKeyProtection={id:'windows-current-user',protect:bytes=>callWindows('protect',bytes),unprotect:bytes=>callWindows('unprotect',bytes)};
+export const platformKeyProtection=process.platform==='darwin'?
+  {id:'macos-keychain',protect:bytes=>callKeychain('protect',bytes),unprotect:bytes=>callKeychain('unprotect',bytes)}:windowsKeyProtection;
+export const restrictDirectory=directory=>process.platform==='darwin'?chmod(directory,0o700):callWindows('directory',Buffer.from(directory));

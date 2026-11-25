@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Brightspace Context for macOS</title>
+  <style>
+    :root { color-scheme: light dark; --page: #eeeef0; --surface: #f6f6f8; --border: #dadade; --text: #232328; --accent: #60419c; }
+    @media (prefers-color-scheme: dark) {
+      :root { --page: #17171a; --surface: #202024; --border: #37373d; --text: #ededf0; --accent: #c5a8ff; }
+    }
+    body { margin: 0; font: 16px/1.6 -apple-system, BlinkMacSystemFont, system-ui, sans-serif; background: var(--page); color: var(--text); }
+    main { width: min(42rem, calc(100% - 3rem)); margin: 3rem auto; }
+    h1 { line-height: 1.15; font-size: clamp(2rem, 5vw, 2.65rem); margin: 0 0 .5rem; letter-spacing: -.035em; }
+    ol { padding-inline-start: 1.35rem; }
+    li + li { margin-top: .55rem; }
+    details { padding: .9rem 1rem; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+    a { color: var(--accent); text-underline-offset: .14em; }
+    summary { cursor: pointer; font-weight: 600; }
+    code { overflow-wrap: anywhere; }
+    footer { border-top: 1px solid var(--border); margin-top: 2rem; padding-top: 1rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Brightspace Context</h1>
+    <p>Set up the companion on your Apple silicon Mac.</p>
+    <ol>
+      <li>Drag <strong>Brightspace Context</strong> to <strong>Applications</strong>. Open it from there and look for the document icon in the menu bar.</li>
+      <li>Install the <a href="https://chromewebstore.google.com/detail/brightspace-context/iadmhandkbomngnaplppiopojmfkcodi">Chrome extension</a> and sign into NYU Brightspace in the same Chrome profile.</li>
+      <li>Choose <strong>Show pairing code</strong> from the menu bar and enter the code in the extension.</li>
+      <li>Choose <strong>Open dashboard</strong>, click <strong>Connect to Codex</strong>, then quit and reopen Codex.</li>
+      <li>Use <strong>Browse resources</strong> in Chrome to sync a semester, then ask Codex to find and read a course file.</li>
+    </ol>
+    <details>
+      <summary>Test the development extension</summary>
+      <p>For features ahead of the Chrome Web Store release, use <strong>Load unpacked</strong> in <code>chrome://extensions</code>. Select <code>Contents/Resources/app/extension</code> inside the installed app bundle. To see that folder in Finder, Control-click Brightspace Context and choose <strong>Show Package Contents</strong>. Pair the development copy with the companion.</p>
+    </details>
+    <p>The companion runs in the menu bar. Choose <strong>Quit Brightspace Context</strong> to stop it. Your encrypted cache is in <code>~/Library/Application Support/Brightspace Context/cache</code>.</p>
+    <footer><a href="https://brightspace-context.khin101.chatgpt.site/setup/">Online setup guide</a> · <a href="https://brightspace-context.khin101.chatgpt.site/">Privacy</a></footer>
+  </main>
+</body>
+</html>

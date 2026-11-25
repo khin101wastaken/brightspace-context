@@ -28,7 +28,7 @@ export class LocalLibrary {
     let response;
     const timeout=AbortSignal.timeout(timeoutMs);
     try {response=await fetch(this.url+sourceEndpoint(endpoint,this.provider),{method,headers:{Origin:pairing.origin,Authorization:`Bearer ${pairing.token}`,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:signal?AbortSignal.any([signal,timeout]):timeout});}
-    catch {signal?.throwIfAborted();throw new Error('The local companion is unavailable. Open Brightspace Context Companion from the Start menu, or run npm run companion from the source project.');}
+    catch {signal?.throwIfAborted();throw new Error(process.platform==='darwin'?'The local companion is unavailable. Open Brightspace Context from Applications.':'The local companion is unavailable. Open Brightspace Context Companion from the Start menu, or run npm run companion from the source project.');}
     if(!response.ok) {
       let error;try {error=(await response.json()).error;} catch {}
       throw new Error(error || `Companion request failed (HTTP ${response.status}).`);

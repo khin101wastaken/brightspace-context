@@ -6,6 +6,7 @@ const log=createLogger({level:process.env.BRIGHTSPACE_LOG_LEVEL || 'info'});
 const directory=cacheDirectory();
 const port=Number(process.env.BRIGHTSPACE_COMPANION_PORT || 47653);
 const tray=process.argv.includes('--tray');
+const desktop=process.platform==='darwin';
 const managementToken=tray?process.env.BRIGHTSPACE_MANAGEMENT_TOKEN:undefined;
 delete process.env.BRIGHTSPACE_MANAGEMENT_TOKEN;
 try {
@@ -16,7 +17,7 @@ try {
   // The tray reads these lines through a private child-process pipe.
   // The pairing code is never a field in the diagnostic logger.
   if(tray) console.log(`Address: ${app.url}\nPairing code: ${app.pairingCode}`);
-  else console.log(`Brightspace Context companion ${COMPANION_VERSION}\nAddress: ${app.url}\nCache: ${directory} (${stats.files} files, ${formatBytes(stats.usedBytes)})\nPairing code: ${app.pairingCode}\nKeep this window open. Pair in the extension's Connect screen.\nLocal demo: ${app.url}/demo/\nDetailed diagnostics: use the Companion (verbose logs) Start menu shortcut.`);
+  else console.log(`Brightspace Context companion ${COMPANION_VERSION}\nAddress: ${app.url}\nCache: ${directory} (${stats.files} files, ${formatBytes(stats.usedBytes)})\nPairing code: ${app.pairingCode}\nKeep this window open. Pair in the extension's Connect screen.\nLocal demo: ${app.url}/demo/\n${desktop?'Detailed diagnostics: set BRIGHTSPACE_LOG_LEVEL=debug when starting from Terminal.':'Detailed diagnostics: use the Companion (verbose logs) Start menu shortcut.'}`);
   let stopping=false;
   const stop=signal=>{
     if(stopping) return;stopping=true;log('app.stopping',{signal});
@@ -29,6 +30,6 @@ try {
   }
 } catch(error) {
   log('app.start_failed',{code:/^[A-Z][A-Z0-9_]{0,39}$/.test(error.code || '')?error.code:'START_FAILED',directory,port});
-  console.error(error.code==='EADDRINUSE'?'Another companion is already using this port. Close it before starting a new copy.':/^(?:VAULT_|KEY_PROTECTION|MIGRATION_CONFLICT)/.test(error.code || '')?'Protected storage could not be unlocked or migrated. Keep the original cache, key files and Windows profile; no data was reset. Close older app copies and check the reported error code.':'Check the cache location and configuration, then try again.');
+  console.error(error.code==='EADDRINUSE'?'Another companion is already using this port. Close it before starting a new copy.':/^(?:VAULT_|KEY_PROTECTION|MIGRATION_CONFLICT)/.test(error.code || '')?`Protected storage could not be unlocked or migrated. Keep the original cache and ${desktop?'Keychain item':'Windows profile and key files'}. Close older app copies and check the reported error code.`:'Check the cache location and configuration, then try again.');
   process.exitCode=1;
 }

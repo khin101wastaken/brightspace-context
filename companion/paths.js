@@ -6,6 +6,7 @@ export function cacheDirectory({platform=process.platform,env=process.env,home=o
   // A home-relative path gives both processes the same explicit local location.
   const defaultDirectory=platform==='win32'?
     paths.join(home,'BrightspaceContext','cache'):
-    paths.join(env.XDG_CACHE_HOME || paths.join(home,'.cache'),'brightspace-context');
+    platform==='darwin'?paths.join(home,'Library','Application Support','Brightspace Context','cache'):
+      paths.join(env.XDG_CACHE_HOME || paths.join(home,'.cache'),'brightspace-context');
   return paths.resolve(env.BRIGHTSPACE_CACHE_DIR || defaultDirectory);
 }

@@ -1,8 +1,8 @@
 # Encrypted storage and document handoff
 
-The Windows companion encrypts persistent document bytes, catalog/index metadata, pairing configuration, settings and request history using AES-256-GCM. Every write has a fresh 96-bit nonce and authentication tag; additional authenticated data binds ciphertext to its logical filename. The 256-bit random master key is wrapped with Windows DPAPI CurrentUser and persisted only in wrapped form. Keys and secrets never enter command arguments, environment variables or logs. Unsupported platforms and key-unlock failures fail closed; no plaintext fallback or automatic vault reset is provided.
+The companion encrypts persistent document bytes, catalog/index metadata, pairing configuration, settings and request history using AES-256-GCM. Every write has a fresh 96-bit nonce and authentication tag, and additional authenticated data binds ciphertext to its logical filename. Windows DPAPI CurrentUser wraps the random 256-bit master key. The macOS preview keeps the master key in the user's login Keychain and saves an opaque item reference beside the encrypted files. The master key crosses the local key helper's anonymous pipes. Unsupported platforms and key-unlock failures stop the vault from opening.
 
-Windows account protection is called through the built-in Windows PowerShell/.NET APIs using anonymous pipes and a hidden child process. It runs for key setup/unlock and export-folder permissions, not for each document's encryption. No new runtime dependency or extension permission is added. Source functional CI runs on Windows because the supported companion now requires that native key protector.
+Windows uses the built-in Windows PowerShell/.NET APIs in a hidden child process. On macOS, the companion and MCP server invoke the same bundled Security framework helper. Temporary export folders use account-only permissions on each platform. See [macOS installer preview](MACOS-INSTALLER.md) for build and recovery details.
 
 ## Browser state
 

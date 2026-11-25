@@ -1,0 +1,37 @@
+name: macOS installer preview
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'codex/**']
+    paths:
+      - '.github/workflows/macos-installer.yml'
+      - 'companion/**'
+      - 'extension/**'
+      - 'mcp/**'
+      - 'packaging/macos/**'
+      - 'scripts/build-macos.js'
+      - 'scripts/build-windows.js'
+      - 'scripts/smoke-macos.js'
+      - 'tests/pdf-fixture.js'
+      - 'package*.json'
+permissions:
+  contents: read
+jobs:
+  preview:
+    runs-on: macos-15
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npm run build:macos
+      - run: npm run test:macos
+      - uses: actions/upload-artifact@v4
+        with:
+          name: brightspace-context-macos-arm64-preview
+          path: |
+            dist/*-macos-arm64.dmg
+            dist/*-macos-arm64.dmg.sha256
+          if-no-files-found: error
