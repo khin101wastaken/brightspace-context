@@ -151,6 +151,15 @@ async function smokeMac(artifact,record) {
     await stop(launcher);launcher=undefined;
     await poll(async()=>!await reachable(),'The companion kept its port after the launcher exited.');
     console.log('PASS: menu bar executable starts the companion and releases its port when the launcher exits.');
+
+    if(process.env.BRIGHTSPACE_TEST_CHROMIUM==='1') {
+      const {smokeBrowser}=await import('./smoke-macos-browser.js');
+      const browserEnv={...env,BRIGHTSPACE_CACHE_DIR:path.join(scratch,'Browser Test Cache'),BRIGHTSPACE_COMPANION_PORT:'47653'};
+      child=launch(node,[path.join(app,'companion','start.js'),'--tray'],{env:browserEnv});
+      const {code}=await awaitReady(child);
+      await smokeBrowser({node,server,app,scratch,env:browserEnv,code});
+      await stop(child,{graceful:true});child=undefined;
+    }
   } finally {
     await client?.close();
     await stop(child);

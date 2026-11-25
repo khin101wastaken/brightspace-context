@@ -12,6 +12,7 @@ on:
       - 'scripts/build-macos.js'
       - 'scripts/build-windows.js'
       - 'scripts/smoke-macos.js'
+      - 'scripts/smoke-macos-browser.js'
       - 'tests/pdf-fixture.js'
       - 'package*.json'
 permissions:
@@ -27,7 +28,13 @@ jobs:
           node-version: '22'
       - run: npm ci
       - run: npm run build:macos
+      - name: Install browser test tools
+        run: |
+          npm install --no-save --package-lock=false --ignore-scripts playwright@1.58.2
+          npx --no-install playwright install chromium
       - run: npm run test:macos
+        env:
+          BRIGHTSPACE_TEST_CHROMIUM: '1'
       - uses: actions/upload-artifact@v4
         with:
           name: brightspace-context-macos-arm64-preview
