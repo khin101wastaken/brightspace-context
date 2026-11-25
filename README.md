@@ -51,6 +51,8 @@ For desktop MCP, configure a STDIO process using your Node executable and the ab
 
 The updated MCP exposes `request_catalog_sync` and `get_catalog_sync`. A model can discover semesters, refresh one semester's course outlines and module notes, then search and request individual files without opening the extension UI. Chrome must be running with the paired extension and a valid Brightspace session. [Catalog-sync workflow and acceptance steps](docs/MCP-CATALOG-SYNC.md).
 
+The development build adds live NYU course activity through MCP. Use `list_courses` to find a synced course, then use `list_announcements` and `get_announcement` for posts or `list_assignments` and `get_assignment` for due dates, instructions, and instructor attachments. `request_assignment_attachment` saves a selected PDF, DOCX, or PPTX to the encrypted local cache. Use `read_document_text` with its returned document ID. Announcements and assignment details are fetched when requested. This flow requires the updated extension and companion with automatic retrieval enabled in paired Chrome.
+
 Searches match completed words and allow the final word to be unfinished, such as `if i ha` for “If I had…”. Single letters match standalone words. Notes match and highlight only passages containing all query terms; unrelated lines remain plain context. Only branches leading to relevant files or notes open automatically. A match in a folder's own title leaves it collapsed unless there is a deeper result. The deepest direct match gets soft row emphasis while ancestor folders remain visible for context.
 
 ## How it works

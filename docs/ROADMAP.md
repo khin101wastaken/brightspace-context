@@ -1,8 +1,8 @@
 # Brightspace Context - Development Roadmap
 
-The unlisted Chrome extension 0.10.0 beta is live, and the public setup guide links to the Chrome Web Store. The extension supports standalone browsing and downloads for NYU and Hosted demo. A paired Windows companion adds encrypted caching and on-demand PDF, Word and PowerPoint retrieval and text reading in Codex. Windows companion 0.10.1 beta adds tray controls, a dashboard, guided Codex registration and cache/queue controls. Before the small NYU pilot, verify the store-installed Hosted demo in a clean Chrome profile and run the full Windows setup through a real course-file read. Hosted course-data access, indexing and OCR remain deferred.
+The unlisted Chrome extension 0.10.0 beta and Windows companion 0.10.1 beta are available from the public setup guide. The companion adds encrypted file retrieval and reading in Codex, tray controls and guided setup. The publisher reports successful runs on two additional Windows computers. Read-only announcements and assignments passed signed-in NYU testing in the local Windows beta. The next implementation milestone is an Apple silicon macOS companion. Grades are outside this scope. Calendar, Linux and additional schools remain later work.
 
-**16 done | 3 in_progress | 2 next | 3 planned | 0 research | 9 deferred**
+**18 done | 4 in_progress | 2 next | 3 planned | 0 research | 9 deferred**
 
 > Editable source: [roadmap.json](roadmap.json). Reusable structure: [roadmap.schema.json](roadmap.schema.json). Regenerate with `npm run roadmap`.
 
@@ -25,7 +25,7 @@ flowchart TB
   subgraph p_readiness["02 / Ready for classmates"]
     direction LR
     m_lifecycle["IN PROGRESS<br/>Companion lifecycle"]:::in_progress
-    m_onboarding["NEXT<br/>Verify fresh Windows setup and Codex"]:::next
+    m_onboarding["IN PROGRESS<br/>Verify fresh Windows setup and Codex"]:::in_progress
     m_controls["DONE<br/>Retrieval and cache controls"]:::done
     m_hardening["IN PROGRESS<br/>Release reliability checks"]:::in_progress
     m_installer["DONE<br/>Windows installer preview"]:::done
@@ -43,6 +43,12 @@ flowchart TB
     m_store_install["NEXT<br/>Verify Chrome Web Store installation"]:::next
     m_review_demo["DONE<br/>Fictional LMS for reviewer testing"]:::done
   end
+  subgraph p_expansion["04 / Course activity and macOS"]
+    direction LR
+    m_announcements["DONE<br/>Read course announcements in MCP"]:::done
+    m_assignments["DONE<br/>Read assignment instructions and attachments in MCP"]:::done
+    m_macos["NEXT<br/>macOS companion for NYU students"]:::next
+  end
   subgraph p_web["Deferred / Hosted course-data access"]
     direction LR
     m_web_handoff["DEFERRED<br/>Prove hosted PDF handoff"]:::deferred
@@ -52,7 +58,7 @@ flowchart TB
   subgraph p_later["Later / Optional expansion"]
     direction LR
     m_firefox["DEFERRED<br/>Firefox port"]:::deferred
-    m_platforms["DEFERRED<br/>More platforms + Brightspace tenants"]:::deferred
+    m_platforms["DEFERRED<br/>Linux and additional Brightspace schools"]:::deferred
     m_indexing["DEFERRED<br/>Optional full-text search / RAG"]:::deferred
     m_ocr["DEFERRED<br/>OCR only if justified"]:::deferred
     m_mcp_install["PLANNED<br/>Local ChatGPT plugin package"]:::planned
@@ -105,6 +111,10 @@ flowchart TB
   m_store_assets --> m_beta_bundle
   m_beta_bundle --> m_store_listing
   m_file_readers --> m_beta_bundle
+  m_catalog_sync --> m_announcements
+  m_retrieval --> m_assignments
+  m_announcements -.-> m_macos
+  m_assignments -.-> m_macos
   classDef done fill:#e8f5ee,stroke:#319465,color:#164b33,stroke-width:1.5px;
   classDef in_progress fill:#e0f2fe,stroke:#0284c7,color:#075985,stroke-width:2px;
   classDef next fill:#ede9fe,stroke:#7c3aed,color:#4c1d95,stroke-width:3px;
@@ -260,9 +270,9 @@ Evidence:
 
 Prerequisites: On-demand desktop MCP retrieval.
 
-### Verify fresh Windows setup and Codex - NEXT
+### Verify fresh Windows setup and Codex - IN PROGRESS
 
-Follow the public setup guide from a clean Windows setup using the store extension and the current companion candidate. Check pairing, Codex registration and a real NYU file read before choosing the installer for the pilot.
+Verify the public Windows setup with the store extension and current companion. Check pairing, Codex registration and a real NYU file read.
 
 Acceptance:
 
@@ -273,7 +283,7 @@ Evidence:
 
 - The public guide starts with Chrome Web Store installation and includes Hosted demo instructions.
 - Companion 0.10.1 offers Connect to Codex in its dashboard, with manual setup available for other local MCP clients.
-- The full first-time path with the store extension and local candidate is pending.
+- November 24, 2026: the publisher reported successful runs on a friend's Windows computer and on a second desktop of their own. The report did not specify a clean browser profile, an unaided install or each retrieval step.
 
 Prerequisites: Windows installer preview; Chrome Web Store listing published.
 
@@ -401,7 +411,7 @@ Acceptance:
 Evidence:
 
 - The unlisted 0.10.0 Chrome extension, the public setup guide and the public 0.10.1 Windows companion are available.
-- Companion 0.10.1 packages the completed Windows changes. Store and fresh Windows acceptance precede the student pilot.
+- Companion 0.10.1 packages the completed Windows changes. The publisher reported successful runs on two additional Windows computers.
 
 Prerequisites: Small NYU student pilot.
 
@@ -485,6 +495,48 @@ Evidence:
 - Hosted demo is in the final 0.10.0 Chrome ZIP. Resources > Advanced > Demo and testing provides an Open demo LMS link.
 - The companion serves fictional LMS metadata and original PDF/PPTX/DOCX fixtures locally. Integration tests verify demo and NYU isolation, including colliding IDs and offline cached reads.
 
+## 04 / Course activity and macOS
+
+### Read course announcements in MCP - DONE
+
+List recent student-visible NYU course announcements with post dates, text and links to Brightspace. Reuse the paired Chrome session and expose results through MCP.
+
+Acceptance:
+
+- Codex lists recent announcements and cites the course Announcements page and post title for a course the signed-in student can access.
+- No posts, expired login and unavailable access are distinct outcomes.
+
+Evidence:
+
+- The integration test covers published posts, restricted posts and expired sessions. With the paired NYU session, the installed local beta listed posts across all five synced courses and read a selected post's body.
+
+Prerequisites: Model-initiated catalog refresh.
+
+### Read assignment instructions and attachments in MCP - DONE
+
+List student-visible NYU assignments and due dates. Read a selected assignment's instructions and retrieve supported instructor attachments on demand through the paired Chrome session.
+
+Acceptance:
+
+- Codex distinguishes due dates from availability windows and links to the original assignment.
+- A live NYU test lists deadlines and reads one supported instructor attachment end to end.
+
+Evidence:
+
+- The publisher confirmed live due dates in a regular Codex chat. The installed local beta also read live assignment instructions and retrieved and read a four-page instructor PDF from the encrypted cache.
+
+Prerequisites: On-demand desktop MCP retrieval.
+
+### macOS companion for NYU students - NEXT
+
+Package an Apple silicon pilot with the shared Node.js companion and MCP server, macOS Keychain protection, a native menu bar launcher and a pairing-code popup.
+
+Acceptance:
+
+- On a separate Mac, a new user can install the companion, pair Chrome, connect Codex and read an uncached NYU file.
+- The menu bar opens the dashboard and setup guide, can show and copy the pairing code, and supports quitting the companion. The startup popup can be dismissed and remains readable during keyboard or pointer interaction.
+- Restart preserves pairing and encrypted cache access.
+
 ## Deferred / Hosted course-data access
 
 ### Prove hosted PDF handoff - DEFERRED
@@ -540,9 +592,9 @@ Acceptance:
 
 - Firefox passes scan, fetch, PDF read, cache repeat, sign-in recovery and popup-closed retrieval checks using its own session.
 
-### More platforms + Brightspace tenants - DEFERRED
+### Linux and additional Brightspace schools - DEFERRED
 
-Expand installer/desktop support and parameterize tenant hosts and verified API behavior as demand justifies.
+Explore Linux packaging and validate Brightspace behavior with a second school before broadening supported tenants.
 
 Acceptance:
 

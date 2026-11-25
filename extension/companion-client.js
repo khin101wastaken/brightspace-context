@@ -1,11 +1,13 @@
 import {sourceEndpoint} from './sources.js';
 import {downloadableFile} from './file-downloads.js';
 import {documentFormat,validateDocument,MAX_FILE_BYTES} from './document-formats.js';
+import {assignmentAttachmentFormat} from './activity-protocol.js';
 export const COMPANION_URL='http://127.0.0.1:47653';
 const documentRequests=new Map();
 
-async function request(path,{token,method='GET',body,headers={},timeoutMs=30000,provider='nyu'}={},fetcher=fetch) {
-  const response=await fetcher(COMPANION_URL+sourceEndpoint(path,provider),{method,headers:{...headers,...(token?{Authorization:`Bearer ${token}`}:{})},body,signal:AbortSignal.timeout(timeoutMs)});
+async function request(path,{token,method='GET',body,headers={},timeoutMs=30000,provider='nyu',signal}={},fetcher=fetch) {
+  const timeout=AbortSignal.timeout(timeoutMs);
+  const response=await fetcher(COMPANION_URL+sourceEndpoint(path,provider),{method,headers:{...headers,...(token?{Authorization:`Bearer ${token}`}:{})},body,signal:signal?AbortSignal.any([signal,timeout]):timeout});
   const result=await response.json();
   if(!response.ok) throw Object.assign(new Error(result.error || `Companion request failed (HTTP ${response.status}).`),{status:response.status,code:result.code});
   return result;
@@ -39,26 +41,28 @@ export function documentMetadata(catalog,key) {
 export async function cacheDocument(catalog,key,token,fetcher=fetch,onPhase=()=>{}) {
   return cacheDocumentMetadata(documentMetadata(catalog,key),token,fetcher,onPhase);
 }
-export function cacheDocumentMetadata(metadata,token,fetcher=fetch,onPhase=()=>{}) {
+export function cacheDocumentMetadata(metadata,token,fetcher=fetch,onPhase=()=>{},{signal}={}) {
+  if(signal) return fetchDocumentMetadata(metadata,token,fetcher,onPhase,signal);
   const key=JSON.stringify([token,metadata?.courseId,metadata?.topicId,metadata?.sourceUrl,metadata?.lastModifiedAt]);
   if(documentRequests.has(key)) return documentRequests.get(key);
   const task=fetchDocumentMetadata(metadata,token,fetcher,onPhase).finally(()=>documentRequests.delete(key));
   documentRequests.set(key,task);return task;
 }
-async function fetchDocumentMetadata(metadata,token,fetcher,onPhase) {
+async function fetchDocumentMetadata(metadata,token,fetcher,onPhase,signal) {
   if(!token) throw new Error('Start the companion and pair it in the Local cache panel first.');
   const provider=metadata?.provider??'nyu';
   const file=downloadableFile({contentType:'file',sourceUrl:metadata?.sourceUrl},{provider});
-  const format=file && documentFormat(file.url,{provider});
+  const format=metadata?.assignmentId!=null?assignmentAttachmentFormat(metadata,provider,documentFormat):file && documentFormat(file.url,{provider});
   if(!format) throw new Error('Only supported NYU-hosted PDF, PPTX and DOCX files may be retrieved.');
   onPhase('Checking local cache…');
-  const lookup=await request('/v1/cache/lookup',{token,provider,method:'POST',body:JSON.stringify(metadata),headers:{'Content-Type':'application/json'}},fetcher);
+  const lookup=await request('/v1/cache/lookup',{token,provider,signal,method:'POST',body:JSON.stringify(metadata),headers:{'Content-Type':'application/json'}},fetcher);
   if(lookup.hit) return {...lookup,source:'cache'};
   onPhase(`Fetching ${format.extension.toUpperCase()} from Brightspace…`);
   let response;
-  try {response=await fetcher(metadata.sourceUrl,{credentials:'include',redirect:'error',signal:AbortSignal.timeout(90000)});}
+  const timeout=AbortSignal.timeout(90000);
+  try {response=await fetcher(metadata.sourceUrl,{credentials:'include',redirect:metadata.assignmentId!=null?'manual':'error',signal:signal?AbortSignal.any([signal,timeout]):timeout});}
   catch {throw Object.assign(new Error('Chrome could not fetch this document. Check your connection and Brightspace sign-in.'),{code:'NETWORK_ERROR'});}
-  if(response.status===401 || response.redirected) throw Object.assign(new Error('Sign into Brightspace in Chrome, then retry caching this document.'),{code:'NEEDS_LOGIN'});
+  if(response.status===401 || response.redirected || response.type==='opaqueredirect' || (response.status>=300 && response.status<400)) throw Object.assign(new Error('Sign into Brightspace in Chrome, then retry caching this document.'),{code:'NEEDS_LOGIN'});
   if(response.status===403) throw Object.assign(new Error('Brightspace denied access to this document.'),{code:'ACCESS_DENIED'});
   if(!response.ok) throw new Error(`Brightspace document request failed (HTTP ${response.status}).`);
   const mime=(response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
@@ -77,6 +81,7 @@ async function fetchDocumentMetadata(metadata,token,fetcher,onPhase) {
   const blob=new Blob(chunks,{type:format.mimeType});
   validateDocument(new Uint8Array(await blob.arrayBuffer()),format);
   onPhase('Saving to local cache…');
-  const saved=await request(`/v1/cache/uploads/${lookup.uploadId}`,{token,provider,method:'PUT',body:blob,headers:{'Content-Type':format.mimeType}},fetcher);
+  signal?.throwIfAborted();
+  const saved=await request(`/v1/cache/uploads/${lookup.uploadId}`,{token,provider,signal,method:'PUT',body:blob,headers:{'Content-Type':format.mimeType}},fetcher);
   return {...saved,source:'brightspace'};
 }

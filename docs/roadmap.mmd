@@ -14,7 +14,7 @@ flowchart TB
   subgraph p_readiness["02 / Ready for classmates"]
     direction LR
     m_lifecycle["IN PROGRESS<br/>Companion lifecycle"]:::in_progress
-    m_onboarding["NEXT<br/>Verify fresh Windows setup and Codex"]:::next
+    m_onboarding["IN PROGRESS<br/>Verify fresh Windows setup and Codex"]:::in_progress
     m_controls["DONE<br/>Retrieval and cache controls"]:::done
     m_hardening["IN PROGRESS<br/>Release reliability checks"]:::in_progress
     m_installer["DONE<br/>Windows installer preview"]:::done
@@ -32,6 +32,12 @@ flowchart TB
     m_store_install["NEXT<br/>Verify Chrome Web Store installation"]:::next
     m_review_demo["DONE<br/>Fictional LMS for reviewer testing"]:::done
   end
+  subgraph p_expansion["04 / Course activity and macOS"]
+    direction LR
+    m_announcements["DONE<br/>Read course announcements in MCP"]:::done
+    m_assignments["DONE<br/>Read assignment instructions and attachments in MCP"]:::done
+    m_macos["NEXT<br/>macOS companion for NYU students"]:::next
+  end
   subgraph p_web["Deferred / Hosted course-data access"]
     direction LR
     m_web_handoff["DEFERRED<br/>Prove hosted PDF handoff"]:::deferred
@@ -41,7 +47,7 @@ flowchart TB
   subgraph p_later["Later / Optional expansion"]
     direction LR
     m_firefox["DEFERRED<br/>Firefox port"]:::deferred
-    m_platforms["DEFERRED<br/>More platforms + Brightspace tenants"]:::deferred
+    m_platforms["DEFERRED<br/>Linux and additional Brightspace schools"]:::deferred
     m_indexing["DEFERRED<br/>Optional full-text search / RAG"]:::deferred
     m_ocr["DEFERRED<br/>OCR only if justified"]:::deferred
     m_mcp_install["PLANNED<br/>Local ChatGPT plugin package"]:::planned
@@ -94,6 +100,10 @@ flowchart TB
   m_store_assets --> m_beta_bundle
   m_beta_bundle --> m_store_listing
   m_file_readers --> m_beta_bundle
+  m_catalog_sync --> m_announcements
+  m_retrieval --> m_assignments
+  m_announcements -.-> m_macos
+  m_assignments -.-> m_macos
   classDef done fill:#e8f5ee,stroke:#319465,color:#164b33,stroke-width:1.5px;
   classDef in_progress fill:#e0f2fe,stroke:#0284c7,color:#075985,stroke-width:2px;
   classDef next fill:#ede9fe,stroke:#7c3aed,color:#4c1d95,stroke-width:3px;

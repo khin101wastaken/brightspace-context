@@ -2,7 +2,7 @@ import http from 'node:http';
 import path from 'node:path';
 import {createDemoLms} from './demo-lms.js';
 import {randomBytes,randomUUID,timingSafeEqual} from 'node:crypto';
-import {openCache,validateMetadata,MAX_FILE_BYTES} from './cache.js';
+import {openCache,validateMetadata,cacheId,MAX_FILE_BYTES} from './cache.js';
 import {openVault} from './vault.js';
 import {openExports} from './exports.js';
 import {openCatalog,MAX_CATALOG_BYTES} from './catalog.js';
@@ -11,6 +11,7 @@ import {createWorkerChannel} from './worker-channel.js';
 import {safeLogger} from './logging.js';
 import {createDocumentLinks} from './document-links.js';
 import {createManagement} from './manage.js';
+import {activityRequest} from '../extension/activity-protocol.js';
 
 const same=(a,b)=>typeof a==='string' && typeof b==='string' && Buffer.byteLength(a)===Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a),Buffer.from(b));
 async function body(req,limit) {
@@ -52,7 +53,9 @@ export async function createCompanion({directory,port=47653,budgetBytes,pairingC
         if(!link || !['GET','HEAD'].includes(req.method))return send(res,404,{error:'Download link is invalid or expired. Request a new link through MCP.'});
         const result=await (link.provider==='demo'?demo.cache:cache).read(link.id);
         if(!result || result.entry.sha256!==link.sha256 || documentLinks.get(token,client)!==link)return send(res,404,{error:'Cached document changed or is no longer available. Request a new link.'});
-        const filename=`${result.entry.title.replace(/[\\/:*?"<>|\x00-\x1f\x7f]/g,'_').slice(0,120)}.${result.entry.extension}`;
+        const extension=`.${result.entry.extension}`,title=result.entry.title;
+        const basename=result.entry.assignmentId && title.toLowerCase().endsWith(extension)?title.slice(0,-extension.length):title;
+        const filename=basename.replace(/[\\/:*?"<>|\x00-\x1f\x7f]/g,'_').slice(0,120).toWellFormed()+extension;
         res.writeHead(200,{'Content-Type':result.entry.mimeType,'Content-Length':result.bytes.length,'Content-Disposition':`attachment; filename="document.${result.entry.extension}"; filename*=UTF-8''${encodeURIComponent(filename).replace(/['()*]/g,c=>'%'+c.charCodeAt(0).toString(16))}`});
         res.end(req.method==='HEAD'?undefined:result.bytes);return;
       }
@@ -91,6 +94,28 @@ export async function createCompanion({directory,port=47653,budgetBytes,pairingC
       }
       if(!client || client.origin!==origin || !same(req.headers.authorization,`Bearer ${client.token}`)) {scopedLog('auth.rejected',{code:!client?'NOT_PAIRED':client.origin!==origin?'BROWSER_MISMATCH':'TOKEN_MISMATCH',origin});return send(res,401,{error:'Pair this extension with the companion first.',code:'PAIRING_REQUIRED'});}
       const authenticatedClient=client;
+      if(req.method==='POST' && url.pathname==='/v1/requests/course-activity') {
+        if(provider!=='nyu') return send(res,400,{error:'Course activity is available for NYU Brightspace.'});
+        const {operation,args}=JSON.parse((await body(req,4096)).toString());
+        const validated=activityRequest(operation,args);
+        const {semesters}=await catalog.read();
+        const course=semesters.flatMap(semester=>semester.courses).find(entry=>entry.courseId===validated.courseId);
+        if(!course) return send(res,404,{error:'Sync the course semester first, then use a courseId from list_courses.'});
+        if(client!==authenticatedClient) return send(res,401,{error:'Browser pairing changed. Retry with the current pairing.'});
+        const controller=new AbortController(),abort=()=>controller.abort();
+        res.once('close',abort);
+        if(res.destroyed) abort();
+        try {
+          const result=await workerChannel.readActivity(operation,validated,course.title,controller.signal);
+          if(res.destroyed) return;
+          if(client!==authenticatedClient) return send(res,401,{error:'Browser pairing changed. Retry with the current pairing.'});
+          if(operation==='request_assignment_attachment' && !result.error) {
+            const expected=cacheId({courseId:validated.courseId,assignmentId:validated.assignmentId,topicId:validated.fileId});
+            if(result.documentId!==expected) return send(res,502,{error:'The worker returned an unexpected assignment attachment.'});
+          }
+          return send(res,200,{...result,courseId:validated.courseId,courseTitle:course.title});
+        } finally {res.off('close',abort);}
+      }
       if(req.method==='POST' && url.pathname==='/v1/settings') {
         const value=JSON.parse((await body(req,1024)).toString());
         if(Object.keys(value).length!==1 || typeof value.allowTemporaryExports!=='boolean')throw new Error('Invalid export setting.');
@@ -137,15 +162,16 @@ export async function createCompanion({directory,port=47653,budgetBytes,pairingC
         if(result.hit) return send(res,200,result);
         for(const [key,ticket] of tickets) if(ticket.expires<Date.now()) tickets.delete(key);
         if(tickets.size>=100) return send(res,429,{error:'Too many pending file requests.'});
-        const uploadId=randomUUID();tickets.set(uploadId,{metadata,expires:Date.now()+5*60*1000,origin});
+        const uploadId=randomUUID();tickets.set(uploadId,{metadata,expires:Date.now()+5*60*1000,client:authenticatedClient});
         return send(res,200,{...result,uploadId,maxFileBytes:MAX_FILE_BYTES,maxPdfBytes:MAX_FILE_BYTES});
       }
       const upload=url.pathname.match(/^\/v1\/cache\/uploads\/([a-f0-9-]{36})$/);
       if(req.method==='PUT' && upload) {
         const ticket=tickets.get(upload[1]);
-        if(!ticket || ticket.origin!==origin || ticket.expires<Date.now()) return send(res,404,{error:'Upload request expired. Retry the cache request.'});
+        if(!ticket || ticket.client!==authenticatedClient || ticket.expires<Date.now()) return send(res,404,{error:'Upload request expired. Retry the cache request.'});
         tickets.delete(upload[1]);
         const bytes=await body(req,MAX_FILE_BYTES);
+        if(client!==authenticatedClient) return send(res,401,{error:'Browser pairing changed. Retry with the current pairing.'});
         const result=await cache.put(ticket.metadata,bytes);
         scopedLog('cache.stored',{courseId:ticket.metadata.courseId,topicId:ticket.metadata.topicId,bytes:result.entry.bytes,evicted:result.evicted});
         return send(res,200,result);

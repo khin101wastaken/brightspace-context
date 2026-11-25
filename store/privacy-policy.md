@@ -2,13 +2,13 @@
 
 Publisher: Khin Aung
 Contact: khinaungwrk@gmail.com
-Last updated: November 7, 2026
+Last updated: November 24, 2026
 
 ## Purpose and data handled
 
 Brightspace Context helps users organize NYU Brightspace course resources, download selected files and optionally retrieve course PDF, PPTX and DOCX files through a paired local companion and desktop MCP client.
 
-The extension handles semester and course names/IDs; module hierarchy; resource titles, links, descriptions and modification dates; browser preferences; download progress/errors; and a token for its local companion connection. Content-outline descriptions can include assignment-related titles or text supplied in that outline. The product does not request gradebook data, assignment submissions, feedback or dedicated assignment details.
+The extension handles semester and course names/IDs, module hierarchy, resource titles and descriptions, links and dates, browser preferences, download progress and errors, and a token for its local companion connection. A connected MCP client can request visible course announcements, assignment instructions, due and availability dates, and instructor-provided attachment names and links. The product does not request gradebook data, student submissions, or individual feedback.
 
 The optional companion stores synced catalog metadata, pairing configuration, document-request state and selected PDF, PPTX and DOCX files in a bounded local cache. Its diagnostic events include local startup paths, identifiers, counts and result/error codes, while excluding document contents and authentication credentials from event fields. Beginning with version 0.9.2, its persistent data is encrypted with AES-256-GCM and a key protected by the current Windows account.
 
@@ -23,6 +23,8 @@ When you select Hosted demo, the extension requests public fictional course outl
 When you connect and use an AI/MCP client, that client can receive catalog metadata and requested documents. Its own processing and retention practices, including any transmission to its AI provider, are governed by the provider and your settings. The extension's local storage architecture does not control the AI client's practices.
 
 While the browser is paired and automatic retrieval is enabled, your connected MCP client can also request semester discovery and catalog refreshes through the extension. These refreshes use the existing browser session, update local course/module metadata and notes, and do not download every course file. You can pause automatic retrieval or disconnect the browser in the extension.
+
+Live announcement and assignment details travel through the paired companion to your connected MCP client and are not written to the extension or companion's persistent catalog. An individually requested supported instructor attachment and its cache metadata are stored in the encrypted document cache.
 
 Course data and connection information are used to provide these user-facing features. They are not sold, used for advertising, or used to determine creditworthiness or lending eligibility. Data use and transfer comply with the Chrome Web Store User Data Policy, including its Limited Use requirements.
 

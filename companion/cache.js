@@ -3,21 +3,23 @@ import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {openVault,VAULT_OVERHEAD} from './vault.js';
 import {documentFormat,validateDocument,MAX_FILE_BYTES} from '../extension/document-formats.js';
+import {assignmentAttachmentFormat} from '../extension/activity-protocol.js';
 
 export const DEFAULT_BUDGET=500*1024*1024;
 export {MAX_FILE_BYTES};
 export const MAX_PDF_BYTES=MAX_FILE_BYTES; // Older extensions use this wire field.
+const formatOf=(value,provider)=>value?.assignmentId!=null?assignmentAttachmentFormat(value,provider,documentFormat):documentFormat(value?.sourceUrl,{provider});
 export function validateMetadata(value,{provider='nyu'}={}) {
   if(value?.provider && value.provider!==provider)throw new Error('Document belongs to another library.');
   if(!value || !/^\d+$/.test(value.courseId) || !/^\d+$/.test(value.topicId)) throw new Error('Invalid course or topic ID.');
   const url=new URL(value.sourceUrl);
-  const format=documentFormat(url.href,{provider});
+  const format=formatOf(value,provider);
   if(!format) throw new Error('Only NYU-hosted PDF, PPTX and DOCX files can be cached.');
   if(typeof value.title!=='string' || value.title.length>1000 || typeof value.courseTitle!=='string' || value.courseTitle.length>1000 || !Array.isArray(value.modulePath) || value.modulePath.length>100 || value.modulePath.some(p=>typeof p!=='string' || p.length>1000)) throw new Error('Invalid document metadata.');
   if(value.lastModifiedAt!=null && (typeof value.lastModifiedAt!=='string' || value.lastModifiedAt.length>100)) throw new Error('Invalid modification date.');
-  return {...(provider==='demo'?{provider}:{}),courseId:value.courseId,topicId:value.topicId,title:value.title,courseTitle:value.courseTitle,modulePath:value.modulePath,sourceUrl:url.href,lastModifiedAt:value.lastModifiedAt || null,extension:format.extension,mimeType:format.mimeType};
+  return {...(provider==='demo'?{provider}:{}),...(value.assignmentId!=null?{assignmentId:value.assignmentId}:{}),courseId:value.courseId,topicId:value.topicId,title:value.title,courseTitle:value.courseTitle,modulePath:value.modulePath,sourceUrl:url.href,lastModifiedAt:value.lastModifiedAt || null,extension:format.extension,mimeType:format.mimeType};
 }
-export const cacheId=metadata=>createHash('sha256').update(`${metadata.courseId}:${metadata.topicId}`).digest('hex');
+export const cacheId=metadata=>createHash('sha256').update(metadata.assignmentId==null?`${metadata.courseId}:${metadata.topicId}`:`assignment:${metadata.courseId}:${metadata.assignmentId}:${metadata.topicId}`).digest('hex');
 
 export async function openCache(directory,{budgetBytes=DEFAULT_BUDGET,now=Date.now,vault,provider='nyu'}={}) {
   if(!Number.isSafeInteger(budgetBytes) || budgetBytes<1024) throw new Error('Cache budget must be at least 1024 bytes.');
@@ -27,7 +29,7 @@ export async function openCache(directory,{budgetBytes=DEFAULT_BUDGET,now=Date.n
   try {entries=(await vault.readJson('index.json')).entries;} catch(error) {if(error.code!=='ENOENT') throw error;}
   if(!entries || typeof entries!=='object' || Array.isArray(entries)) throw new Error('Invalid cache index.');
   const blobPath=(id,entry)=>{
-    const format=documentFormat(entry?.sourceUrl,{provider});
+    const format=formatOf(entry,provider);
     if(!/^[a-f0-9]{64}$/.test(id) || !format) throw new Error('Invalid cache ID or format.');
     return path.join(directory,`${id}.${format.extension}`);
   };
@@ -94,7 +96,7 @@ export async function openCache(directory,{budgetBytes=DEFAULT_BUDGET,now=Date.n
     }),
     put:(metadata,bytes)=>serial(async()=>{
       const meta=validateMetadata(metadata,{provider}),id=cacheId(meta);
-      validateDocument(bytes,documentFormat(meta.sourceUrl,{provider}));
+      validateDocument(bytes,formatOf(meta,provider));
       const entry={...meta,id,bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex'),fetchedAt:now(),lastAccessAt:now()};
       const next={...entries,[id]:entry},evicted=[];
       while(usage(next)>budgetBytes) {

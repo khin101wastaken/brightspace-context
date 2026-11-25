@@ -27,7 +27,7 @@ async function refreshRetrieval() {
 if(chrome.alarms?.onAlarm && chrome.runtime.onStartup) {
   for(const provider of ['nyu','demo']) {
     const storage=sourceStorage(rootStorage,provider);
-    workers[provider]=createRetrievalWorker({provider,getSettings:retrievalSettings,report:value=>storage.set({retrievalStatus:value}),syncCatalogRequest:async(sync,{onProgress,assertActive})=>{
+    workers[provider]=createRetrievalWorker({provider,courseActivity:provider==='nyu',getSettings:retrievalSettings,report:value=>storage.set({retrievalStatus:value}),syncCatalogRequest:async(sync,{onProgress,assertActive})=>{
       if(!sync.semesterId) {await onProgress({phase:'discovering'});return availableSemesters(async(url,options)=>{await assertActive();return fetch(url,options);},{provider});}
       return syncSemester(sync,{remote:true,onProgress,assertActive,provider});
     }});

@@ -2,7 +2,7 @@
   "$schema": "./roadmap.schema.json",
   "schemaVersion": 1,
   "title": "Brightspace Context - Development Roadmap",
-  "scope": "The unlisted Chrome extension 0.10.0 beta is live, and the public setup guide links to the Chrome Web Store. The extension supports standalone browsing and downloads for NYU and Hosted demo. A paired Windows companion adds encrypted caching and on-demand PDF, Word and PowerPoint retrieval and text reading in Codex. Windows companion 0.10.1 beta adds tray controls, a dashboard, guided Codex registration and cache/queue controls. Before the small NYU pilot, verify the store-installed Hosted demo in a clean Chrome profile and run the full Windows setup through a real course-file read. Hosted course-data access, indexing and OCR remain deferred.",
+  "scope": "The unlisted Chrome extension 0.10.0 beta and Windows companion 0.10.1 beta are available from the public setup guide. The companion adds encrypted file retrieval and reading in Codex, tray controls and guided setup. The publisher reports successful runs on two additional Windows computers. Read-only announcements and assignments passed signed-in NYU testing in the local Windows beta. The next implementation milestone is an Apple silicon macOS companion. Grades are outside this scope. Calendar, Linux and additional schools remain later work.",
   "phases": [
     {
       "id": "core",
@@ -15,6 +15,10 @@
     {
       "id": "release",
       "title": "03 / Desktop beta and distribution"
+    },
+    {
+      "id": "expansion",
+      "title": "04 / Course activity and macOS"
     },
     {
       "id": "web",
@@ -110,8 +114,8 @@
       "id": "onboarding",
       "phase": "readiness",
       "title": "Verify fresh Windows setup and Codex",
-      "status": "next",
-      "deliverable": "Follow the public setup guide from a clean Windows setup using the store extension and the current companion candidate. Check pairing, Codex registration and a real NYU file read before choosing the installer for the pilot.",
+      "status": "in_progress",
+      "deliverable": "Verify the public Windows setup with the store extension and current companion. Check pairing, Codex registration and a real NYU file read.",
       "acceptance": [
         "A fresh Windows account can install and connect without separately installing Node, cloning source or entering shell commands.",
         "The store extension pairs with the companion, Codex discovers the registered MCP connection after restart, and a real NYU file is retrieved and read."
@@ -119,7 +123,7 @@
       "evidence": [
         "The public guide starts with Chrome Web Store installation and includes Hosted demo instructions.",
         "Companion 0.10.1 offers Connect to Codex in its dashboard, with manual setup available for other local MCP clients.",
-        "The full first-time path with the store extension and local candidate is pending."
+        "November 24, 2026: the publisher reported successful runs on a friend's Windows computer and on a second desktop of their own. The report did not specify a clean browser profile, an unaided install or each retrieval step."
       ]
     },
     {
@@ -176,7 +180,47 @@
       ],
       "evidence": [
         "The unlisted 0.10.0 Chrome extension, the public setup guide and the public 0.10.1 Windows companion are available.",
-        "Companion 0.10.1 packages the completed Windows changes. Store and fresh Windows acceptance precede the student pilot."
+        "Companion 0.10.1 packages the completed Windows changes. The publisher reported successful runs on two additional Windows computers."
+      ]
+    },
+    {
+      "id": "announcements",
+      "phase": "expansion",
+      "title": "Read course announcements in MCP",
+      "status": "done",
+      "deliverable": "List recent student-visible NYU course announcements with post dates, text and links to Brightspace. Reuse the paired Chrome session and expose results through MCP.",
+      "acceptance": [
+        "Codex lists recent announcements and cites the course Announcements page and post title for a course the signed-in student can access.",
+        "No posts, expired login and unavailable access are distinct outcomes."
+      ],
+      "evidence": [
+        "The integration test covers published posts, restricted posts and expired sessions. With the paired NYU session, the installed local beta listed posts across all five synced courses and read a selected post's body."
+      ]
+    },
+    {
+      "id": "assignments",
+      "phase": "expansion",
+      "title": "Read assignment instructions and attachments in MCP",
+      "status": "done",
+      "deliverable": "List student-visible NYU assignments and due dates. Read a selected assignment's instructions and retrieve supported instructor attachments on demand through the paired Chrome session.",
+      "acceptance": [
+        "Codex distinguishes due dates from availability windows and links to the original assignment.",
+        "A live NYU test lists deadlines and reads one supported instructor attachment end to end."
+      ],
+      "evidence": [
+        "The publisher confirmed live due dates in a regular Codex chat. The installed local beta also read live assignment instructions and retrieved and read a four-page instructor PDF from the encrypted cache."
+      ]
+    },
+    {
+      "id": "macos",
+      "phase": "expansion",
+      "title": "macOS companion for NYU students",
+      "status": "next",
+      "deliverable": "Package an Apple silicon pilot with the shared Node.js companion and MCP server, macOS Keychain protection, a native menu bar launcher and a pairing-code popup.",
+      "acceptance": [
+        "On a separate Mac, a new user can install the companion, pair Chrome, connect Codex and read an uncached NYU file.",
+        "The menu bar opens the dashboard and setup guide, can show and copy the pairing code, and supports quitting the companion. The startup popup can be dismissed and remains readable during keyboard or pointer interaction.",
+        "Restart preserves pairing and encrypted cache access."
       ]
     },
     {
@@ -234,9 +278,9 @@
     {
       "id": "platforms",
       "phase": "later",
-      "title": "More platforms + Brightspace tenants",
+      "title": "Linux and additional Brightspace schools",
       "status": "deferred",
-      "deliverable": "Expand installer/desktop support and parameterize tenant hosts and verified API behavior as demand justifies.",
+      "deliverable": "Explore Linux packaging and validate Brightspace behavior with a second school before broadening supported tenants.",
       "acceptance": [
         "Each advertised OS and tenant has installation and end-to-end retrieval evidence; unsupported configurations remain explicit."
       ]
@@ -736,6 +780,26 @@
       "from": "file_readers",
       "to": "beta_bundle",
       "kind": "requires"
+    },
+    {
+      "from": "catalog_sync",
+      "to": "announcements",
+      "kind": "requires"
+    },
+    {
+      "from": "retrieval",
+      "to": "assignments",
+      "kind": "requires"
+    },
+    {
+      "from": "announcements",
+      "to": "macos",
+      "kind": "optional"
+    },
+    {
+      "from": "assignments",
+      "to": "macos",
+      "kind": "optional"
     }
   ]
 }

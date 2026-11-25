@@ -1,5 +1,7 @@
 import {sourceEndpoint,sourceConfig} from './sources.js';
 import {cacheDocumentMetadata,claimRequest,finishRequest,progressRequest,companionStatus,COMPANION_URL} from './companion-client.js';
+import {activityCapability,activityResultLimit} from './activity-protocol.js';
+import {readCourseActivity} from './course-activity.js';
 
 export function failureCode(error) {
   if(['NEEDS_LOGIN','ACCESS_DENIED','NETWORK_ERROR','INVALID_PDF','INVALID_FILE','RATE_LIMITED','SYNC_FAILED','PAUSED'].includes(error?.code)) return error.code;
@@ -8,10 +10,11 @@ export function failureCode(error) {
   return 'FAILED';
 }
 
-export function createRetrievalWorker({provider='nyu',getSettings,report=async()=>{},syncCatalogRequest,fetcher=fetch,Socket=WebSocket,url=COMPANION_URL.replace('http:','ws:')+'/v1/worker',heartbeatMs=20000,connectionTimeoutMs=8000,leaseHeartbeatMs=30000}={}) {
+export function createRetrievalWorker({provider='nyu',getSettings,report=async()=>{},syncCatalogRequest,courseActivity=false,fetcher=fetch,Socket=WebSocket,url=COMPANION_URL.replace('http:','ws:')+'/v1/worker',heartbeatMs=20000,connectionTimeoutMs=8000,leaseHeartbeatMs=30000}={}) {
   sourceConfig(provider);
   const loginMessage=provider==='demo'?'Restore demo access on the local demo LMS page, then retry requests.':'Sign into Brightspace in Chrome, then choose Retry requests.';
   let socket=null,heartbeat=null,deadline=null,reconnect=null,stopped=false,connecting=false,draining=null,again=false,retryMs=5000,generation=0;
+  let activity=null;
   const update=value=>Promise.resolve(report(value)).catch(()=>{});
   function retry(message) {
     if(stopped) return;
@@ -20,11 +23,36 @@ export function createRetrievalWorker({provider='nyu',getSettings,report=async()
   }
   function release(current,message) {
     if(current!==socket) return;
+    activity?.controller.abort();activity=null;
     socket=null;clearInterval(heartbeat);clearTimeout(deadline);heartbeat=deadline=null;
     // Keep the error handler attached while closing a pending handshake; stale
     // socket events must never disconnect a newer connection.
     try {if(current.readyState<2) current.close();} catch {}
     retry(message);
+  }
+  async function runActivity(message,current,token) {
+    activity?.controller.abort();
+    const controller=new AbortController(),job={id:message.requestId,controller};
+    activity=job;
+    const assertActive=async()=>{
+      const settings=await getSettings();
+      if(!settings.enabled || settings.token!==token || current!==socket) controller.abort();
+      controller.signal.throwIfAborted();
+    };
+    let result;
+    try {
+      await assertActive();
+      result=await readCourseActivity(message.operation,message.args,{courseTitle:message.courseTitle,fetcher,token,signal:controller.signal});
+    } catch(error) {
+      const code=error.code==='UNSUPPORTED_FILE'?error.code:failureCode(error);
+      result={code,error:code==='FAILED'?'Could not read this Brightspace activity. Open it in Brightspace and try again.':error.message};
+    }
+    try {
+      await assertActive();
+      const wrap=value=>JSON.stringify({type:'course-activity-result',requestId:job.id,result:value});
+      const payload=wrap(result);
+      current.send(new TextEncoder().encode(payload).length<=activityResultLimit?payload:wrap({code:'RESULT_TOO_LARGE',error:'This activity is too large to return. Use a smaller page or open it in Brightspace.'}));
+    } catch {} finally {if(activity===job) activity=null;}
   }
   async function drain() {
     if(draining) {again=true;return draining;}
@@ -86,13 +114,15 @@ export function createRetrievalWorker({provider='nyu',getSettings,report=async()
       deadline=setTimeout(()=>release(current,'The companion connection timed out. Retrying automatically; requests stay saved.'),connectionTimeoutMs);
       current.onopen=()=>{
         if(current!==socket) return;
-        current.send(JSON.stringify({type:'authenticate',token:settings.token,capabilities:syncCatalogRequest?['catalog-sync']:[]}));
+        current.send(JSON.stringify({type:'authenticate',token:settings.token,capabilities:[...(syncCatalogRequest?['catalog-sync']:[]),...(courseActivity?[activityCapability]:[])]}));
       };
       current.onmessage=event=>{
         if(current!==socket) return;
         try {
           const message=JSON.parse(event.data);
           if(message.type==='pong') lastSeen=Date.now();
+          if(authenticated && courseActivity && message.type==='course-activity') void runActivity(message,current,settings.token);
+          if(message.type==='course-activity-cancel' && activity?.id===message.requestId) activity.controller.abort();
           if(['ready','work-available'].includes(message.type)) {
             if(message.type==='ready' && !authenticated) {
               authenticated=true;lastSeen=Date.now();retryMs=5000;clearTimeout(deadline);deadline=null;
@@ -112,6 +142,6 @@ export function createRetrievalWorker({provider='nyu',getSettings,report=async()
     } catch(error) {if(attempt===generation) retry(`Companion unavailable: ${error.message}. Start Brightspace Context; requests stay saved.`);}
     finally {if(attempt===generation) connecting=false;}
   }
-  function stop() {stopped=true;generation++;connecting=false;clearTimeout(reconnect);clearTimeout(deadline);clearInterval(heartbeat);reconnect=heartbeat=deadline=null;const old=socket;socket=null;try {old?.close();} catch {}}
+  function stop() {stopped=true;generation++;connecting=false;activity?.controller.abort();activity=null;clearTimeout(reconnect);clearTimeout(deadline);clearInterval(heartbeat);reconnect=heartbeat=deadline=null;const old=socket;socket=null;try {old?.close();} catch {}}
   return {connect,drain,stop};
 }
