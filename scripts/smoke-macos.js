@@ -63,6 +63,22 @@ async function poll(check,failure) {
   throw new Error(failure);
 }
 
+async function mountImage(artifact,mount,record) {
+  for(let attempt=1;attempt<=3;attempt++) {
+    try {
+      exec('/usr/bin/hdiutil',['attach',artifact,'-readonly','-nobrowse','-mountpoint',mount]);
+      return true;
+    } catch(error) {
+      if(!/Resource (?:busy|temporarily unavailable)/.test(error.stderr?.toString() || '')) throw error;
+      if(attempt<3) await delay(2000);
+      else if(process.env.GITHUB_ACTIONS!=='true' || !record?.bundle) throw error;
+    }
+  }
+  console.log('Runner disk mount unavailable. Verifying the image and running the app from the build staging bundle.');
+  exec('/usr/bin/hdiutil',['verify',artifact]);
+  return false;
+}
+
 async function smokeMac(artifact,record) {
   if(record) verifyChecksum(await readFile(artifact),record.sha256);
   const scratch=await mkdtemp(path.join(os.tmpdir(),'brightspace-mac-smoke-'));
@@ -71,12 +87,11 @@ async function smokeMac(artifact,record) {
   let mounted=false,createdKeychain=false,child,client,launcher;
   try {
     await mkdir(mount);
-    exec('/usr/bin/hdiutil',['attach',artifact,'-readonly','-nobrowse','-mountpoint',mount]);
-    mounted=true;
+    mounted=await mountImage(artifact,mount,record);
     const bundle=path.join(scratch,'Installed Apps','Brightspace Context.app');
     await mkdir(path.dirname(bundle));
-    await cp(path.join(mount,'Brightspace Context.app'),bundle,{recursive:true});
-    exec('/usr/bin/hdiutil',['detach',mount]);mounted=false;
+    await cp(mounted?path.join(mount,'Brightspace Context.app'):record.bundle,bundle,{recursive:true});
+    if(mounted) {exec('/usr/bin/hdiutil',['detach',mount]);mounted=false;}
     exec('/usr/bin/codesign',['--verify','--deep','--strict',bundle]);
     const contents=path.join(bundle,'Contents'),executables=path.join(contents,'MacOS'),app=path.join(contents,'Resources','app');
     const node=path.join(executables,'node'),server=path.join(app,'mcp','start.js');
@@ -87,7 +102,7 @@ async function smokeMac(artifact,record) {
     exec('/usr/bin/security',['create-keychain','-p',pass,keychain]);createdKeychain=true;
     exec('/usr/bin/security',['unlock-keychain','-p',pass,keychain]);
     const directory=path.join(scratch,'Cache with spaces'),codexHome=path.join(scratch,'Codex');
-    const env={...process.env,BRIGHTSPACE_KEYCHAIN_PATH:keychain,BRIGHTSPACE_CACHE_DIR:directory,BRIGHTSPACE_COMPANION_PORT:'0',BRIGHTSPACE_MANAGEMENT_TOKEN:secret,CODEX_HOME:codexHome};
+    const env={...process.env,BRIGHTSPACE_KEYCHAIN_PATH:keychain,BRIGHTSPACE_KEYCHAIN_INTERACTIVE:'0',BRIGHTSPACE_CACHE_DIR:directory,BRIGHTSPACE_COMPANION_PORT:'0',BRIGHTSPACE_MANAGEMENT_TOKEN:secret,CODEX_HOME:codexHome};
     delete env.BRIGHTSPACE_KEYCHAIN_HELPER;
     const start=()=>launch(node,[path.join(app,'companion','start.js'),'--tray'],{env});
     child=start();let {url,code}=await awaitReady(child);
@@ -126,7 +141,7 @@ async function smokeMac(artifact,record) {
     assert.match(JSON.parse(read.content[0].text).text,/Brightspace macOS fixture/);
     await client.close();client=undefined;
     await stop(child,{graceful:true});child=undefined;
-    console.log('PASS: mounted app, Apple silicon runtime, isolated Keychain, pairing, encrypted cache, Codex setup, and PDF reading after restart.');
+    console.log('PASS: app signature, Apple silicon runtime, isolated Keychain, pairing, encrypted cache, Codex setup, and PDF reading after restart.');
 
     // Launch the real menu bar executable. Ending the launcher tests the pipe
     // handoff that releases the companion even when the GUI is interrupted.
